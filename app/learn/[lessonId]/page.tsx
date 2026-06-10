@@ -161,7 +161,10 @@ export default function LessonPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
-        <Link href="/curriculum" className="text-sm text-blue-600 hover:underline">
+        <Link
+          href={`/curriculum?id=${data.curriculumId}`}
+          className="text-sm text-blue-600 hover:underline"
+        >
           ← Path
         </Link>
       </div>
@@ -199,10 +202,15 @@ export default function LessonPage() {
           <>
             <Badge tone="green">Lesson completed ✓</Badge>
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => router.push("/curriculum")}>
+              <Button
+                variant="secondary"
+                onClick={() => router.push(`/curriculum?id=${data.curriculumId}`)}
+              >
                 Back to path
               </Button>
-              <Button onClick={() => router.push("/dashboard")}>Dashboard</Button>
+              <Button onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}>
+                Dashboard
+              </Button>
             </div>
           </>
         ) : (

@@ -58,12 +58,15 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    `clarityAgent` judges clarity; returns a follow-up question or `done:true` with
    a synthesized `refinedTopic`+`domain`. Loop stops on `clearEnough` OR cycle ≥ 4
    (best-effort proceed). State lives on the `onboarding` doc (authoritative).
-3. **Assessment** — `POST /api/assessment/start` → first question. Then
-   `POST /api/assessment/answer {assessmentId, questionId, answer}` in a loop. A
-   **binary search over 5 difficulty bands** finds the competence boundary; a
-   _confirming question_ guards against noise; ends at boundary or a ~9-question
-   cap. Returns `{done:true, result}` with `estimatedLevel`, per-topic mastery,
-   strengths, gaps. State persists on the `assessments` doc (resumable).
+3. **Assessment (batch quiz)** — `POST /api/assessment/start` generates a whole
+   quiz (8 MCQs across difficulty bands, ONE `quizGenAgent` call) and returns the
+   **answer-stripped** questions; it's resumable and reports a completed one
+   instead of restarting. `POST /api/assessment/submit {assessmentId, answers[]}`
+   grades the whole batch server-side, returns a **score**, `estimatedLevel`, and
+   a **review** (with correct answers revealed). A second refinement round is
+   appended only when band results are **non-monotonic** (passed harder, failed
+   easier → looks like guessing). Logic in `domain/assessment.ts`; round 1 always
+   yields a complete result (no half-finished state).
 4. **Curriculum** — `POST /api/curriculum/generate` runs `curriculumAgent` from the
    assessment result, then `buildCurriculumDoc` assigns ids/order, maps prereq
    titles→ids, and **seeds lesson mastery** from assessment (topics ≥0.8 →
@@ -78,8 +81,13 @@ timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    (deterministic): skip mastered, hoist needs-review, reorder weakest-first
    respecting the prereq DAG, bump `version`. `GET /api/progress` is the dashboard
    aggregate (mastery rollups, time, recommended-next).
-7. **Tutor** — `POST /api/tutor {message, lessonRef?}` runs `socraticTutorAgent`;
-   history persists in `chats`.
+7. **Tutor (multi-conversation)** — each topic has MANY threads. `POST /api/tutor
+   {message, curriculumId?, conversationId?}` starts a new thread (no id) or
+   appends to one; `GET /api/tutor?conversationId=` loads a thread;
+   `GET /api/tutor/conversations?curriculumId=` lists them. A conversation's
+   identity is its `_id`; `lessonRef` is only a context tag. (The old per-scope
+   UNIQUE chats index was replaced — run `scripts/drop-chat-unique.js` on any
+   existing DB; Mongoose won't drop it for you.)
 
 ---
 
@@ -132,17 +140,39 @@ components/              Nav.tsx + ui.tsx (Button/Card/Badge/Spinner/ProgressBar
 - **sessions** — `userId`, `tokenId`(unique, = JWT `sid`), `expiresAt`(TTL index), revocable.
 - **onboarding** — clarity loop state: `rawDescription`, `refinedTopic`, `domain`,
   `clarity{clearEnough,cycle,maxCycles,exchanges[]}`, `status`.
-- **assessments** — adaptive state (`levels[]`, `lowIdx/highIdx/currentLevelIdx`,
-  `pendingConfirm`, `questions[]`) + `result`.
+- **assessments** — batch quiz: `levels[]`, `rounds`, `questions[]` (each with
+  `round`, `levelIdx`, `correctKey`, and the learner's `answer`/`correct`) +
+  `result{ estimatedLevel, score, perTopicMastery, strengths, gaps }`.
 - **curricula** — `modules[]{prerequisites[], status, lessons[]{status, masteryScore,
 contentGenerated, topics[]...}}`, `version`.
 - **lessons** — generated content `blocks[]` (flat tagged shape, `kind` selects fields).
 - **progressEvents** — append-only log (lesson_started/completed, practice_answered,
   review_triggered, curriculum_reordered). Powers dashboard time + history.
-- **chats** — Socratic history scoped to curriculum (+lesson).
+- **chats** — one tutor conversation thread each (`title`, `messages[]`); many
+  per topic, keyed by `_id`. `lessonRef` is a context tag, not identity.
 
 Indexes are declared in the Mongoose schemas (`collections.ts`) and built on
 connect (`autoIndex` on in dev).
+
+### Multi-topic model (a learner can study several topics at once)
+- A **topic = one curriculum** (+ its assessment/onboarding lineage). A user can
+  own many; nothing is one-at-a-time.
+- `GET /api/topics` lists them (uses `topicListItem` + `summarizeCurriculum` in
+  `curriculumView.ts`). The UI hub is `app/topics/page.tsx`.
+- Topic-scoped reads (`GET /api/curriculum`, `GET /api/progress`, tutor POST/GET)
+  take an optional `curriculumId`; `resolveCurriculum(userId, curriculumId)` in
+  `curriculumLocate.ts` selects it (default = most recent). Lessons are already
+  global (resolved by unique `lessonRef`), and `progress/complete` already takes
+  `curriculumId`.
+- **IDOR guard**: every id-scoped query includes `userId` (`{ _id, userId }`) and
+  404s on miss — accepting a client-supplied id without the owner filter would let
+  any user read another's topic. This is the #1 thing to preserve when adding
+  topic-scoped endpoints.
+- **Frontend** always passes `?id=` on curriculum/dashboard/tutor views; "New
+  topic" links to `/onboarding?new=1`, which sends `restart:true` on the first
+  clarity message so it starts fresh instead of resuming an abandoned funnel.
+  Curriculum generation happens at the assessment-done step (targets the just-
+  finished assessment, not "latest").
 
 ### Mongoose conventions (read before touching the data layer)
 

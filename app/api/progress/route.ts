@@ -3,37 +3,26 @@
  * derived from the current curriculum and the progressEvents log.
  */
 import { requireUser } from "@/lib/auth/guards";
-import {
-  curriculaCollection,
-  progressEventsCollection,
-} from "@/lib/db/collections";
+import { progressEventsCollection } from "@/lib/db/collections";
 import type { CurriculumLesson } from "@/lib/db/models";
+import { resolveCurriculum } from "@/lib/server/curriculumLocate";
+import { summarizeCurriculum } from "@/lib/server/curriculumView";
 import { handler, json } from "@/lib/http";
 
-export const GET = handler(async () => {
+export const GET = handler(async (request) => {
   const user = await requireUser();
+  const curriculumId = new URL(request.url).searchParams.get("curriculumId");
 
-  const curricula = await curriculaCollection();
-  const curriculum = await curricula
-    .findOne({ userId: user._id })
-    .sort({ createdAt: -1 })
-    .lean();
+  const curriculum = await resolveCurriculum(user._id, curriculumId);
   if (!curriculum) {
     return json({ hasCurriculum: false });
   }
 
-  const allLessons = curriculum.modules.flatMap((m) => m.lessons);
-  const masteredLessons = allLessons.filter((l) => l.status === "mastered");
   const reviewLessons = curriculum.modules.flatMap((m) =>
     m.lessons
       .filter((l) => l.status === "needs_review")
       .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),
   );
-
-  const overallMastery =
-    allLessons.length > 0
-      ? allLessons.reduce((s, l) => s + l.masteryScore, 0) / allLessons.length
-      : 0;
 
   const modules = curriculum.modules.map((m) => {
     const done = m.lessons.filter((l) => l.status === "mastered").length;
@@ -96,17 +85,7 @@ export const GET = handler(async () => {
     curriculumId: curriculum._id.toHexString(),
     title: curriculum.title,
     version: curriculum.version,
-    summary: {
-      modulesTotal: curriculum.modules.length,
-      modulesCompleted: curriculum.modules.filter(
-        (m) => m.status === "completed",
-      ).length,
-      lessonsTotal: allLessons.length,
-      lessonsMastered: masteredLessons.length,
-      lessonsNeedingReview: reviewLessons.length,
-      overallMastery: Number(overallMastery.toFixed(3)),
-      totalTimeMs,
-    },
+    summary: { ...summarizeCurriculum(curriculum), totalTimeMs },
     modules,
     recommendedNext: recommendation
       ? {

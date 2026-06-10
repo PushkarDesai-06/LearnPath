@@ -1,14 +1,10 @@
 /**
- * Adaptive assessment algorithm — a binary search over difficulty bands to find
- * the learner's competence boundary.
+ * Batch quiz scoring + level estimation (pure functions).
  *
- * Pure functions over the assessment's search state; the route handler owns
- * calling the AI to generate/grade questions and persisting the doc. State:
- *   lowIdx  — lowest level not yet ruled IN (learner is at least lowIdx-?)
- *   highIdx — highest level not yet ruled OUT
- *   currentLevelIdx — the band the next question targets
- * The boundary is found when lowIdx > highIdx; estimated level = highIdx
- * (highest band the learner consistently passed).
+ * The assessment is a quiz of MCQs spread across difficulty bands, graded all at
+ * once. We estimate the learner's level from the highest *contiguously passed*
+ * band, and only recommend a second quiz when results look noisy (a harder band
+ * passed while an easier one failed — i.e. likely guessing).
  */
 import {
   DIFFICULTY_LEVELS,
@@ -19,134 +15,92 @@ import {
   type TopicMastery,
 } from "@/lib/db/models";
 
-export const MAX_QUESTIONS = 9;
+const PASS_THRESHOLD = 0.5;
 
-export interface InitialSearchState {
-  levels: DifficultyLevel[];
-  lowIdx: number;
-  highIdx: number;
-  currentLevelIdx: number;
-  pendingConfirm: boolean;
-  questionCap: number;
+/** Round-1 quiz shape: levelIdx for each question (8 questions across bands). */
+export const ROUND1_LEVELS = [0, 0, 1, 1, 2, 2, 3, 4];
+
+export const MAX_ROUNDS = 2;
+
+export function levelName(idx: number): DifficultyLevel {
+  const i = Math.max(0, Math.min(DIFFICULTY_LEVELS.length - 1, idx));
+  return DIFFICULTY_LEVELS[i];
 }
 
-export function initialSearchState(): InitialSearchState {
-  const levels = DIFFICULTY_LEVELS;
-  const lowIdx = 0;
-  const highIdx = levels.length - 1;
-  return {
-    levels,
-    lowIdx,
-    highIdx,
-    currentLevelIdx: Math.floor((lowIdx + highIdx) / 2),
-    pendingConfirm: false,
-    questionCap: MAX_QUESTIONS,
-  };
+export function levelIndex(name: string): number {
+  const i = DIFFICULTY_LEVELS.indexOf(name.toLowerCase() as DifficultyLevel);
+  return i === -1 ? 1 : i;
 }
 
-interface SearchState {
-  lowIdx: number;
-  highIdx: number;
-  currentLevelIdx: number;
-  pendingConfirm: boolean;
+function answered(questions: AssessmentQuestion[]): AssessmentQuestion[] {
+  return questions.filter((q) => q.answer !== undefined && q.correct !== undefined);
 }
 
-export interface StepResult {
-  next: SearchState;
-  finished: boolean;
+/** Accuracy per difficulty band, only for bands that actually have questions. */
+function bandAccuracy(
+  questions: AssessmentQuestion[],
+): { band: number; acc: number; n: number }[] {
+  const out: { band: number; acc: number; n: number }[] = [];
+  for (let b = 0; b < DIFFICULTY_LEVELS.length; b++) {
+    const qs = answered(questions).filter((q) => q.levelIdx === b);
+    if (qs.length === 0) continue;
+    const correct = qs.filter((q) => q.correct).length;
+    out.push({ band: b, acc: correct / qs.length, n: qs.length });
+  }
+  return out;
+}
+
+/** Highest contiguously-passed band (the competence boundary). */
+export function estimateLevelIdx(questions: AssessmentQuestion[]): number {
+  let est = 0;
+  for (const { band, acc } of bandAccuracy(questions)) {
+    if (acc >= PASS_THRESHOLD) est = band;
+    else break;
+  }
+  return est;
 }
 
 /**
- * Advance the search after a question at `currentLevelIdx` was graded.
- *
- * To guard against single-question noise, the first time a result would flip
- * the boundary we ask one *confirming* question at the same level on a
- * different topic (pendingConfirm). Only a consistent second result commits the
- * move; a contradicting confirm cancels it and we still narrow conservatively.
+ * Recommend another round only when band results are NON-MONOTONIC: the learner
+ * passed a harder band but failed an easier one (looks like guessing/noise).
  */
-export function stepSearch(state: SearchState, correct: boolean): StepResult {
-  const { lowIdx, highIdx, currentLevelIdx } = state;
-
-  if (!state.pendingConfirm) {
-    // First observation at this level — ask a confirming question next.
-    return {
-      next: { lowIdx, highIdx, currentLevelIdx, pendingConfirm: true },
-      finished: false,
-    };
+export function recommendAnotherRound(questions: AssessmentQuestion[]): boolean {
+  const bands = bandAccuracy(questions);
+  for (let i = 0; i < bands.length; i++) {
+    for (let j = i + 1; j < bands.length; j++) {
+      if (bands[i].acc < PASS_THRESHOLD && bands[j].acc >= PASS_THRESHOLD) {
+        return true; // a lower band failed while a higher band passed
+      }
+    }
   }
-
-  // We now have two observations at currentLevelIdx (this is the confirm).
-  let newLow = lowIdx;
-  let newHigh = highIdx;
-  if (correct) {
-    newLow = currentLevelIdx + 1; // learner is at least at this band
-  } else {
-    newHigh = currentLevelIdx - 1; // boundary is below this band
-  }
-
-  if (newLow > newHigh) {
-    return {
-      next: {
-        lowIdx: newLow,
-        highIdx: newHigh,
-        currentLevelIdx,
-        pendingConfirm: false,
-      },
-      finished: true,
-    };
-  }
-
-  return {
-    next: {
-      lowIdx: newLow,
-      highIdx: newHigh,
-      currentLevelIdx: Math.floor((newLow + newHigh) / 2),
-      pendingConfirm: false,
-    },
-    finished: false,
-  };
+  return false;
 }
 
-/** Whether to stop asking: boundary found OR question cap reached. */
-export function isComplete(doc: {
-  lowIdx: number;
-  highIdx: number;
-  questions: AssessmentQuestion[];
-  questionCap: number;
-}): boolean {
-  if (doc.lowIdx > doc.highIdx) return true;
-  return doc.questions.filter((q) => q.answer !== undefined).length >= doc.questionCap;
+/** Difficulty bands for a focused round-2 quiz near the estimated boundary. */
+export function round2Levels(estIdx: number): number[] {
+  const lo = Math.max(0, estIdx - 1);
+  const hi = Math.min(DIFFICULTY_LEVELS.length - 1, estIdx + 1);
+  return [lo, estIdx, estIdx, hi];
 }
 
-/**
- * Compute the final diagnosis from answered questions and the search bounds.
- * estimatedLevel = clamp(highIdx) — the highest band passed consistently.
- */
 export function computeResult(doc: AssessmentDoc): AssessmentResult {
-  const levels = doc.levels;
-  const idx = Math.max(0, Math.min(levels.length - 1, doc.highIdx));
-  const estimatedLevel = levels[idx];
+  const qs = answered(doc.questions);
+  const correct = qs.filter((q) => q.correct).length;
+  const score = qs.length > 0 ? correct / qs.length : 0;
+  const estimatedLevel = levelName(estimateLevelIdx(doc.questions));
 
-  // Aggregate per-topic mastery from answered questions.
   const byTopic = new Map<string, { sum: number; n: number }>();
-  for (const q of doc.questions) {
-    if (q.answer === undefined || q.correct === undefined) continue;
-    const outcome = q.correct ? (q.confidence ?? 1) : 1 - (q.confidence ?? 1);
+  for (const q of qs) {
     const entry = byTopic.get(q.topic) ?? { sum: 0, n: 0 };
-    entry.sum += outcome;
+    entry.sum += q.correct ? 1 : 0;
     entry.n += 1;
     byTopic.set(q.topic, entry);
   }
-
   const perTopicMastery: TopicMastery[] = [...byTopic.entries()].map(
     ([topic, { sum, n }]) => ({ topic, score: n > 0 ? sum / n : 0 }),
   );
-  const strengths = perTopicMastery
-    .filter((t) => t.score >= 0.8)
-    .map((t) => t.topic);
-  const gaps = perTopicMastery
-    .filter((t) => t.score <= 0.4)
-    .map((t) => t.topic);
+  const strengths = perTopicMastery.filter((t) => t.score >= 0.8).map((t) => t.topic);
+  const gaps = perTopicMastery.filter((t) => t.score <= 0.4).map((t) => t.topic);
 
-  return { estimatedLevel, perTopicMastery, strengths, gaps };
+  return { estimatedLevel, score, perTopicMastery, strengths, gaps };
 }

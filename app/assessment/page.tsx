@@ -8,50 +8,67 @@ import { Badge, Button, Card, ErrorText, Spinner } from "@/components/ui";
 interface Question {
   id: string;
   prompt: string;
-  type: "mcq" | "short";
   choices: string[] | null;
+  topic: string;
   level: number;
 }
-interface StartResp {
-  assessmentId: string;
-  question: Question;
-  answered: number;
-  cap: number;
+interface ReviewItem {
+  id: string;
+  prompt: string;
+  choices: string[] | null;
+  topic: string;
+  yourAnswer: string | null;
+  correctKey: string | null;
+  correct: boolean | null;
 }
-interface AnswerResp {
-  done: boolean;
-  correct: boolean;
-  feedback: string | null;
-  question?: Question;
-  answered?: number;
-  cap?: number;
-  result?: {
-    estimatedLevel: string;
-    strengths: string[];
-    gaps: string[];
-    perTopicMastery: { topic: string; score: number }[];
-  };
+interface ResultData {
+  score: number;
+  estimatedLevel: string;
+  review: ReviewItem[];
+  recommendAnotherRound: boolean;
+  nextQuestions: Question[];
 }
+
+type Phase = "loading" | "quiz" | "result";
 
 export default function AssessmentPage() {
   const router = useRouter();
+  const [phase, setPhase] = useState<Phase>("loading");
   const [assessmentId, setAssessmentId] = useState("");
-  const [question, setQuestion] = useState<Question | null>(null);
-  const [answer, setAnswer] = useState("");
-  const [progress, setProgress] = useState({ answered: 0, cap: 0 });
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<ResultData | null>(null);
+  const [showAnswers, setShowAnswers] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<AnswerResp["result"] | null>(null);
-  const [starting, setStarting] = useState(true);
 
   useEffect(() => {
     let active = true;
-    api<StartResp>("/api/assessment/start", { method: "POST" })
+    api<{
+      assessmentId: string;
+      complete: boolean;
+      questions?: Question[];
+      score?: number;
+      result?: { estimatedLevel: string };
+      review?: ReviewItem[];
+    }>("/api/assessment/start", { method: "POST" })
       .then((res) => {
         if (!active) return;
         setAssessmentId(res.assessmentId);
-        setQuestion(res.question);
-        setProgress({ answered: res.answered, cap: res.cap });
+        if (res.complete) {
+          setResult({
+            score: res.score ?? 0,
+            estimatedLevel: res.result?.estimatedLevel ?? "",
+            review: res.review ?? [],
+            recommendAnotherRound: false,
+            nextQuestions: [],
+          });
+          setPhase("result");
+        } else {
+          setQuestions(res.questions ?? []);
+          setPhase("quiz");
+        }
       })
       .catch((err) => {
         if (!active) return;
@@ -60,119 +77,173 @@ export default function AssessmentPage() {
           return;
         }
         setError(err instanceof Error ? err.message : "Failed to start");
-      })
-      .finally(() => {
-        if (active) setStarting(false);
       });
     return () => {
       active = false;
     };
   }, [router]);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!answer.trim() || !question) return;
+  const allAnswered =
+    questions.length > 0 && questions.every((q) => answers[q.id] !== undefined);
+
+  async function submit() {
     setBusy(true);
     setError("");
     try {
-      const res = await api<AnswerResp>("/api/assessment/answer", {
-        body: { assessmentId, questionId: question.id, answer },
+      const payload = questions.map((q) => ({
+        questionId: q.id,
+        answer: answers[q.id],
+      }));
+      const res = await api<ResultData>("/api/assessment/submit", {
+        body: { assessmentId, answers: payload },
       });
-      setAnswer("");
-      if (res.done) {
-        setResult(res.result ?? null);
-        setQuestion(null);
-      } else if (res.question) {
-        setQuestion(res.question);
-        setProgress({
-          answered: res.answered ?? progress.answered + 1,
-          cap: res.cap ?? progress.cap,
-        });
-      }
+      setResult(res);
+      setShowAnswers(false);
+      setPhase("result");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      setError(err instanceof Error ? err.message : "Failed to submit");
     } finally {
       setBusy(false);
     }
   }
 
-  if (starting) return <Spinner label="Preparing your assessment…" />;
+  function refine() {
+    if (!result) return;
+    setQuestions(result.nextQuestions);
+    setAnswers({});
+    setPhase("quiz");
+  }
 
-  if (result) {
+  async function generatePath() {
+    setGenerating(true);
+    setError("");
+    try {
+      const res = await api<{ curriculum: { id: string } }>(
+        "/api/curriculum/generate",
+        { method: "POST" },
+      );
+      router.push(`/curriculum?id=${res.curriculum.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Generation failed");
+      setGenerating(false);
+    }
+  }
+
+  if (phase === "loading") return <Spinner label="Preparing your quiz…" />;
+
+  // -------- result screen --------
+  if (phase === "result" && result) {
+    const correct = result.review.filter((r) => r.correct).length;
+    const total = result.review.length;
     return (
-      <Card className="space-y-4">
-        <h1 className="text-2xl font-bold">Assessment complete</h1>
-        <p>
-          Estimated level:{" "}
-          <Badge tone="blue">{result.estimatedLevel}</Badge>
-        </p>
-        {result.strengths.length > 0 && (
-          <p className="text-sm">
-            <strong>Strengths:</strong> {result.strengths.join(", ")}
+      <div className="space-y-4">
+        <Card className="space-y-3 text-center">
+          <h1 className="text-2xl font-bold">Quiz complete</h1>
+          <p className="text-4xl font-bold">
+            {Math.round(result.score * 100)}%
           </p>
-        )}
-        {result.gaps.length > 0 && (
-          <p className="text-sm">
-            <strong>Gaps:</strong> {result.gaps.join(", ")}
+          <p className="text-sm text-gray-500">
+            {correct}/{total} correct · estimated level{" "}
+            <Badge tone="blue">{result.estimatedLevel}</Badge>
           </p>
-        )}
-        <Button onClick={() => router.push("/curriculum")}>
-          Generate my learning path →
-        </Button>
-      </Card>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="secondary" onClick={() => setShowAnswers((s) => !s)}>
+              {showAnswers ? "Hide answers" : "Check answers"}
+            </Button>
+            {result.recommendAnotherRound && (
+              <Button variant="secondary" onClick={refine}>
+                Refine my level (1 more short quiz)
+              </Button>
+            )}
+            <Button onClick={generatePath} disabled={generating}>
+              {generating ? "Generating…" : "Generate my learning path →"}
+            </Button>
+          </div>
+          <ErrorText>{error}</ErrorText>
+        </Card>
+
+        {showAnswers &&
+          result.review.map((r, i) => (
+            <Card key={r.id} className="space-y-2">
+              <p className="text-sm font-medium">
+                {i + 1}. {r.prompt}
+              </p>
+              <ul className="space-y-1">
+                {(r.choices ?? []).map((c, idx) => {
+                  const isCorrect = String(idx) === r.correctKey;
+                  const isYours = String(idx) === r.yourAnswer;
+                  return (
+                    <li
+                      key={idx}
+                      className={`rounded px-2 py-1 text-sm ${
+                        isCorrect
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : isYours
+                            ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                            : ""
+                      }`}
+                    >
+                      {isCorrect ? "✓ " : isYours ? "✗ " : ""}
+                      {c}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
+          ))}
+      </div>
     );
   }
 
+  // -------- quiz screen --------
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Knowledge assessment</h1>
-        <span className="text-sm text-gray-500">
-          {progress.answered}/{progress.cap} answered
-        </span>
+      <div>
+        <h1 className="text-2xl font-bold">Knowledge quiz</h1>
+        <p className="text-sm text-gray-500">
+          Answer every question, then submit once — you&apos;ll get a score and
+          can review the correct answers.
+        </p>
       </div>
-      {question && (
-        <Card className="space-y-4">
+      {questions.map((q, i) => (
+        <Card key={q.id} className="space-y-3">
           <div className="flex items-center gap-2">
-            <Badge>level {question.level}</Badge>
-            <Badge tone="gray">{question.type}</Badge>
+            <span className="text-sm font-medium">{i + 1}.</span>
+            <Badge tone="gray">level {q.level}</Badge>
           </div>
-          <p className="whitespace-pre-wrap font-medium">{question.prompt}</p>
-          <form onSubmit={submit} className="space-y-3">
-            {question.type === "mcq" && question.choices ? (
-              <div className="space-y-2">
-                {question.choices.map((c, i) => (
-                  <label
-                    key={i}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                  >
-                    <input
-                      type="radio"
-                      name="choice"
-                      value={String(i)}
-                      checked={answer === String(i)}
-                      onChange={(e) => setAnswer(e.target.value)}
-                    />
-                    {c}
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <textarea
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-                rows={3}
-                placeholder="Your answer…"
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-              />
-            )}
-            <ErrorText>{error}</ErrorText>
-            <Button type="submit" disabled={busy || !answer.trim()}>
-              {busy ? "Checking…" : "Submit answer"}
-            </Button>
-          </form>
+          <p className="whitespace-pre-wrap font-medium">{q.prompt}</p>
+          <div className="space-y-2">
+            {(q.choices ?? []).map((c, idx) => (
+              <label
+                key={idx}
+                className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+              >
+                <input
+                  type="radio"
+                  name={q.id}
+                  value={String(idx)}
+                  checked={answers[q.id] === String(idx)}
+                  onChange={() =>
+                    setAnswers((a) => ({ ...a, [q.id]: String(idx) }))
+                  }
+                />
+                {c}
+              </label>
+            ))}
+          </div>
         </Card>
-      )}
+      ))}
+      <ErrorText>{error}</ErrorText>
+      <div className="flex items-center gap-3">
+        <Button onClick={submit} disabled={busy || !allAnswered}>
+          {busy ? "Submitting…" : "Submit quiz"}
+        </Button>
+        {!allAnswered && (
+          <span className="text-sm text-gray-400">
+            Answer all {questions.length} questions to submit.
+          </span>
+        )}
+      </div>
     </div>
   );
 }

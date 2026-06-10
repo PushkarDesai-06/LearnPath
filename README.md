@@ -11,10 +11,13 @@ endpoint.
 ## Setup
 
 1. **Dependencies**: `npm install`
-2. **MongoDB**: a running instance. For local dev with Docker:
-   ```bash
-   sudo docker run -d --name learnpath-mongo -p 27017:27017 mongo:7
-   ```
+2. **MongoDB**: `npm run dev` **auto-starts a local Docker container** (`learnpath-mongo`,
+   `mongo:7`, port 27017) via the `predev` hook (`scripts/start-mongo.sh`). You only
+   need Docker installed and its daemon running.
+   - If Docker needs `sudo` on your machine you'll be prompted for a password each run;
+     avoid that with a one-time `sudo usermod -aG docker $USER` (then re-login).
+   - The hook is skipped automatically if `MONGODB_URI` is non-local (e.g. Atlas).
+   - To start it manually instead: `docker run -d --name learnpath-mongo -p 27017:27017 mongo:7`.
 3. **Environment**: `cp .env.example .env.local`, then fill in `SESSION_SECRET`,
    `GEMINI_API_KEY`, and (if not using Gemini) `GEMINI_BASE_URL` / `GEMINI_MODEL`.
    - The `GEMINI_*` names are historical; **any OpenAI-compatible provider works**
@@ -62,19 +65,26 @@ proxy.ts              cheap auth gate for /api/* (requireUser is the real check)
 All endpoints return JSON. Auth is a session cookie; protected routes call
 `requireUser()`. Test with `curl -c jar -b jar`.
 
+A learner can have **multiple topics** at once (each topic = one curriculum).
+Topic-scoped reads accept an optional `?curriculumId=` (or `curriculumId` in the
+body) and default to the most recent topic when omitted. Every such lookup is
+scoped to the owner (`{ _id, userId }`) — passing another user's id returns 404.
+
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/auth/signup` `/login` `/logout` | email + password auth |
 | GET | `/api/me` | current user + onboarding status |
-| POST | `/api/onboarding/clarity` | clarity loop (repeat until `done`) |
-| POST | `/api/assessment/start` | begin/resume adaptive assessment |
-| POST | `/api/assessment/answer` | grade + next question or final result |
-| POST | `/api/curriculum/generate` · GET `/api/curriculum` | generate / fetch path |
-| GET | `/api/lesson/[id]` | lazy-generate + fetch lesson content |
+| GET | `/api/topics` | list topics (curricula) + progress, and in-progress funnels |
+| POST | `/api/onboarding/clarity` | clarity loop (repeat until `done`; `restart:true` = new topic) |
+| POST | `/api/assessment/start` | begin/resume the quiz, or report a completed one (resumable) |
+| POST | `/api/assessment/submit` | grade the whole quiz at once → score + review + optional refinement round |
+| POST | `/api/curriculum/generate` · GET `/api/curriculum?curriculumId=` | generate / fetch a topic's path |
+| GET | `/api/lesson/[id]` | lazy-generate + fetch lesson content (lesson ids are global) |
 | POST | `/api/lesson/[id]/practice` | grade inline practice → mastery |
 | POST | `/api/progress/complete` | finalize lesson + run adaptation |
-| GET | `/api/progress` | dashboard aggregate + recommended next |
-| POST | `/api/tutor` | Socratic tutor chat |
+| GET | `/api/progress?curriculumId=` | a topic's dashboard aggregate + recommended next |
+| GET | `/api/tutor/conversations?curriculumId=` | list a topic's tutor threads |
+| POST · GET | `/api/tutor` | Socratic tutor — POST starts/continues a thread (`conversationId`), GET loads one |
 
 ## Scripts
 `npm run dev` · `npm run build` · `npm start` · `npm run lint`

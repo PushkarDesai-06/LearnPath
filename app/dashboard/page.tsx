@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, Card, ProgressBar, Spinner } from "@/components/ui";
 
 interface Progress {
   hasCurriculum: boolean;
+  curriculumId?: string;
   title?: string;
   version?: number;
   summary?: {
@@ -40,14 +41,16 @@ function fmtTime(ms: number) {
   return min < 1 ? "<1 min" : `${min} min`;
 }
 
-export default function DashboardPage() {
+function DashboardInner() {
   const router = useRouter();
+  const topicId = useSearchParams().get("id");
   const [data, setData] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    api<Progress>("/api/progress")
+    const q = topicId ? `?curriculumId=${topicId}` : "";
+    api<Progress>(`/api/progress${q}`)
       .then((res) => {
         if (active) setData(res);
       })
@@ -62,7 +65,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, topicId]);
 
   if (loading) return <Spinner />;
   if (!data) return null;
@@ -72,9 +75,9 @@ export default function DashboardPage() {
       <Card className="space-y-3">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          You don&apos;t have a curriculum yet.
+          No topic to show yet.
         </p>
-        <Button onClick={() => router.push("/onboarding")}>Start onboarding</Button>
+        <Button onClick={() => router.push("/topics")}>Go to topics</Button>
       </Card>
     );
   }
@@ -83,7 +86,26 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-2xl font-bold">{data.title}</h1>
+      <div className="flex items-start justify-between">
+        <h1 className="text-2xl font-bold">{data.title}</h1>
+        <div className="flex gap-3 text-sm">
+          <Link
+            href={`/curriculum?id=${data.curriculumId}`}
+            className="text-blue-600 hover:underline"
+          >
+            Path
+          </Link>
+          <Link
+            href={`/tutor?id=${data.curriculumId}`}
+            className="text-blue-600 hover:underline"
+          >
+            Tutor
+          </Link>
+          <Link href="/topics" className="text-blue-600 hover:underline">
+            ← Topics
+          </Link>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Overall mastery" value={`${Math.round(s.overallMastery * 100)}%`} />
@@ -146,6 +168,14 @@ export default function DashboardPage() {
         </p>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <DashboardInner />
+    </Suspense>
   );
 }
 

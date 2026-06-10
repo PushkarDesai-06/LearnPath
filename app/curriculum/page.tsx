@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, Card, ErrorText, ProgressBar, Spinner } from "@/components/ui";
 
@@ -46,8 +46,9 @@ function statusTone(status: string) {
   }
 }
 
-export default function CurriculumPage() {
+function CurriculumInner() {
   const router = useRouter();
+  const topicId = useSearchParams().get("id");
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -55,7 +56,8 @@ export default function CurriculumPage() {
 
   useEffect(() => {
     let active = true;
-    api<{ curriculum: Curriculum }>("/api/curriculum")
+    const q = topicId ? `?curriculumId=${topicId}` : "";
+    api<{ curriculum: Curriculum }>(`/api/curriculum${q}`)
       .then((res) => {
         if (active) setCurriculum(res.curriculum);
       })
@@ -77,7 +79,7 @@ export default function CurriculumPage() {
     return () => {
       active = false;
     };
-  }, [router]);
+  }, [router, topicId]);
 
   async function generate() {
     setGenerating(true);
@@ -114,9 +116,19 @@ export default function CurriculumPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">{curriculum.title}</h1>
-        <p className="text-xs text-gray-400">version {curriculum.version}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{curriculum.title}</h1>
+          <p className="text-xs text-gray-400">version {curriculum.version}</p>
+        </div>
+        <div className="flex gap-3 text-sm">
+          <Link href={`/tutor?id=${curriculum.id}`} className="text-blue-600 hover:underline">
+            Tutor
+          </Link>
+          <Link href="/topics" className="text-blue-600 hover:underline">
+            ← Topics
+          </Link>
+        </div>
       </div>
       {curriculum.modules.map((m) => (
         <Card key={m.id} className="space-y-3">
@@ -163,5 +175,13 @@ export default function CurriculumPage() {
         </Card>
       ))}
     </div>
+  );
+}
+
+export default function CurriculumPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <CurriculumInner />
+    </Suspense>
   );
 }

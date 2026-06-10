@@ -1,61 +1,61 @@
 /**
- * questionGenAgent — produces one diagnostic question at a target difficulty
- * band, probing a sub-skill not yet tested. MCQ preferred (crisp grading);
- * short-answer allowed when an MCQ would be contrived.
+ * quizGenAgent — generates a whole diagnostic quiz in ONE call.
+ *
+ * Generating the full set together (rather than one question per call) is faster
+ * and lets the model deliberately spread topics and difficulty across the quiz,
+ * instead of each independent call risking repeats.
  */
 import { Agent } from "@openai/agents";
 import { modelName } from "@/lib/ai/provider";
 import { runAgentStructured } from "@/lib/ai/runAgent";
-import { questionSchema, type QuestionOutput } from "@/lib/ai/schemas";
+import { quizSchema, type QuizOutput } from "@/lib/ai/schemas";
 
-const questionGenAgent = new Agent({
-  name: "Assessment Question Generator",
+const quizGenAgent = new Agent({
+  name: "Quiz Generator",
   model: modelName(),
-  instructions: `You write a SINGLE diagnostic question to assess a learner's level in a
-domain, at a specified difficulty band.
+  instructions: `You write a diagnostic multiple-choice quiz to assess a learner's level
+in a domain.
 
 Rules:
-- Probe one specific sub-skill ("topic"). Avoid topics already tested.
-- Prefer "mcq": provide 3-5 "choices" and a "correctKey" equal to the
-  zero-based index of the correct choice as a string (e.g. "2"). Exactly one
-  choice is correct.
-- Use "short" only when a multiple-choice question would be contrived. For
-  "short", include a concise "rubric" describing what a correct answer must
-  contain. Do not include choices/correctKey.
-- Calibrate difficulty to the requested band precisely.
+- Every question is multiple-choice: 3-5 "choices" with exactly one correct, and
+  "correctKey" = the zero-based index of the correct choice as a string (e.g. "2").
+- Each question has a "level" from: novice, beginner, intermediate, advanced, expert.
+- Spread the questions across the requested difficulty levels (roughly the given
+  counts), and across DIFFERENT sub-skills ("topic") — do not repeat a topic.
+- Keep prompts self-contained and unambiguous; calibrate difficulty to each level.
 
 Respond with ONLY a JSON object of this shape:
 {
-  "topic": string,
-  "type": "mcq" | "short",
-  "prompt": string,
-  "choices": string[],        // mcq only
-  "correctKey": string,       // mcq only, e.g. "0"
-  "rubric": string            // short only
+  "questions": [
+    { "topic": string, "level": "novice"|"beginner"|"intermediate"|"advanced"|"expert",
+      "prompt": string, "choices": string[], "correctKey": string }
+  ]
 }`,
 });
 
-export interface QuestionGenInput {
+export interface QuizGenInput {
   domain: string;
   refinedTopic: string;
-  targetLevel: string;
-  avoidTopics: string[];
+  /** difficulty bands to cover, repeated to express how many of each, e.g. ["novice","novice","beginner",...] */
+  targetLevels: string[];
+  avoidTopics?: string[];
 }
 
-export function runQuestionGenAgent(
-  input: QuestionGenInput,
-): Promise<QuestionOutput> {
+export function runQuizGenAgent(input: QuizGenInput): Promise<QuizOutput> {
+  const counts: Record<string, number> = {};
+  for (const l of input.targetLevels) counts[l] = (counts[l] ?? 0) + 1;
+  const distribution = Object.entries(counts)
+    .map(([lvl, n]) => `${n} ${lvl}`)
+    .join(", ");
   const avoid =
-    input.avoidTopics.length > 0 ? input.avoidTopics.join(", ") : "(none yet)";
+    input.avoidTopics && input.avoidTopics.length > 0
+      ? `\nAvoid these already-tested topics: ${input.avoidTopics.join(", ")}.`
+      : "";
+
   const prompt = `Domain: ${input.domain}
 Learning goal: ${input.refinedTopic}
-Target difficulty band: ${input.targetLevel}
-Topics already tested (avoid these): ${avoid}
+Generate ${input.targetLevels.length} questions with this difficulty distribution: ${distribution}.${avoid}
 
-Write one diagnostic question and return the JSON object.`;
-  return runAgentStructured<QuestionOutput>(
-    questionGenAgent,
-    prompt,
-    questionSchema,
-  );
+Return the JSON object.`;
+  return runAgentStructured<QuizOutput>(quizGenAgent, prompt, quizSchema);
 }

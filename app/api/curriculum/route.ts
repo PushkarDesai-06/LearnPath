@@ -1,18 +1,16 @@
 /**
- * GET the learner's current curriculum (most recently generated).
+ * GET a topic's curriculum. Pass `?curriculumId=` to select a specific topic;
+ * omit it to fall back to the learner's most recent curriculum.
  */
 import { requireUser } from "@/lib/auth/guards";
-import { curriculaCollection } from "@/lib/db/collections";
+import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import { publicCurriculum } from "@/lib/server/curriculumView";
 import { handler, json, notFound } from "@/lib/http";
 
-export const GET = handler(async () => {
+export const GET = handler(async (request) => {
   const user = await requireUser();
-  const curricula = await curriculaCollection();
-  const doc = await curricula
-    .findOne({ userId: user._id })
-    .sort({ createdAt: -1 })
-    .lean();
-  if (!doc) throw notFound("No curriculum yet — generate one first");
+  const curriculumId = new URL(request.url).searchParams.get("curriculumId");
+  const doc = await resolveCurriculum(user._id, curriculumId);
+  if (!doc) throw notFound("Curriculum not found");
   return json({ curriculum: publicCurriculum(doc) });
 });

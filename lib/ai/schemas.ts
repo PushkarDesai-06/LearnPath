@@ -23,7 +23,7 @@ export const claritySchema = z.object({
 });
 export type ClarityOutput = z.infer<typeof claritySchema>;
 
-// --- assessment question generation ---
+// --- assessment question generation (legacy, single-question) ---
 export const questionSchema = z.object({
   topic: z.string(),
   type: z.enum(["mcq", "short"]),
@@ -33,6 +33,19 @@ export const questionSchema = z.object({
   rubric: z.string().optional(), // grading guidance for short answers
 });
 export type QuestionOutput = z.infer<typeof questionSchema>;
+
+// --- batch quiz generation (whole quiz in one call, MCQ only) ---
+export const quizQuestionSchema = z.object({
+  topic: z.string(),
+  level: difficultyEnum,
+  prompt: z.string(),
+  choices: z.array(z.string()).min(2),
+  correctKey: z.string(), // zero-based index of the correct choice, e.g. "2"
+});
+export const quizSchema = z.object({
+  questions: z.array(quizQuestionSchema),
+});
+export type QuizOutput = z.infer<typeof quizSchema>;
 
 // --- answer grading (short answer) ---
 export const gradeSchema = z.object({

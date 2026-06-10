@@ -41,6 +41,7 @@ const clarityExchangeSchema = new Schema(
 const assessmentQuestionSchema = new Schema(
   {
     id: { type: String, required: true },
+    round: { type: Number, required: true },
     levelIdx: { type: Number, required: true },
     topic: { type: String, required: true },
     prompt: { type: String, required: true },
@@ -64,6 +65,7 @@ const topicMasterySchema = new Schema(
 const assessmentResultSchema = new Schema(
   {
     estimatedLevel: { type: String, required: true },
+    score: { type: Number, default: 0 },
     perTopicMastery: { type: [topicMasterySchema], default: [] },
     strengths: { type: [String], default: [] },
     gaps: { type: [String], default: [] },
@@ -174,12 +176,7 @@ const assessmentSchema = new Schema<AssessmentDoc>({
   refinedTopic: { type: String, required: true },
   state: { type: String, required: true },
   levels: { type: [String], default: [] },
-  lowIdx: { type: Number, required: true },
-  highIdx: { type: Number, required: true },
-  currentLevelIdx: { type: Number, required: true },
-  pendingConfirm: { type: Boolean, default: false },
-  questionCap: { type: Number, required: true },
-  askedTopics: { type: [String], default: [] },
+  rounds: { type: Number, default: 1 },
   questions: { type: [assessmentQuestionSchema], default: [] },
   result: { type: assessmentResultSchema, default: undefined },
   createdAt: { type: Date, required: true },
@@ -226,12 +223,16 @@ progressEventSchema.index({ userId: 1, curriculumId: 1 });
 const chatSchema = new Schema<ChatDoc>({
   userId: { type: Schema.Types.ObjectId, required: true },
   curriculumId: { type: Schema.Types.ObjectId, required: true },
-  lessonRef: { type: String, default: null }, // null = the general conversation
+  lessonRef: { type: String, default: null }, // context tag only (not identity)
+  title: { type: String, default: "New conversation" },
   messages: { type: [chatMessageSchema], default: [] },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
-chatSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
+// A topic can have many conversations now — list them newest-first.
+// NOTE: the old UNIQUE (userId, curriculumId, lessonRef) index must be dropped
+// from any existing DB (Mongoose won't drop it). See scripts/drop-chat-unique.js.
+chatSchema.index({ userId: 1, curriculumId: 1, updatedAt: -1 });
 
 // --- model registration (HMR-safe) ----------------------------------------
 // `mongoose.models.X || mongoose.model(...)` avoids OverwriteModelError when

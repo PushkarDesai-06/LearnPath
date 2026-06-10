@@ -33,20 +33,14 @@ export function Nav() {
       </Link>
       {me && (
         <>
-          <Link href="/onboarding" className="text-gray-600 hover:underline dark:text-gray-300">
-            Onboarding
+          <Link href="/topics" className="text-gray-600 hover:underline dark:text-gray-300">
+            Topics
           </Link>
-          <Link href="/assessment" className="text-gray-600 hover:underline dark:text-gray-300">
-            Assessment
-          </Link>
-          <Link href="/curriculum" className="text-gray-600 hover:underline dark:text-gray-300">
-            Curriculum
-          </Link>
-          <Link href="/dashboard" className="text-gray-600 hover:underline dark:text-gray-300">
-            Dashboard
-          </Link>
-          <Link href="/tutor" className="text-gray-600 hover:underline dark:text-gray-300">
-            Tutor
+          <Link
+            href="/onboarding?new=1"
+            className="text-gray-600 hover:underline dark:text-gray-300"
+          >
+            New topic
           </Link>
           <div className="ml-auto flex items-center gap-3">
             <span className="text-gray-500">{me.user.email}</span>

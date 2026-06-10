@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button, Card, ErrorText, Spinner } from "@/components/ui";
 
@@ -18,8 +18,12 @@ interface ClarityResponse {
 
 type Turn = { role: "user" | "assistant"; text: string };
 
-export default function OnboardingPage() {
+function OnboardingInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // ?new=1 starts a fresh topic: the first message restarts onboarding rather
+  // than resuming an abandoned half-clarified one.
+  const isNew = searchParams.get("new") === "1";
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -30,13 +34,14 @@ export default function OnboardingPage() {
     e.preventDefault();
     if (!input.trim()) return;
     const description = input.trim();
+    const firstMessage = turns.length === 0;
     setTurns((t) => [...t, { role: "user", text: description }]);
     setInput("");
     setBusy(true);
     setError("");
     try {
       const res = await api<ClarityResponse>("/api/onboarding/clarity", {
-        body: { description },
+        body: { description, restart: isNew && firstMessage },
       });
       if (res.done) {
         setDone(res);
@@ -118,5 +123,13 @@ export default function OnboardingPage() {
         </form>
       )}
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={<Spinner />}>
+      <OnboardingInner />
+    </Suspense>
   );
 }

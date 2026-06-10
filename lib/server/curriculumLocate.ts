@@ -17,6 +17,26 @@ export interface LocatedLesson {
   lesson: CurriculumLesson;
 }
 
+/**
+ * Resolve a topic's curriculum by optional id, ALWAYS scoped to the owner.
+ * Passing a `curriculumId` selects that topic; omitting it falls back to the
+ * learner's most recent curriculum. Returns null if missing or not owned —
+ * the `userId` filter is what prevents IDOR (reading another user's topic).
+ */
+export async function resolveCurriculum(
+  userId: ObjectId,
+  curriculumId?: string | null,
+): Promise<CurriculumDoc | null> {
+  const curricula = await curriculaCollection();
+  if (curriculumId) {
+    if (!ObjectId.isValid(curriculumId)) return null;
+    return curricula
+      .findOne({ _id: new ObjectId(curriculumId), userId })
+      .lean();
+  }
+  return curricula.findOne({ userId }).sort({ createdAt: -1 }).lean();
+}
+
 export async function locateLesson(
   userId: ObjectId,
   lessonRef: string,

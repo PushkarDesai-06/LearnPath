@@ -86,16 +86,17 @@ export type QuestionType = "mcq" | "short";
 
 export interface AssessmentQuestion {
   id: string;
+  round: number; // which quiz round this question belongs to (1, 2, ...)
   levelIdx: number;
   topic: string;
   prompt: string;
-  type: QuestionType;
+  type: QuestionType; // always "mcq" in the batch quiz
   choices?: string[];
   correctKey?: string; // for mcq (index as string, e.g. "0")
-  rubric?: string; // for short-answer grading
-  answer?: string;
+  rubric?: string; // reserved (short-answer grading)
+  answer?: string; // the learner's submitted choice
   correct?: boolean;
-  confidence?: number; // grader 0..1
+  confidence?: number; // reserved
   askedAt: Date;
 }
 
@@ -106,11 +107,17 @@ export interface TopicMastery {
 
 export interface AssessmentResult {
   estimatedLevel: DifficultyLevel;
+  score: number; // 0..1 overall fraction correct
   perTopicMastery: TopicMastery[];
   strengths: string[];
   gaps: string[];
 }
 
+/**
+ * The assessment is now a BATCH quiz: a set of MCQs generated up front and
+ * graded all at once on submit (no per-question checking). A second round is
+ * offered only when round 1 looks noisy (see domain/assessment.ts).
+ */
 export interface AssessmentDoc {
   _id: ObjectId;
   userId: ObjectId;
@@ -119,12 +126,7 @@ export interface AssessmentDoc {
   refinedTopic: string;
   state: "in_progress" | "complete";
   levels: DifficultyLevel[];
-  lowIdx: number;
-  highIdx: number;
-  currentLevelIdx: number;
-  pendingConfirm: boolean; // mid-flight confirming question before committing a boundary flip
-  questionCap: number;
-  askedTopics: string[];
+  rounds: number; // how many quiz rounds generated so far (1 or 2)
   questions: AssessmentQuestion[];
   result?: AssessmentResult;
   createdAt: Date;
@@ -256,11 +258,17 @@ export interface ChatMessage {
   at: Date;
 }
 
+/**
+ * One tutor conversation thread. Identity is `_id` (the conversationId) — a
+ * topic can have MANY conversations. `lessonRef` is just a context tag for where
+ * the thread was started, NOT part of the conversation's identity.
+ */
 export interface ChatDoc {
   _id: ObjectId;
   userId: ObjectId;
   curriculumId: ObjectId;
-  lessonRef?: string | null; // null = the general (non-lesson) conversation
+  lessonRef?: string | null; // context tag: lesson the thread was started from
+  title: string;
   messages: ChatMessage[];
   createdAt: Date;
   updatedAt: Date;
