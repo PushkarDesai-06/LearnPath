@@ -2,8 +2,13 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowRight } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Button, Card, ErrorText, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ClarityResponse {
   clearEnough: boolean;
@@ -13,17 +18,13 @@ interface ClarityResponse {
   maxCycles: number;
   followupQuestion: string | null;
   refinedTopic: string | null;
-  reason: string;
 }
 
 type Turn = { role: "user" | "assistant"; text: string };
 
 function OnboardingInner() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // ?new=1 starts a fresh topic: the first message restarts onboarding rather
-  // than resuming an abandoned half-clarified one.
-  const isNew = searchParams.get("new") === "1";
+  const isNew = useSearchParams().get("new") === "1";
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,10 +48,7 @@ function OnboardingInner() {
         setDone(res);
         setTurns((t) => [
           ...t,
-          {
-            role: "assistant",
-            text: `Great — we'll focus on: ${res.refinedTopic}`,
-          },
+          { role: "assistant", text: `Great — we'll focus on: ${res.refinedTopic}` },
         ]);
       } else {
         setTurns((t) => [
@@ -70,54 +68,61 @@ function OnboardingInner() {
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">What do you want to learn?</h1>
-      <p className="text-sm text-gray-600 dark:text-gray-300">
-        Describe it in detail. I&apos;ll ask follow-up questions until it&apos;s
-        clear enough to build a curriculum.
-      </p>
+    <div className="flex flex-col gap-4">
+      <div>
+        <h1 className="text-2xl font-bold">What do you want to learn?</h1>
+        <p className="text-muted-foreground text-sm">
+          Describe it in detail. I&apos;ll ask follow-ups until it&apos;s clear
+          enough to build a curriculum.
+        </p>
+      </div>
 
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         {turns.map((t, i) => (
           <Card
             key={i}
-            className={
-              t.role === "user"
-                ? "bg-blue-50 dark:bg-blue-950"
-                : "bg-white dark:bg-gray-900"
-            }
+            className={t.role === "user" ? "bg-muted/50 ml-8" : "mr-8"}
           >
-            <p className="text-xs font-semibold uppercase text-gray-400">
-              {t.role === "user" ? "You" : "LearnPath"}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm">{t.text}</p>
+            <CardContent>
+              <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                {t.role === "user" ? "You" : "LearnPath"}
+              </p>
+              <p className="text-sm whitespace-pre-wrap">{t.text}</p>
+            </CardContent>
           </Card>
         ))}
-        {busy && <Spinner label="Thinking…" />}
+        {busy && <Spinner className="text-muted-foreground" />}
       </div>
 
       {done ? (
-        <Card className="space-y-3 border-green-300">
-          <p className="text-sm">
-            Topic locked in. {done.capReached && !done.clearEnough
-              ? "(Proceeding with your description as-is.)"
-              : ""}
-          </p>
-          <Button onClick={() => router.push("/assessment")}>
-            Start knowledge assessment →
-          </Button>
+        <Card className="border-primary/40">
+          <CardContent className="flex items-center justify-between gap-3">
+            <p className="text-sm">
+              Topic locked in.
+              {done.capReached && !done.clearEnough
+                ? " (Proceeding with your description as-is.)"
+                : ""}
+            </p>
+            <Button onClick={() => router.push("/assessment")}>
+              Start quiz
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          </CardContent>
         </Card>
       ) : (
-        <form onSubmit={send} className="space-y-2">
-          <textarea
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+        <form onSubmit={send} className="flex flex-col gap-2">
+          <Textarea
             rows={3}
             placeholder="e.g. I want to learn React hooks to build a side project…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <ErrorText>{error}</ErrorText>
-          <Button type="submit" disabled={busy}>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button type="submit" disabled={busy} className="self-start">
             Send
           </Button>
         </form>

@@ -16,12 +16,12 @@ const clarityAgent = new Agent({
   instructions: `You help an adaptive learning platform decide whether a learner's
 description of what they want to learn is specific enough to generate a personalized
 curriculum. Consider the ENTIRE conversation, synthesizing everything the learner
-has said — later messages refine or override earlier ones.
+has said, later messages refine or override earlier ones.
 
 A description is "clear enough" when, taking the whole conversation together, you
 can identify: (1) the subject/domain, (2) a reasonable scope (not impossibly broad
 like "everything about programming"), and (3) the learner's goal or starting
-context. Be pragmatic — once these are reasonably clear, say so; do not keep asking
+context. Be pragmatic, once these are reasonably clear, say so; do not keep asking
 for ever-finer detail.
 
 ALWAYS set "refinedTopic" and "domain" to your BEST synthesis of everything the

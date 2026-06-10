@@ -37,11 +37,16 @@ enough; asks follow-ups, capped at 4 cycles).
 | Auth       | **email + password** (bcryptjs) + JWT cookie (`jose`) + revocable `sessions` collection | Sessions are server-side revocable (delete doc = logout); TTL index expires them.                                                             |
 | AI         | **`@openai/agents` v0.11** pointed at an OpenAI-compatible endpoint                     | User asked for "Gemini via the OpenAI Agents SDK," base URL + model in env. Code is **provider-agnostic**.                                    |
 | Validation | **zod v4**                                                                              | Request bodies AND AI structured outputs.                                                                                                     |
-| Frontend   | Minimal client pages                                                                    | just enough UI to exercise the backend.                                                                                                       |
+| Frontend   | **shadcn/ui** (radix-nova, neutral base) + Tailwind v4                                   | Components in `components/ui/*` (shadcn CLI-managed); `cn()` in `lib/utils.ts`. Theme is CSS-variable driven — see Accent below.               |
 
-**Build scope was deliberately phased**: backend first (user said "only design the
-backend right now"), then a simple frontend ("we'll redesign it later"). The
-frontend is intentionally bare.
+**Accent color (one knob):** `app/globals.css` defines `--brand` /
+`--brand-foreground` at the top of `:root` (and `.dark`); `--primary` is wired to
+them, so changing those two values recolors actions/links/highlights app-wide.
+Default = the shadcn neutral theme. shadcn config is in `components.json`.
+
+**Build scope was phased**: backend first → functional frontend → shadcn redesign.
+Add components with `npx shadcn@latest add <name>` (never hand-write into
+`components/ui/`).
 
 ---
 
@@ -240,7 +245,7 @@ connect (`autoIndex` on in dev).
 - ✅ Dev server runs (`npm run dev`); MongoDB in Docker container `learnpath-mongo`.
 - ⚠️ **Not committed to git** yet (branch `master`; PRs usually target `main`).
 - ⚠️ `app/api/health` kept as an ops endpoint (public). Temp `ai-smoke` route removed.
-- ⚠️ Frontend is intentionally minimal — to be redesigned.
+- ✅ Frontend redesigned with shadcn/ui (default neutral accent, `--brand` knob in `globals.css`).
 
 ### Known limitations / next steps
 

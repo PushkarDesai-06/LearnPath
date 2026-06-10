@@ -3,8 +3,20 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Lock } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Badge, Button, Card, ErrorText, ProgressBar, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Lesson {
   id: string;
@@ -13,14 +25,12 @@ interface Lesson {
   difficultyLevel: string;
   estMinutes: number;
   masteryScore: number;
-  topics: string[];
 }
 interface Module {
   id: string;
   title: string;
   summary: string;
   status: string;
-  prerequisites: string[];
   lessons: Lesson[];
 }
 interface Curriculum {
@@ -30,19 +40,18 @@ interface Curriculum {
   modules: Module[];
 }
 
-function statusTone(status: string) {
+type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
+function statusVariant(status: string): BadgeVariant {
   switch (status) {
     case "mastered":
     case "completed":
-      return "green" as const;
+      return "default";
     case "needs_review":
-      return "red" as const;
-    case "in_progress":
-      return "yellow" as const;
+      return "destructive";
     case "locked":
-      return "gray" as const;
+      return "outline";
     default:
-      return "blue" as const;
+      return "secondary";
   }
 }
 
@@ -58,24 +67,18 @@ function CurriculumInner() {
     let active = true;
     const q = topicId ? `?curriculumId=${topicId}` : "";
     api<{ curriculum: Curriculum }>(`/api/curriculum${q}`)
-      .then((res) => {
-        if (active) setCurriculum(res.curriculum);
-      })
+      .then((res) => active && setCurriculum(res.curriculum))
       .catch((err) => {
         if (!active) return;
         if (err instanceof ApiClientError && err.status === 401) {
           router.push("/login");
           return;
         }
-        // 404 = no curriculum yet; not an error to show loudly
-        if (!(err instanceof ApiClientError && err.status === 404)) {
+        if (!(err instanceof ApiClientError && err.status === 404))
           setError(err instanceof Error ? err.message : "Failed");
-        }
         setCurriculum(null);
       })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
@@ -97,81 +100,98 @@ function CurriculumInner() {
     }
   }
 
-  if (loading) return <Spinner />;
-
-  if (!curriculum) {
+  if (loading)
     return (
-      <Card className="space-y-4">
-        <h1 className="text-2xl font-bold">Your learning path</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          No curriculum yet. Generate one from your completed assessment.
-        </p>
-        <ErrorText>{error}</ErrorText>
-        <Button onClick={generate} disabled={generating}>
-          {generating ? "Generating…" : "Generate curriculum"}
-        </Button>
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
+
+  if (!curriculum)
+    return (
+      <Card className="mx-auto max-w-md">
+        <CardHeader>
+          <CardTitle>Your learning path</CardTitle>
+          <CardDescription>
+            No curriculum yet. Generate one from your completed assessment.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button onClick={generate} disabled={generating} className="self-start">
+            {generating && <Spinner data-icon="inline-start" />}
+            Generate curriculum
+          </Button>
+        </CardContent>
       </Card>
     );
-  }
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold">{curriculum.title}</h1>
-          <p className="text-xs text-gray-400">version {curriculum.version}</p>
+          <p className="text-muted-foreground text-xs">
+            version {curriculum.version}
+          </p>
         </div>
-        <div className="flex gap-3 text-sm">
-          <Link href={`/tutor?id=${curriculum.id}`} className="text-blue-600 hover:underline">
-            Tutor
-          </Link>
-          <Link href="/topics" className="text-blue-600 hover:underline">
-            ← Topics
-          </Link>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/tutor?id=${curriculum.id}`}>Tutor</Link>
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/topics">Topics</Link>
+          </Button>
         </div>
       </div>
+
       {curriculum.modules.map((m) => (
-        <Card key={m.id} className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">{m.title}</h2>
-            <Badge tone={statusTone(m.status)}>{m.status}</Badge>
-          </div>
-          <p className="text-sm text-gray-600 dark:text-gray-300">{m.summary}</p>
-          <ul className="space-y-2">
+        <Card key={m.id}>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2 text-lg">
+              <span>{m.title}</span>
+              <Badge variant={statusVariant(m.status)}>{m.status}</Badge>
+            </CardTitle>
+            <CardDescription>{m.summary}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
             {m.lessons.map((l) => {
               const locked = m.status === "locked";
               return (
-                <li
+                <div
                   key={l.id}
-                  className="flex items-center justify-between gap-3 rounded-md border border-gray-100 px-3 py-2 dark:border-gray-800"
+                  className="flex items-center justify-between gap-3 rounded-md border p-3"
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center gap-2">
                       {locked ? (
-                        <span className="text-sm font-medium text-gray-400">
-                          🔒 {l.title}
+                        <span className="text-muted-foreground flex items-center gap-1 text-sm font-medium">
+                          <Lock className="size-3.5" />
+                          {l.title}
                         </span>
                       ) : (
                         <Link
                           href={`/learn/${l.id}`}
-                          className="text-sm font-medium text-blue-600 hover:underline"
+                          className="text-primary text-sm font-medium hover:underline"
                         >
                           {l.title}
                         </Link>
                       )}
-                      <Badge tone={statusTone(l.status)}>{l.status}</Badge>
+                      <Badge variant={statusVariant(l.status)}>{l.status}</Badge>
                     </div>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-muted-foreground text-xs">
                       {l.difficultyLevel} · ~{l.estMinutes} min
                     </p>
-                    <div className="mt-1 max-w-[160px]">
-                      <ProgressBar value={l.masteryScore} />
-                    </div>
+                    <Progress value={l.masteryScore * 100} className="max-w-40" />
                   </div>
-                </li>
+                </div>
               );
             })}
-          </ul>
+          </CardContent>
         </Card>
       ))}
     </div>

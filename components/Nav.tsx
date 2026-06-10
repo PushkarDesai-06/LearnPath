@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GraduationCap, LogOut, Plus } from "lucide-react";
 import { api } from "@/lib/client/api";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 interface Me {
   user: { email: string };
-  onboarding: { status: string } | null;
 }
 
 export function Nav() {
@@ -15,9 +17,13 @@ export function Nav() {
   const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
+    let active = true;
     api<Me>("/api/me")
-      .then(setMe)
-      .catch(() => setMe(null));
+      .then((res) => active && setMe(res))
+      .catch(() => active && setMe(null));
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function logout() {
@@ -27,29 +33,36 @@ export function Nav() {
   }
 
   return (
-    <nav className="flex items-center gap-4 border-b border-gray-200 bg-white px-6 py-3 text-sm dark:border-gray-800 dark:bg-gray-950">
-      <Link href="/" className="font-semibold">
-        🎓 LearnPath
-      </Link>
-      {me && (
-        <>
-          <Link href="/topics" className="text-gray-600 hover:underline dark:text-gray-300">
-            Topics
-          </Link>
-          <Link
-            href="/onboarding?new=1"
-            className="text-gray-600 hover:underline dark:text-gray-300"
-          >
-            New topic
-          </Link>
-          <div className="ml-auto flex items-center gap-3">
-            <span className="text-gray-500">{me.user.email}</span>
-            <button onClick={logout} className="text-blue-600 hover:underline">
-              Log out
-            </button>
-          </div>
-        </>
-      )}
-    </nav>
+    <header className="bg-background/80 sticky top-0 z-10 border-b backdrop-blur">
+      <nav className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4">
+        <Link href="/" className="flex items-center gap-2 font-semibold">
+          <GraduationCap className="text-primary size-5" />
+          LearnPath
+        </Link>
+        {me && (
+          <>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/topics">Topics</Link>
+            </Button>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/onboarding?new=1">
+                <Plus data-icon="inline-start" />
+                New topic
+              </Link>
+            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-muted-foreground hidden text-sm sm:inline">
+                {me.user.email}
+              </span>
+              <Separator orientation="vertical" className="hidden h-5 sm:block" />
+              <Button variant="ghost" size="sm" onClick={logout}>
+                <LogOut data-icon="inline-start" />
+                Log out
+              </Button>
+            </div>
+          </>
+        )}
+      </nav>
+    </header>
   );
 }

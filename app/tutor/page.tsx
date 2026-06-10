@@ -2,8 +2,13 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Plus, Send } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Badge, Button, Card, ErrorText, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "assistant"; text: string };
 interface Conversation {
@@ -24,24 +29,12 @@ function TutorInner() {
 
   const q = topicId ? `?curriculumId=${topicId}` : "";
 
-  const loadConversations = useCallback(
-    (selectFirst: boolean) => {
-      api<{ conversations: Conversation[] }>(`/api/tutor/conversations${q}`)
-        .then((res) => {
-          setConversations(res.conversations);
-          if (selectFirst && res.conversations.length > 0) {
-            setActiveId(res.conversations[0].id);
-          }
-        })
-        .catch((err) => {
-          if (err instanceof ApiClientError && err.status === 401)
-            router.push("/login");
-        });
-    },
-    [q, router],
-  );
+  const refreshList = useCallback(() => {
+    api<{ conversations: Conversation[] }>(`/api/tutor/conversations${q}`)
+      .then((res) => setConversations(res.conversations))
+      .catch(() => {});
+  }, [q]);
 
-  // Load conversation list on mount.
   useEffect(() => {
     let active = true;
     api<{ conversations: Conversation[] }>(`/api/tutor/conversations${q}`)
@@ -59,18 +52,16 @@ function TutorInner() {
     };
   }, [q, router]);
 
-  // Load the active conversation's messages. (When activeId is null, messages
-  // were already cleared by newConversation()/initial state.)
   useEffect(() => {
     if (!activeId) return;
     let active = true;
     api<{ messages: { role: "user" | "assistant"; content: string }[] }>(
       `/api/tutor?conversationId=${activeId}`,
     )
-      .then((res) => {
-        if (active)
-          setMessages(res.messages.map((m) => ({ role: m.role, text: m.content })));
-      })
+      .then((res) =>
+        active &&
+        setMessages(res.messages.map((m) => ({ role: m.role, text: m.content }))),
+      )
       .catch(() => {});
     return () => {
       active = false;
@@ -92,19 +83,19 @@ function TutorInner() {
     setBusy(true);
     setError("");
     try {
-      const res = await api<{
-        conversationId: string;
-        reply: string;
-      }>("/api/tutor", {
-        body: {
-          message,
-          curriculumId: topicId ?? undefined,
-          conversationId: activeId ?? undefined,
+      const res = await api<{ conversationId: string; reply: string }>(
+        "/api/tutor",
+        {
+          body: {
+            message,
+            curriculumId: topicId ?? undefined,
+            conversationId: activeId ?? undefined,
+          },
         },
-      });
+      );
       setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
       if (!activeId) setActiveId(res.conversationId);
-      loadConversations(false); // refresh titles / new thread in the list
+      refreshList();
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 401) {
         router.push("/login");
@@ -118,72 +109,73 @@ function TutorInner() {
 
   return (
     <div className="grid gap-4 md:grid-cols-[200px_1fr]">
-      {/* conversation list */}
-      <div className="space-y-2">
-        <Button onClick={newConversation} className="w-full">
-          + New chat
+      <aside className="flex flex-col gap-1">
+        <Button onClick={newConversation} variant="outline" size="sm" className="mb-1">
+          <Plus data-icon="inline-start" />
+          New chat
         </Button>
         {conversations.map((c) => (
-          <button
+          <Button
             key={c.id}
+            variant={activeId === c.id ? "secondary" : "ghost"}
+            size="sm"
+            className="justify-start"
             onClick={() => setActiveId(c.id)}
-            className={`block w-full truncate rounded-md px-3 py-2 text-left text-sm ${
-              activeId === c.id
-                ? "bg-blue-100 dark:bg-blue-950"
-                : "hover:bg-gray-100 dark:hover:bg-gray-800"
-            }`}
             title={c.title}
           >
-            {c.title}
-          </button>
+            <span className="truncate">{c.title}</span>
+          </Button>
         ))}
         {conversations.length === 0 && (
-          <p className="px-1 text-xs text-gray-400">No conversations yet.</p>
+          <p className="text-muted-foreground px-1 text-xs">No conversations yet.</p>
         )}
-      </div>
+      </aside>
 
-      {/* chat */}
-      <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl font-bold">Socratic tutor</h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-muted-foreground text-sm">
             Guides you toward answers instead of handing them over. Each chat is
             its own thread.
           </p>
         </div>
 
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3">
           {messages.length === 0 && (
             <Card>
-              <p className="text-sm text-gray-400">
-                Ask anything about this topic to start a new conversation.
-              </p>
+              <CardContent>
+                <p className="text-muted-foreground text-sm">
+                  Ask anything about this topic to start a new conversation.
+                </p>
+              </CardContent>
             </Card>
           )}
           {messages.map((m, i) => (
-            <Card
+            <div
               key={i}
-              className={m.role === "user" ? "bg-blue-50 dark:bg-blue-950" : ""}
+              className={cn(
+                "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
+                m.role === "user"
+                  ? "bg-primary text-primary-foreground self-end"
+                  : "bg-muted self-start",
+              )}
             >
-              <Badge tone={m.role === "user" ? "blue" : "gray"}>
-                {m.role === "user" ? "You" : "Tutor"}
-              </Badge>
-              <p className="mt-1 whitespace-pre-wrap text-sm">{m.text}</p>
-            </Card>
+              {m.text}
+            </div>
           ))}
-          {busy && <Spinner label="Tutor is thinking…" />}
+          {busy && <Spinner className="text-muted-foreground" />}
         </div>
 
-        <form onSubmit={send} className="space-y-2">
-          <textarea
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
+        <form onSubmit={send} className="flex flex-col gap-2">
+          <Textarea
             rows={2}
             placeholder="Ask a question…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          <ErrorText>{error}</ErrorText>
-          <Button type="submit" disabled={busy}>
+          {error && <p className="text-destructive text-sm">{error}</p>}
+          <Button type="submit" disabled={busy} className="self-start">
+            <Send data-icon="inline-start" />
             Send
           </Button>
         </form>

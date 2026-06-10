@@ -3,14 +3,32 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BookOpen, Plus } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Badge, Button, Card, ProgressBar, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 
 interface Topic {
   id: string;
   title: string;
   domain: string;
-  version: number;
   summary: {
     modulesTotal: number;
     modulesCompleted: number;
@@ -40,106 +58,115 @@ export default function TopicsPage() {
         setInProgress(res.inProgress ?? []);
       })
       .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401) {
+        if (active && err instanceof ApiClientError && err.status === 401)
           router.push("/login");
-        } else if (active) {
-          setTopics([]);
-        }
+        else if (active) setTopics([]);
       });
     return () => {
       active = false;
     };
   }, [router]);
 
-  if (!topics) return <Spinner />;
+  if (!topics)
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Your topics</h1>
-        <Button onClick={() => router.push("/onboarding?new=1")}>
-          + New topic
+        <Button asChild>
+          <Link href="/onboarding?new=1">
+            <Plus data-icon="inline-start" />
+            New topic
+          </Link>
         </Button>
       </div>
 
       {inProgress.length > 0 && (
-        <div className="space-y-2">
-          <h2 className="text-sm font-semibold text-gray-500">In progress</h2>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-muted-foreground text-sm font-medium">
+            In progress
+          </h2>
           {inProgress.map((p) => (
-            <Card
-              key={p.onboardingId}
-              className="flex items-center justify-between gap-3"
-            >
-              <div>
-                <p className="font-medium">{p.topic}</p>
-                <p className="text-xs text-gray-400">
-                  {p.status === "clarifying"
-                    ? "Onboarding not finished"
-                    : "Assessment not finished"}
-                </p>
-              </div>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  router.push(p.next === "onboarding" ? "/onboarding" : "/assessment")
-                }
-              >
-                Continue
-              </Button>
+            <Card key={p.onboardingId}>
+              <CardContent className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{p.topic}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {p.status === "clarifying"
+                      ? "Onboarding not finished"
+                      : "Assessment not finished"}
+                  </p>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    router.push(
+                      p.next === "onboarding" ? "/onboarding" : "/assessment",
+                    )
+                  }
+                >
+                  Continue
+                </Button>
+              </CardContent>
             </Card>
           ))}
         </div>
       )}
 
       {topics.length === 0 ? (
-        <Card className="space-y-3 text-center">
-          <p className="text-gray-600 dark:text-gray-300">
-            You don&apos;t have any topics yet. Each topic is its own learning
-            path — e.g. &ldquo;Node.js&rdquo; and &ldquo;English grammar&rdquo;
-            can run side by side.
-          </p>
-          <Button onClick={() => router.push("/onboarding?new=1")}>
-            Start your first topic
-          </Button>
-        </Card>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <BookOpen />
+            </EmptyMedia>
+            <EmptyTitle>No topics yet</EmptyTitle>
+            <EmptyDescription>
+              Each topic is its own learning path — &ldquo;Node.js&rdquo; and
+              &ldquo;English grammar&rdquo; can run side by side.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild>
+              <Link href="/onboarding?new=1">Start your first topic</Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {topics.map((t) => (
-            <Card key={t.id} className="flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h2 className="font-semibold">{t.title}</h2>
-                  <p className="text-xs text-gray-400">{t.domain}</p>
-                </div>
-                <Badge tone="blue">
-                  {Math.round(t.summary.overallMastery * 100)}%
-                </Badge>
-              </div>
-              <ProgressBar value={t.summary.overallMastery} />
-              <p className="text-xs text-gray-400">
-                {t.summary.lessonsMastered}/{t.summary.lessonsTotal} lessons ·{" "}
-                {t.summary.modulesCompleted}/{t.summary.modulesTotal} modules
-              </p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                <Link
-                  href={`/dashboard?id=${t.id}`}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  href={`/curriculum?id=${t.id}`}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Path
-                </Link>
-                <Link
-                  href={`/tutor?id=${t.id}`}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  Tutor
-                </Link>
-              </div>
+            <Card key={t.id} className="flex flex-col">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <span className="truncate">{t.title}</span>
+                  <Badge variant="secondary">
+                    {Math.round(t.summary.overallMastery * 100)}%
+                  </Badge>
+                </CardTitle>
+                <p className="text-muted-foreground text-xs">{t.domain}</p>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col justify-end gap-2">
+                <Progress value={t.summary.overallMastery * 100} />
+                <p className="text-muted-foreground text-xs">
+                  {t.summary.lessonsMastered}/{t.summary.lessonsTotal} lessons ·{" "}
+                  {t.summary.modulesCompleted}/{t.summary.modulesTotal} modules
+                </p>
+              </CardContent>
+              <CardFooter className="gap-1">
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/dashboard?id=${t.id}`}>Dashboard</Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/curriculum?id=${t.id}`}>Path</Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/tutor?id=${t.id}`}>Tutor</Link>
+                </Button>
+              </CardFooter>
             </Card>
           ))}
         </div>

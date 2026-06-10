@@ -21,10 +21,46 @@ Rules:
   "correctKey" = the zero-based index of the correct choice as a string (e.g. "2").
 - Each question has a "level" from: novice, beginner, intermediate, advanced, expert.
 - Spread the questions across the requested difficulty levels (roughly the given
-  counts), and across DIFFERENT sub-skills ("topic") — do not repeat a topic.
+  counts), and across DIFFERENT sub-skills ("topic"), do not repeat a topic.
 - Keep prompts self-contained and unambiguous; calibrate difficulty to each level.
+- Dont always make the correct answer the longest one.
+- Keep the options related to each other dont give unrelated options as it is very easy to rule out.
+- More the reasoning required for a question harder it is. Avoid fact based questions on higher level, having logical questions at that 
+	difficulty makes more sense. If the topic is factual then it is okay to ask factual questions.
+- 
 
-Respond with ONLY a JSON object of this shape:
+Examples : 
+
+	Question : Which of the following hash functions is most likely to cause clustering in a hash table? Here k is the input key value and m is hash table size. You may assume that all four hash functions generate valid indexes in the hash table.
+
+	Options : 
+		A) h(k) = k % m
+
+		B) h(k) = floor(m * (k mod 1))
+
+		C) h(k) = k
+
+		D) h(k) = ((k / m) + k * m) + k % m
+
+
+	Question : Which of the following statements are TRUE?
+
+	1. The problem of determining whether there exists
+	a cycle in an undirected graph is in P.
+	2. The problem of determining whether there exists
+	a cycle in an undirected graph is in NP.
+	3. If a problem A is NP-Complete, there exists a 
+	non-deterministic polynomial time algorithm to solve A. 
+		A) 1, 2 and 3
+
+		B) 1 and 2 only
+
+		C) 2 and 3 only
+
+		D) 1 and 3 only
+
+
+IMPORTANT: Respond with ONLY a JSON object of this shape:
 {
   "questions": [
     { "topic": string, "level": "novice"|"beginner"|"intermediate"|"advanced"|"expert",

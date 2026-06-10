@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
-import { Button, Card, ErrorText } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +35,7 @@ export default function LoginPage() {
         await api("/api/auth/signup", {
           body: { email, password, displayName: displayName || undefined },
         });
-        router.push("/onboarding");
+        router.push("/onboarding?new=1");
       } else {
         await api("/api/auth/login", { body: { email, password } });
         router.push("/");
@@ -35,54 +47,81 @@ export default function LoginPage() {
     }
   }
 
+  const isLogin = mode === "login";
+
   return (
-    <Card className="mx-auto max-w-sm space-y-4">
-      <h1 className="text-xl font-bold">
-        {mode === "login" ? "Log in" : "Create account"}
-      </h1>
-      <form onSubmit={submit} className="space-y-3">
-        {mode === "signup" && (
-          <input
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-            placeholder="Display name (optional)"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-          />
-        )}
-        <input
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-          type="email"
-          required
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-          type="password"
-          required
-          minLength={mode === "signup" ? 8 : undefined}
-          placeholder={mode === "signup" ? "Password (min 8 chars)" : "Password"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <ErrorText>{error}</ErrorText>
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "…" : mode === "login" ? "Log in" : "Sign up"}
-        </Button>
-      </form>
-      <p className="text-center text-sm text-gray-500">
-        {mode === "login" ? "No account?" : "Have an account?"}{" "}
-        <button
-          className="text-blue-600 hover:underline"
-          onClick={() => {
-            setMode(mode === "login" ? "signup" : "login");
-            setError("");
-          }}
-        >
-          {mode === "login" ? "Sign up" : "Log in"}
-        </button>
-      </p>
+    <Card className="mx-auto max-w-sm">
+      <CardHeader>
+        <CardTitle>{isLogin ? "Log in" : "Create account"}</CardTitle>
+        <CardDescription>
+          {isLogin
+            ? "Welcome back — pick up where you left off."
+            : "Start building personalized learning paths."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit}>
+          <FieldGroup>
+            {!isLogin && (
+              <Field>
+                <FieldLabel htmlFor="displayName">Display name</FieldLabel>
+                <Input
+                  id="displayName"
+                  placeholder="Optional"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                />
+              </Field>
+            )}
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input
+                id="email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Password</FieldLabel>
+              <Input
+                id="password"
+                type="password"
+                required
+                minLength={isLogin ? undefined : 8}
+                placeholder={isLogin ? undefined : "At least 8 characters"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" disabled={busy}>
+              {busy && <Spinner data-icon="inline-start" />}
+              {isLogin ? "Log in" : "Sign up"}
+            </Button>
+          </FieldGroup>
+        </form>
+      </CardContent>
+      <CardFooter className="justify-center">
+        <p className="text-muted-foreground text-sm">
+          {isLogin ? "No account?" : "Have an account?"}{" "}
+          <button
+            type="button"
+            className="text-primary font-medium hover:underline"
+            onClick={() => {
+              setMode(isLogin ? "signup" : "login");
+              setError("");
+            }}
+          >
+            {isLogin ? "Sign up" : "Log in"}
+          </button>
+        </p>
+      </CardFooter>
     </Card>
   );
 }

@@ -41,7 +41,8 @@ lib/
   server/             route helpers (assessment flow, curriculum build/view/locate, grading)
   client/             browser fetch helper
 app/api/              route handlers (the backend API)
-app/                  minimal client UI (to be redesigned)
+app/                  client UI — shadcn/ui (components/ui/*), Tailwind v4
+components/ui/        shadcn components (managed via `npx shadcn@latest add`)
 proxy.ts              cheap auth gate for /api/* (requireUser is the real check)
 ```
 
@@ -85,6 +86,13 @@ scoped to the owner (`{ _id, userId }`) — passing another user's id returns 40
 | GET | `/api/progress?curriculumId=` | a topic's dashboard aggregate + recommended next |
 | GET | `/api/tutor/conversations?curriculumId=` | list a topic's tutor threads |
 | POST · GET | `/api/tutor` | Socratic tutor — POST starts/continues a thread (`conversationId`), GET loads one |
+
+## Theming
+UI is **shadcn/ui** (config in `components.json`); add components with
+`npx shadcn@latest add <name>`. The theme is CSS-variable driven in
+`app/globals.css`. To change the **accent color project-wide**, edit the single
+`--brand` / `--brand-foreground` pair at the top of `:root` (and the `.dark`
+block) — `--primary` is wired to them. Default is the shadcn neutral theme.
 
 ## Scripts
 `npm run dev` · `npm run build` · `npm start` · `npm run lint`

@@ -4,13 +4,22 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Badge, Button, Card, ProgressBar, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Progress {
   hasCurriculum: boolean;
   curriculumId?: string;
   title?: string;
-  version?: number;
   summary?: {
     modulesTotal: number;
     modulesCompleted: number;
@@ -51,59 +60,54 @@ function DashboardInner() {
     let active = true;
     const q = topicId ? `?curriculumId=${topicId}` : "";
     api<Progress>(`/api/progress${q}`)
-      .then((res) => {
-        if (active) setData(res);
-      })
+      .then((res) => active && setData(res))
       .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401) {
+        if (active && err instanceof ApiClientError && err.status === 401)
           router.push("/login");
-        }
       })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
   }, [router, topicId]);
 
-  if (loading) return <Spinner />;
+  if (loading)
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
   if (!data) return null;
 
-  if (!data.hasCurriculum) {
+  if (!data.hasCurriculum)
     return (
-      <Card className="space-y-3">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          No topic to show yet.
-        </p>
-        <Button onClick={() => router.push("/topics")}>Go to topics</Button>
+      <Card className="mx-auto max-w-md">
+        <CardHeader>
+          <CardTitle>Dashboard</CardTitle>
+          <CardDescription>No topic to show yet.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => router.push("/topics")}>Go to topics</Button>
+        </CardContent>
       </Card>
     );
-  }
 
   const s = data.summary!;
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-5">
       <div className="flex items-start justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
-        <div className="flex gap-3 text-sm">
-          <Link
-            href={`/curriculum?id=${data.curriculumId}`}
-            className="text-blue-600 hover:underline"
-          >
-            Path
-          </Link>
-          <Link
-            href={`/tutor?id=${data.curriculumId}`}
-            className="text-blue-600 hover:underline"
-          >
-            Tutor
-          </Link>
-          <Link href="/topics" className="text-blue-600 hover:underline">
-            ← Topics
-          </Link>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/curriculum?id=${data.curriculumId}`}>Path</Link>
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href={`/tutor?id=${data.curriculumId}`}>Tutor</Link>
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/topics">Topics</Link>
+          </Button>
         </div>
       </div>
 
@@ -115,59 +119,77 @@ function DashboardInner() {
       </div>
 
       {data.recommendedNext && (
-        <Card className="space-y-2 border-blue-300">
-          <p className="text-xs font-semibold uppercase text-blue-500">
-            Recommended next ·{" "}
-            {data.recommendedNext.reason === "needs_review"
-              ? "review"
-              : "keep going"}
-          </p>
-          <p className="font-medium">{data.recommendedNext.lessonTitle}</p>
-          <p className="text-xs text-gray-400">
-            in {data.recommendedNext.moduleTitle}
-          </p>
-          <Link
-            href={`/learn/${data.recommendedNext.lessonId}`}
-            className="text-sm text-blue-600 hover:underline"
-          >
-            Open lesson →
-          </Link>
+        <Card className="border-primary/40">
+          <CardHeader>
+            <CardDescription className="text-primary text-xs font-semibold uppercase">
+              Recommended next ·{" "}
+              {data.recommendedNext.reason === "needs_review"
+                ? "review"
+                : "keep going"}
+            </CardDescription>
+            <CardTitle className="text-base">
+              {data.recommendedNext.lessonTitle}
+            </CardTitle>
+            <p className="text-muted-foreground text-xs">
+              in {data.recommendedNext.moduleTitle}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href={`/learn/${data.recommendedNext.lessonId}`}>
+                Open lesson
+              </Link>
+            </Button>
+          </CardContent>
         </Card>
       )}
 
-      <div className="space-y-3">
+      <div className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">Progress map</h2>
         {data.modules!.map((m) => (
-          <Card key={m.id} className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">{m.title}</span>
-              <Badge
-                tone={
-                  m.status === "completed"
-                    ? "green"
-                    : m.status === "locked"
-                      ? "gray"
-                      : "blue"
-                }
-              >
-                {m.status}
-              </Badge>
-            </div>
-            <ProgressBar value={m.mastery} />
-            <p className="text-xs text-gray-400">
-              {m.lessonsMastered}/{m.lessonsTotal} lessons mastered ·{" "}
-              {Math.round(m.mastery * 100)}% mastery
-            </p>
+          <Card key={m.id}>
+            <CardContent className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{m.title}</span>
+                <Badge
+                  variant={
+                    m.status === "completed"
+                      ? "default"
+                      : m.status === "locked"
+                        ? "outline"
+                        : "secondary"
+                  }
+                >
+                  {m.status}
+                </Badge>
+              </div>
+              <Progress value={m.mastery * 100} />
+              <p className="text-muted-foreground text-xs">
+                {m.lessonsMastered}/{m.lessonsTotal} lessons mastered ·{" "}
+                {Math.round(m.mastery * 100)}% mastery
+              </p>
+            </CardContent>
           </Card>
         ))}
       </div>
 
       {s.lessonsNeedingReview > 0 && (
-        <p className="text-sm text-red-600">
+        <p className="text-destructive text-sm">
           {s.lessonsNeedingReview} lesson(s) need review.
         </p>
       )}
     </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="text-center">
+        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-muted-foreground text-xs">{label}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -176,14 +198,5 @@ export default function DashboardPage() {
     <Suspense fallback={<Spinner />}>
       <DashboardInner />
     </Suspense>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="text-center">
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs text-gray-400">{label}</p>
-    </Card>
   );
 }

@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { GraduationCap } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Button, Card, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function Home() {
   const router = useRouter();
@@ -12,33 +21,41 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     api("/api/me")
-      .then(() => {
-        // Logged in → go to the topics hub (the multi-topic home).
-        if (active) router.replace("/topics");
-      })
+      .then(() => active && router.replace("/topics"))
       .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401) {
-          setLoggedIn(false);
-        } else if (active) {
-          setLoggedIn(false);
-        }
+        if (active && err instanceof ApiClientError) setLoggedIn(false);
+        else if (active) setLoggedIn(false);
       });
     return () => {
       active = false;
     };
   }, [router]);
 
-  if (loggedIn === null) return <Spinner />;
+  if (loggedIn === null)
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
 
   return (
-    <Card className="space-y-4 text-center">
-      <h1 className="text-2xl font-bold">🎓 LearnPath</h1>
-      <p className="text-gray-600 dark:text-gray-300">
-        An adaptive learning platform that diagnoses your level, generates a
-        personalized curriculum, and adapts as you learn — across as many topics
-        as you want.
-      </p>
-      <Button onClick={() => router.push("/login")}>Get started</Button>
+    <Card className="mx-auto max-w-md text-center">
+      <CardHeader>
+        <div className="bg-primary/10 mx-auto flex size-12 items-center justify-center rounded-full">
+          <GraduationCap className="text-primary size-6" />
+        </div>
+        <CardTitle className="text-2xl">LearnPath</CardTitle>
+        <CardDescription>
+          An adaptive learning platform that diagnoses your level, generates a
+          personalized curriculum, and adapts as you learn — across as many
+          topics as you want.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button size="lg" onClick={() => router.push("/login")}>
+          Get started
+        </Button>
+      </CardContent>
     </Card>
   );
 }

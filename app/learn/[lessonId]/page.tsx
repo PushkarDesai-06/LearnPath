@@ -3,8 +3,16 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
-import { Badge, Button, Card, ErrorText, Spinner } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { Spinner } from "@/components/ui/spinner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Block {
   kind: "text" | "code" | "analogy" | "example" | "practice";
@@ -18,24 +26,18 @@ interface Block {
   choices?: string[] | null;
 }
 interface LessonResp {
-  lesson: {
-    id: string;
-    curriculumId: string;
-    title: string;
-    blocks: Block[];
-  };
+  lesson: { id: string; curriculumId: string; title: string; blocks: Block[] };
 }
 
 function PracticeBlock({ block }: { block: Block }) {
+  const params = useParams<{ lessonId: string }>();
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{
     correct: boolean;
     feedback: string | null;
     explanation: string | null;
-    masteryScore: number;
   } | null>(null);
-  const params = useParams<{ lessonId: string }>();
 
   async function submit() {
     setBusy(true);
@@ -53,51 +55,56 @@ function PracticeBlock({ block }: { block: Block }) {
   }
 
   return (
-    <Card className="space-y-3 border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/30">
-      <p className="text-xs font-semibold uppercase text-blue-500">Practice</p>
-      <p className="font-medium">{block.prompt}</p>
-      {block.type === "mcq" && block.choices ? (
-        <div className="space-y-2">
-          {block.choices.map((c, i) => (
-            <label key={i} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name={block.questionId}
-                value={String(i)}
-                checked={answer === String(i)}
-                onChange={(e) => setAnswer(e.target.value)}
-                disabled={!!result}
-              />
-              {c}
-            </label>
-          ))}
-        </div>
-      ) : (
-        <textarea
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
-          rows={2}
-          value={answer}
-          disabled={!!result}
-          onChange={(e) => setAnswer(e.target.value)}
-        />
-      )}
-      {!result ? (
-        <Button onClick={submit} disabled={busy || !answer.trim()}>
-          {busy ? "Checking…" : "Check answer"}
-        </Button>
-      ) : (
-        <div className="space-y-1 text-sm">
-          <Badge tone={result.correct ? "green" : "red"}>
-            {result.correct ? "Correct" : "Not quite"}
-          </Badge>
-          {result.feedback && <p>{result.feedback}</p>}
-          {result.explanation && (
-            <p className="text-gray-600 dark:text-gray-300">
-              <strong>Explanation:</strong> {result.explanation}
-            </p>
-          )}
-        </div>
-      )}
+    <Card className="border-primary/30 bg-primary/5">
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-primary text-xs font-semibold uppercase">Practice</p>
+        <p className="font-medium">{block.prompt}</p>
+        {block.type === "mcq" && block.choices ? (
+          <RadioGroup value={answer} onValueChange={setAnswer} disabled={!!result}>
+            {block.choices.map((c, i) => (
+              <Label
+                key={i}
+                htmlFor={`${block.questionId}-${i}`}
+                className="flex cursor-pointer items-center gap-2 font-normal"
+              >
+                <RadioGroupItem value={String(i)} id={`${block.questionId}-${i}`} />
+                {c}
+              </Label>
+            ))}
+          </RadioGroup>
+        ) : (
+          <Textarea
+            rows={2}
+            value={answer}
+            disabled={!!result}
+            onChange={(e) => setAnswer(e.target.value)}
+          />
+        )}
+        {!result ? (
+          <Button
+            size="sm"
+            className="self-start"
+            onClick={submit}
+            disabled={busy || !answer.trim()}
+          >
+            {busy && <Spinner data-icon="inline-start" />}
+            Check answer
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-1 text-sm">
+            <Badge variant={result.correct ? "default" : "destructive"} className="self-start">
+              {result.correct ? "Correct" : "Not quite"}
+            </Badge>
+            {result.feedback && <p>{result.feedback}</p>}
+            {result.explanation && (
+              <p className="text-muted-foreground">
+                <span className="font-medium">Explanation:</span>{" "}
+                {result.explanation}
+              </p>
+            )}
+          </div>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -115,9 +122,7 @@ export default function LessonPage() {
   useEffect(() => {
     let active = true;
     api<LessonResp>(`/api/lesson/${params.lessonId}`)
-      .then((res) => {
-        if (active) setData(res.lesson);
-      })
+      .then((res) => active && setData(res.lesson))
       .catch((err) => {
         if (!active) return;
         if (err instanceof ApiClientError && err.status === 401) {
@@ -126,9 +131,7 @@ export default function LessonPage() {
         }
         setError(err instanceof Error ? err.message : "Failed to load lesson");
       })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+      .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
@@ -153,20 +156,28 @@ export default function LessonPage() {
     }
   }
 
-  if (loading) return <Spinner label="Generating your lesson…" />;
-  if (error && !data) return <ErrorText>{error}</ErrorText>;
+  if (loading)
+    return (
+      <div className="flex flex-col items-center gap-2 py-16">
+        <Spinner />
+        <p className="text-muted-foreground text-sm">Generating your lesson…</p>
+      </div>
+    );
+  if (error && !data)
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
   if (!data) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
-        <Link
-          href={`/curriculum?id=${data.curriculumId}`}
-          className="text-sm text-blue-600 hover:underline"
-        >
-          ← Path
-        </Link>
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/curriculum?id=${data.curriculumId}`}>Path</Link>
+        </Button>
       </div>
 
       {data.blocks.map((b, i) => {
@@ -174,57 +185,73 @@ export default function LessonPage() {
           return <PracticeBlock key={b.questionId ?? i} block={b} />;
         if (b.kind === "code")
           return (
-            <Card key={i} className="space-y-1">
-              {b.caption && (
-                <p className="text-xs text-gray-400">{b.caption}</p>
-              )}
-              <pre className="overflow-x-auto rounded-md bg-gray-900 p-3 text-xs text-gray-100">
-                <code>{b.code}</code>
-              </pre>
+            <Card key={i}>
+              <CardContent className="flex flex-col gap-1">
+                {b.caption && (
+                  <p className="text-muted-foreground text-xs">{b.caption}</p>
+                )}
+                <pre className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs">
+                  <code>{b.code}</code>
+                </pre>
+              </CardContent>
             </Card>
           );
         return (
           <Card key={i}>
-            {b.kind !== "text" && (
-              <p className="mb-1 text-xs font-semibold uppercase text-gray-400">
-                {b.kind}
+            <CardContent className="flex flex-col gap-1">
+              {b.kind !== "text" && (
+                <p className="text-muted-foreground text-xs font-semibold uppercase">
+                  {b.kind}
+                </p>
+              )}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {b.markdown}
               </p>
-            )}
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">
-              {b.markdown}
-            </p>
+            </CardContent>
           </Card>
         );
       })}
 
-      <Card className="flex items-center justify-between">
-        {completed ? (
-          <>
-            <Badge tone="green">Lesson completed ✓</Badge>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => router.push(`/curriculum?id=${data.curriculumId}`)}
-              >
-                Back to path
+      <Card>
+        <CardContent className="flex items-center justify-between gap-3">
+          {completed ? (
+            <>
+              <Badge>
+                <CheckCircle2 data-icon="inline-start" />
+                Lesson completed
+              </Badge>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => router.push(`/curriculum?id=${data.curriculumId}`)}
+                >
+                  Back to path
+                </Button>
+                <Button
+                  onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}
+                >
+                  Dashboard
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="text-muted-foreground text-sm">
+                Finished reading and practicing?
+              </span>
+              <Button onClick={markComplete} disabled={completing}>
+                {completing && <Spinner data-icon="inline-start" />}
+                Mark complete
               </Button>
-              <Button onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}>
-                Dashboard
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <span className="text-sm text-gray-500">
-              Finished reading and practicing?
-            </span>
-            <Button onClick={markComplete} disabled={completing}>
-              {completing ? "Saving…" : "Mark complete"}
-            </Button>
-          </>
-        )}
+            </>
+          )}
+        </CardContent>
       </Card>
-      <ErrorText>{error}</ErrorText>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
