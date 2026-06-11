@@ -181,7 +181,7 @@ export default function LessonPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
         <Button variant="ghost" size="sm" asChild>
-          <Link href={`/curriculum?id=${data.curriculumId}`}>Path</Link>
+          <Link href={`/dashboard?id=${data.curriculumId}`}>Path</Link>
         </Button>
       </div>
 
@@ -223,19 +223,11 @@ export default function LessonPage() {
                 <CheckCircle2 data-icon="inline-start" />
                 Lesson completed
               </Badge>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  onClick={() => router.push(`/curriculum?id=${data.curriculumId}`)}
-                >
-                  Back to path
-                </Button>
-                <Button
-                  onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}
-                >
-                  Dashboard
-                </Button>
-              </div>
+              <Button
+                onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}
+              >
+                Back to path
+              </Button>
             </>
           ) : (
             <>

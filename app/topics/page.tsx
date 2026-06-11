@@ -153,15 +153,12 @@ export default function TopicsPage() {
                   {t.summary.modulesCompleted}/{t.summary.modulesTotal} modules
                 </p>
               </CardContent>
-              <CardFooter className="gap-1">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/dashboard?id=${t.id}`}>Dashboard</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href={`/curriculum?id=${t.id}`}>Path</Link>
-                </Button>
+              <CardFooter className="gap-1 flex justify-between">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href={`/tutor?id=${t.id}`}>Tutor</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href={`/dashboard?id=${t.id}`}>Learn {"->"}</Link>
                 </Button>
               </CardFooter>
             </Card>

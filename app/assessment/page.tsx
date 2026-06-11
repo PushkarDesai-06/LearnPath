@@ -133,7 +133,7 @@ export default function AssessmentPage() {
         { method: "POST" },
       );
       toast.success("Your learning path is ready!", { id: t });
-      router.push(`/curriculum?id=${res.curriculum.id}`);
+      router.push(`/dashboard?id=${res.curriculum.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Generation failed", {
         id: t,

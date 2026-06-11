@@ -36,10 +36,22 @@ export const GET = handler(async (request) => {
     return {
       id: m.id,
       title: m.title,
+      summary: m.summary,
       status: m.status,
       lessonsTotal: m.lessons.length,
       lessonsMastered: done,
       mastery: Number(avg.toFixed(3)),
+      // Lessons so the dashboard can render the navigable path (open lessons).
+      lessons: [...m.lessons]
+        .sort((a, b) => a.order - b.order)
+        .map((l) => ({
+          id: l.id,
+          title: l.title,
+          status: l.status,
+          difficultyLevel: l.difficultyLevel,
+          estMinutes: l.estMinutes,
+          masteryScore: Number(l.masteryScore.toFixed(3)),
+        })),
     };
   });
 

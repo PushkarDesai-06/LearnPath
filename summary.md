@@ -185,11 +185,15 @@ connect (`autoIndex` on in dev).
   404s on miss — accepting a client-supplied id without the owner filter would let
   any user read another's topic. This is the #1 thing to preserve when adding
   topic-scoped endpoints.
-- **Frontend** always passes `?id=` on curriculum/dashboard/tutor views; "New
-  topic" links to `/onboarding?new=1`, which sends `restart:true` on the first
-  clarity message so it starts fresh instead of resuming an abandoned funnel.
-  Curriculum generation happens at the assessment-done step (targets the just-
-  finished assessment, not "latest").
+- **Frontend** always passes `?id=` on dashboard/tutor views; "New topic" links
+  to `/onboarding?new=1`, which sends `restart:true` on the first clarity message
+  so it starts fresh instead of resuming an abandoned funnel. Curriculum
+  generation happens at the assessment-done step (targets the just-finished
+  assessment, not "latest").
+- **Dashboard = the topic hub** (`app/dashboard/page.tsx`): stats + recommended-
+  next + the navigable learning path (clickable lessons, gating respected). The
+  old separate "Path" page (`app/curriculum/page.tsx`) now just redirects to
+  `/dashboard?id=`. `GET /api/progress` returns per-module lessons for this.
 
 ### Mongoose conventions (read before touching the data layer)
 
