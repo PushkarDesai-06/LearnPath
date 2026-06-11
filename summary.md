@@ -92,8 +92,12 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
 6. **Progress/adaptation** — `POST /api/progress/complete {curriculumId, lessonRef,
 timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    (deterministic): skip mastered, hoist needs-review, reorder weakest-first
-   respecting the prereq DAG, bump `version`. `GET /api/progress` is the dashboard
-   aggregate (mastery rollups, time, recommended-next).
+   respecting the prereq DAG (for *ordering*), bump `version`. **Module gating** is
+   a sliding window (`gateModuleStatuses`, `OPEN_MODULE_WINDOW = 2`): the next 2
+   *incomplete* modules are accessible plus all completed ones — NOT one-at-a-time.
+   Applied at write AND at read (`GET /api/curriculum`, `GET /api/progress`) so
+   existing curricula get the rule without a migration. `GET /api/progress` is the
+   dashboard aggregate (mastery rollups, time, recommended-next).
 7. **Tutor (multi-conversation)** — each topic has MANY threads. `POST /api/tutor
    {message, curriculumId?, conversationId?}` starts a new thread (no id) or
    appends to one; `GET /api/tutor?conversationId=` loads a thread;

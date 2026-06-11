@@ -12,12 +12,20 @@
  *      mastery first (needs_review before available), while keeping mastered
  *      lessons in place. Module ordering follows the prerequisite DAG.
  */
-import {
-  isLessonDone,
-  MASTERED_THRESHOLD,
-  moduleStatusFor,
-} from "@/lib/domain/mastery";
-import type { CurriculumDoc, CurriculumModule } from "@/lib/db/models";
+import { isLessonDone, MASTERED_THRESHOLD } from "@/lib/domain/mastery";
+import type {
+  CurriculumDoc,
+  CurriculumModule,
+  ModuleStatus,
+} from "@/lib/db/models";
+
+/**
+ * How many not-yet-completed modules are accessible at once. Instead of hard-
+ * locking everything after the current module until it's 100% mastered, we keep
+ * a window of upcoming modules open so the learner can work through at least the
+ * next couple in increasing difficulty.
+ */
+export const OPEN_MODULE_WINDOW = 2;
 
 /** Topological order of modules by their prerequisite ids, stable on `order`. */
 export function orderModules(
@@ -61,8 +69,38 @@ function lessonPriority(status: string): number {
 }
 
 /**
- * Reorder a curriculum in place-style (returns a new modules array) and update
- * every module/lesson status. Returns the updated modules plus whether anything
+ * Assign each module a status, gating accessibility with a sliding window: every
+ * completed module stays `completed`, the next `OPEN_MODULE_WINDOW` incomplete
+ * modules (in order) are open (`available`/`in_progress`), and the rest are
+ * `locked`. Pure — used both when adapting (write) and when serving (read), so
+ * existing curricula reflect the rule without a migration.
+ */
+export function gateModuleStatuses(
+  modules: CurriculumModule[],
+): CurriculumModule[] {
+  const ordered = [...modules].sort((a, b) => a.order - b.order);
+  let open = OPEN_MODULE_WINDOW;
+  return ordered.map((m) => {
+    const done = m.lessons.length > 0 && m.lessons.every(isLessonDone);
+    let status: ModuleStatus;
+    if (done) {
+      status = "completed";
+    } else if (open > 0) {
+      const active = m.lessons.some(
+        (l) => l.status === "in_progress" || l.status === "needs_review",
+      );
+      status = active ? "in_progress" : "available";
+      open -= 1;
+    } else {
+      status = "locked";
+    }
+    return { ...m, status };
+  });
+}
+
+/**
+ * Reorder a curriculum (returns a new modules array) and update every
+ * module/lesson status. Returns the updated modules plus whether anything
  * changed (so the caller can decide to bump `version`).
  */
 export function adaptCurriculum(curriculum: CurriculumDoc): {
@@ -70,9 +108,8 @@ export function adaptCurriculum(curriculum: CurriculumDoc): {
   changed: boolean;
 } {
   const ordered = orderModules(curriculum.modules);
-  const completedModuleIds = new Set<string>();
 
-  const newModules = ordered.map((module, moduleIndex) => {
+  const processed = ordered.map((module, moduleIndex) => {
     // Re-affirm mastered lessons (skip-mastered rule).
     const lessons = module.lessons.map((l) => ({
       ...l,
@@ -98,21 +135,10 @@ export function adaptCurriculum(curriculum: CurriculumDoc): {
 
     // Re-number order to reflect the new sequence.
     const reLessons = sorted.map((l, i) => ({ ...l, order: i }));
-
-    const prereqsCompleted = module.prerequisites.every((id) =>
-      completedModuleIds.has(id),
-    );
-    const updatedModule: CurriculumModule = {
-      ...module,
-      order: moduleIndex,
-      lessons: reLessons,
-      status: moduleStatusFor({ ...module, lessons: reLessons }, prereqsCompleted),
-    };
-    if (updatedModule.status === "completed")
-      completedModuleIds.add(updatedModule.id);
-    return updatedModule;
+    return { ...module, order: moduleIndex, lessons: reLessons };
   });
 
+  const newModules = gateModuleStatuses(processed);
   const changed =
     JSON.stringify(newModules) !== JSON.stringify(curriculum.modules);
   return { modules: newModules, changed };

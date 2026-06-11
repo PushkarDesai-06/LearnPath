@@ -7,6 +7,7 @@ import { progressEventsCollection } from "@/lib/db/collections";
 import type { CurriculumLesson } from "@/lib/db/models";
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import { summarizeCurriculum } from "@/lib/server/curriculumView";
+import { gateModuleStatuses } from "@/lib/domain/adapt";
 import { handler, json } from "@/lib/http";
 
 export const GET = handler(async (request) => {
@@ -17,6 +18,8 @@ export const GET = handler(async (request) => {
   if (!curriculum) {
     return json({ hasCurriculum: false });
   }
+  // Apply the access window so module badges + recommended-next reflect the rule.
+  curriculum.modules = gateModuleStatuses(curriculum.modules);
 
   const reviewLessons = curriculum.modules.flatMap((m) =>
     m.lessons

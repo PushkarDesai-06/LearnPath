@@ -2,12 +2,7 @@
  * Learner model: mastery scoring (EWMA) and the status transitions that follow
  * from a score. Pure functions over numbers/statuses — no I/O.
  */
-import type {
-  CurriculumLesson,
-  CurriculumModule,
-  LessonStatus,
-  ModuleStatus,
-} from "@/lib/db/models";
+import type { CurriculumLesson, LessonStatus } from "@/lib/db/models";
 
 export const MASTERY_ALPHA = 0.5; // weight of the newest observation
 export const MASTERED_THRESHOLD = 0.8;
@@ -40,18 +35,6 @@ export function isLessonDone(lesson: CurriculumLesson): boolean {
   return lesson.status === "mastered";
 }
 
-/**
- * Recompute a module's status from its lessons and whether its prerequisites
- * are all completed.
- */
-export function moduleStatusFor(
-  module: CurriculumModule,
-  prereqsCompleted: boolean,
-): ModuleStatus {
-  if (!prereqsCompleted) return "locked";
-  const lessons = module.lessons;
-  if (lessons.length > 0 && lessons.every(isLessonDone)) return "completed";
-  if (lessons.some((l) => l.status === "in_progress" || l.status === "needs_review"))
-    return "in_progress";
-  return "available";
-}
+// Module status / accessibility gating lives in `domain/adapt.ts`
+// (`gateModuleStatuses`) — it needs the whole ordered module list, not a single
+// module, to apply the sliding access window.
