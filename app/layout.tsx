@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LearnPath — Adaptive Learning",
+  title: "LearnPath",
   description: "Personalized, adaptive learning paths generated for you.",
 };
 
@@ -34,7 +34,7 @@ export default function RootLayout({
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
           {children}
         </main>
-        <Toaster />
+        <Toaster richColors position="bottom-right" />
       </body>
     </html>
   );

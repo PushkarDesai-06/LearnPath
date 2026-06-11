@@ -47,7 +47,7 @@ export default function Home() {
         <CardTitle className="text-2xl">LearnPath</CardTitle>
         <CardDescription>
           An adaptive learning platform that diagnoses your level, generates a
-          personalized curriculum, and adapts as you learn — across as many
+          personalized curriculum, and adapts as you learn, across as many
           topics as you want.
         </CardDescription>
       </CardHeader>

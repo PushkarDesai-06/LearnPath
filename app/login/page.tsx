@@ -12,9 +12,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
@@ -23,25 +23,25 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError("");
     try {
       if (mode === "signup") {
         await api("/api/auth/signup", {
           body: { email, password, displayName: displayName || undefined },
         });
+        toast.success("Account created — welcome to LearnPath!");
         router.push("/onboarding?new=1");
       } else {
         await api("/api/auth/login", { body: { email, password } });
+        toast.success("Welcome back!");
         router.push("/");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,7 @@ export default function LoginPage() {
         <CardTitle>{isLogin ? "Log in" : "Create account"}</CardTitle>
         <CardDescription>
           {isLogin
-            ? "Welcome back — pick up where you left off."
+            ? "Welcome back, pick up where you left off."
             : "Start building personalized learning paths."}
         </CardDescription>
       </CardHeader>
@@ -95,11 +95,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </Field>
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
             <Button type="submit" disabled={busy}>
               {busy && <Spinner data-icon="inline-start" />}
               {isLogin ? "Log in" : "Sign up"}
@@ -113,10 +108,7 @@ export default function LoginPage() {
           <button
             type="button"
             className="text-primary font-medium hover:underline"
-            onClick={() => {
-              setMode(isLogin ? "signup" : "login");
-              setError("");
-            }}
+            onClick={() => setMode(isLogin ? "signup" : "login")}
           >
             {isLogin ? "Sign up" : "Log in"}
           </button>

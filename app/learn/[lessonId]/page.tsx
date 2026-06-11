@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Markdown } from "@/components/Markdown";
 
 interface Block {
   kind: "text" | "code" | "analogy" | "example" | "practice";
@@ -47,8 +49,10 @@ function PracticeBlock({ block }: { block: Block }) {
         { body: { questionId: block.questionId, answer } },
       );
       setResult(res);
-    } catch {
-      // keep simple
+      if (res?.correct) toast.success("Correct!");
+      else toast.warning("Not quite — check the explanation.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not grade answer");
     } finally {
       setBusy(false);
     }
@@ -97,10 +101,10 @@ function PracticeBlock({ block }: { block: Block }) {
             </Badge>
             {result.feedback && <p>{result.feedback}</p>}
             {result.explanation && (
-              <p className="text-muted-foreground">
-                <span className="font-medium">Explanation:</span>{" "}
-                {result.explanation}
-              </p>
+              <div className="text-muted-foreground">
+                <span className="font-medium">Explanation:</span>
+                <Markdown>{result.explanation}</Markdown>
+              </div>
             )}
           </div>
         )}
@@ -149,8 +153,9 @@ export default function LessonPage() {
         },
       });
       setCompleted(true);
+      toast.success("Lesson completed — your path was updated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed");
+      toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
       setCompleting(false);
     }
@@ -204,9 +209,7 @@ export default function LessonPage() {
                   {b.kind}
                 </p>
               )}
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {b.markdown}
-              </p>
+              <Markdown>{b.markdown ?? ""}</Markdown>
             </CardContent>
           </Card>
         );
@@ -247,11 +250,6 @@ export default function LessonPage() {
           )}
         </CardContent>
       </Card>
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
     </div>
   );
 }

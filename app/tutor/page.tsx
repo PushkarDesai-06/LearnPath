@@ -3,11 +3,13 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Send } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "assistant"; text: string };
@@ -25,7 +27,6 @@ function TutorInner() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
 
   const q = topicId ? `?curriculumId=${topicId}` : "";
 
@@ -71,7 +72,7 @@ function TutorInner() {
   function newConversation() {
     setActiveId(null);
     setMessages([]);
-    setError("");
+    toast.message("Started a new conversation");
   }
 
   async function send(e: React.FormEvent) {
@@ -81,7 +82,6 @@ function TutorInner() {
     setMessages((m) => [...m, { role: "user", text: message }]);
     setInput("");
     setBusy(true);
-    setError("");
     try {
       const res = await api<{ conversationId: string; reply: string }>(
         "/api/tutor",
@@ -101,7 +101,7 @@ function TutorInner() {
         router.push("/login");
         return;
       }
-      setError(err instanceof Error ? err.message : "Failed");
+      toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
       setBusy(false);
     }
@@ -154,13 +154,19 @@ function TutorInner() {
             <div
               key={i}
               className={cn(
-                "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
+                "max-w-[85%] rounded-lg px-3 py-2 text-sm",
                 m.role === "user"
-                  ? "bg-primary text-primary-foreground self-end"
+                  ? "bg-primary text-primary-foreground self-end whitespace-pre-wrap"
                   : "bg-muted self-start",
               )}
             >
-              {m.text}
+              {m.role === "assistant" ? (
+                <Markdown className="prose-p:my-1.5 prose-pre:my-2">
+                  {m.text}
+                </Markdown>
+              ) : (
+                m.text
+              )}
             </div>
           ))}
           {busy && <Spinner className="text-muted-foreground" />}
@@ -173,7 +179,6 @@ function TutorInner() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          {error && <p className="text-destructive text-sm">{error}</p>}
           <Button type="submit" disabled={busy} className="self-start">
             <Send data-icon="inline-start" />
             Send

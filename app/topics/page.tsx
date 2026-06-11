@@ -125,10 +125,7 @@ export default function TopicsPage() {
               <BookOpen />
             </EmptyMedia>
             <EmptyTitle>No topics yet</EmptyTitle>
-            <EmptyDescription>
-              Each topic is its own learning path — &ldquo;Node.js&rdquo; and
-              &ldquo;English grammar&rdquo; can run side by side.
-            </EmptyDescription>
+            <EmptyDescription>Generate your learning path!</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
             <Button asChild>
@@ -141,7 +138,7 @@ export default function TopicsPage() {
           {topics.map((t) => (
             <Card key={t.id} className="flex flex-col">
               <CardHeader>
-                <CardTitle className="flex items-center justify-between gap-2">
+                <CardTitle className="flex items-center justify-between gap-2 truncate">
                   <span className="truncate">{t.title}</span>
                   <Badge variant="secondary">
                     {Math.round(t.summary.overallMastery * 100)}%

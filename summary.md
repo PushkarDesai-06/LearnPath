@@ -39,6 +39,11 @@ enough; asks follow-ups, capped at 4 cycles).
 | Validation | **zod v4**                                                                              | Request bodies AND AI structured outputs.                                                                                                     |
 | Frontend   | **shadcn/ui** (radix-nova, neutral base) + Tailwind v4                                   | Components in `components/ui/*` (shadcn CLI-managed); `cn()` in `lib/utils.ts`. Theme is CSS-variable driven — see Accent below.               |
 
+**Markdown:** LLM markdown (lesson text/analogy/example blocks, tutor replies,
+practice explanations) renders via `components/Markdown.tsx` (`react-markdown` +
+`remark-gfm` + the Tailwind typography `prose` plugin). Raw HTML is escaped (safe
+for model output). The structured `code` lesson block stays a `<pre>` (not markdown).
+
 **Accent color (one knob):** `app/globals.css` defines `--brand` /
 `--brand-foreground` at the top of `:root` (and `.dark`); `--primary` is wired to
 them, so changing those two values recolors actions/links/highlights app-wide.
@@ -63,6 +68,9 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    `clarityAgent` judges clarity; returns a follow-up question or `done:true` with
    a synthesized `refinedTopic`+`domain`. Loop stops on `clearEnough` OR cycle ≥ 4
    (best-effort proceed). State lives on the `onboarding` doc (authoritative).
+   **Resumable**: `GET /api/onboarding` returns the in-progress exchanges; the
+   onboarding page reloads them on mount (unless `?new=1`), so leaving mid-clarify
+   resumes the chat instead of restarting.
 3. **Assessment (batch quiz)** — `POST /api/assessment/start` generates a whole
    quiz (8 MCQs across difficulty bands, ONE `quizGenAgent` call) and returns the
    **answer-stripped** questions; it's resumable and reports a completed one

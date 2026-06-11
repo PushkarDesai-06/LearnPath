@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 
 interface ClarityResponse {
@@ -28,8 +28,49 @@ function OnboardingInner() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const [done, setDone] = useState<ClarityResponse | null>(null);
+  // Don't auto-resume when the learner explicitly started a NEW topic.
+  const [loading, setLoading] = useState(!isNew);
+
+  // Resume an in-progress onboarding so the past questions aren't lost.
+  useEffect(() => {
+    if (isNew) return;
+    let active = true;
+    api<{
+      onboarding: {
+        status: string;
+        refinedTopic: string | null;
+        cycle: number;
+        maxCycles: number;
+        exchanges: { role: "user" | "assistant"; text: string }[];
+      } | null;
+    }>("/api/onboarding")
+      .then((res) => {
+        if (!active) return;
+        const ob = res.onboarding;
+        if (ob?.status === "clarifying" && ob.exchanges.length > 0) {
+          setTurns(ob.exchanges.map((e) => ({ role: e.role, text: e.text })));
+        } else if (ob?.status === "ready") {
+          setDone({
+            clearEnough: true,
+            done: true,
+            capReached: false,
+            cycle: ob.cycle,
+            maxCycles: ob.maxCycles,
+            followupQuestion: null,
+            refinedTopic: ob.refinedTopic,
+          });
+        }
+      })
+      .catch((err) => {
+        if (active && err instanceof ApiClientError && err.status === 401)
+          router.push("/login");
+      })
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [isNew, router]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -39,13 +80,13 @@ function OnboardingInner() {
     setTurns((t) => [...t, { role: "user", text: description }]);
     setInput("");
     setBusy(true);
-    setError("");
     try {
       const res = await api<ClarityResponse>("/api/onboarding/clarity", {
         body: { description, restart: isNew && firstMessage },
       });
       if (res.done) {
         setDone(res);
+        toast.success(`Topic ready: ${res.refinedTopic}`);
         setTurns((t) => [
           ...t,
           { role: "assistant", text: `Great — we'll focus on: ${res.refinedTopic}` },
@@ -61,11 +102,18 @@ function OnboardingInner() {
         router.push("/login");
         return;
       }
-      setError(err instanceof Error ? err.message : "Failed");
+      toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
       setBusy(false);
     }
   }
+
+  if (loading)
+    return (
+      <div className="flex justify-center py-16">
+        <Spinner />
+      </div>
+    );
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,11 +165,6 @@ function OnboardingInner() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
           <Button type="submit" disabled={busy} className="self-start">
             Send
           </Button>

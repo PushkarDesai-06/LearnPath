@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, X } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,7 +15,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
@@ -51,7 +51,6 @@ export default function AssessmentPage() {
   const [showAnswers, setShowAnswers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -84,7 +83,7 @@ export default function AssessmentPage() {
         if (!active) return;
         if (err instanceof ApiClientError && err.status === 401)
           router.push("/login");
-        else setError(err instanceof Error ? err.message : "Failed to start");
+        else toast.error(err instanceof Error ? err.message : "Failed to start");
       });
     return () => {
       active = false;
@@ -96,7 +95,6 @@ export default function AssessmentPage() {
 
   async function submit() {
     setBusy(true);
-    setError("");
     try {
       const payload = questions.map((q) => ({
         questionId: q.id,
@@ -108,8 +106,12 @@ export default function AssessmentPage() {
       setResult(res);
       setShowAnswers(false);
       setPhase("result");
+      toast.success(`Scored ${Math.round(res.score * 100)}% — level ${res.estimatedLevel}`);
+      if (res.recommendAnotherRound) {
+        toast.info("Your results look mixed — try one more short quiz to refine.");
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit");
+      toast.error(err instanceof Error ? err.message : "Failed to submit");
     } finally {
       setBusy(false);
     }
@@ -124,15 +126,18 @@ export default function AssessmentPage() {
 
   async function generatePath() {
     setGenerating(true);
-    setError("");
+    const t = toast.loading("Generating your learning path…");
     try {
       const res = await api<{ curriculum: { id: string } }>(
         "/api/curriculum/generate",
         { method: "POST" },
       );
+      toast.success("Your learning path is ready!", { id: t });
       router.push(`/curriculum?id=${res.curriculum.id}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed");
+      toast.error(err instanceof Error ? err.message : "Generation failed", {
+        id: t,
+      });
       setGenerating(false);
     }
   }
@@ -176,11 +181,6 @@ export default function AssessmentPage() {
                 <ArrowRight data-icon="inline-end" />
               </Button>
             </div>
-            {error && (
-              <Alert variant="destructive" className="text-left">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
           </CardContent>
         </Card>
 
@@ -259,11 +259,6 @@ export default function AssessmentPage() {
           </CardContent>
         </Card>
       ))}
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={busy || !allAnswered}>
           {busy && <Spinner data-icon="inline-start" />}

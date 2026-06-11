@@ -112,9 +112,18 @@ function DashboardInner() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Overall mastery" value={`${Math.round(s.overallMastery * 100)}%`} />
-        <Stat label="Lessons mastered" value={`${s.lessonsMastered}/${s.lessonsTotal}`} />
-        <Stat label="Modules done" value={`${s.modulesCompleted}/${s.modulesTotal}`} />
+        <Stat
+          label="Overall mastery"
+          value={`${Math.round(s.overallMastery * 100)}%`}
+        />
+        <Stat
+          label="Lessons mastered"
+          value={`${s.lessonsMastered}/${s.lessonsTotal}`}
+        />
+        <Stat
+          label="Modules done"
+          value={`${s.modulesCompleted}/${s.modulesTotal}`}
+        />
         <Stat label="Time spent" value={fmtTime(s.totalTimeMs)} />
       </div>
 

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock } from "lucide-react";
+import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +17,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Lesson {
   id: string;
@@ -61,7 +61,6 @@ function CurriculumInner() {
   const [curriculum, setCurriculum] = useState<Curriculum | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -75,7 +74,7 @@ function CurriculumInner() {
           return;
         }
         if (!(err instanceof ApiClientError && err.status === 404))
-          setError(err instanceof Error ? err.message : "Failed");
+          toast.error(err instanceof Error ? err.message : "Failed");
         setCurriculum(null);
       })
       .finally(() => active && setLoading(false));
@@ -86,15 +85,18 @@ function CurriculumInner() {
 
   async function generate() {
     setGenerating(true);
-    setError("");
+    const t = toast.loading("Generating your curriculum…");
     try {
       const res = await api<{ curriculum: Curriculum }>(
         "/api/curriculum/generate",
         { method: "POST" },
       );
       setCurriculum(res.curriculum);
+      toast.success("Curriculum generated!", { id: t });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed");
+      toast.error(err instanceof Error ? err.message : "Generation failed", {
+        id: t,
+      });
     } finally {
       setGenerating(false);
     }
@@ -116,12 +118,7 @@ function CurriculumInner() {
             No curriculum yet. Generate one from your completed assessment.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        <CardContent>
           <Button onClick={generate} disabled={generating} className="self-start">
             {generating && <Spinner data-icon="inline-start" />}
             Generate curriculum

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GraduationCap, LogOut, Plus } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -29,6 +30,7 @@ export function Nav() {
   async function logout() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
     setMe(null);
+    toast.success("Logged out");
     router.push("/login");
   }
 
