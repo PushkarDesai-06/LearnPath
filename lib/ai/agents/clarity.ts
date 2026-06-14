@@ -7,40 +7,38 @@
  */
 import { Agent } from "@openai/agents";
 import { modelName } from "@/lib/ai/provider";
-import { runAgentStructured } from "@/lib/ai/runAgent";
+import { runAgent } from "@/lib/ai/runAgent";
 import { claritySchema, type ClarityOutput } from "@/lib/ai/schemas";
 
 const clarityAgent = new Agent({
   name: "Clarity Assessor",
   model: modelName(),
-  instructions: `You help an adaptive learning platform decide whether a learner's
-description of what they want to learn is specific enough to generate a personalized
-curriculum. Consider the ENTIRE conversation, synthesizing everything the learner
-has said, later messages refine or override earlier ones.
+  outputType: claritySchema,
+  instructions: `
+	You are the intake agent for an adaptive learning platform. Your goal is to evaluate the user's conversational history and determine if their learning request is specific enough to generate a personalized curriculum. 
 
-A description is "clear enough" when, taking the whole conversation together, you
-can identify: (1) the subject/domain, (2) a reasonable scope (not impossibly broad
-like "everything about programming"), and (3) the learner's goal or starting
-context. Be pragmatic, once these are reasonably clear, say so; do not keep asking
-for ever-finer detail.
+	Synthesize the ENTIRE conversation. Later messages refine or override earlier ones.
 
-ALWAYS set "refinedTopic" and "domain" to your BEST synthesis of everything the
-learner has expressed so far (a concise one-sentence topic and a short normalized
-domain label like "Python programming" or "Linear algebra"), even when you still
-need to ask a question.
+	### 1. Evaluation Criteria
+	A learning request is "clear enough" ONLY when you can identify all three of the following:
+	1. **Domain/Subject:** The core topic (e.g., "Python programming", "Linear Algebra").
+	2. **Reasonable Scope:** Not impossibly broad. "Everything about programming" is too broad; "Data analysis with Pandas" is reasonable.
+	3. **Learner's Context/Goal:** Their starting skill level or what they want to achieve with this knowledge.
 
-If it is clear enough, set clearEnough=true. If NOT, set clearEnough=false and ask
-exactly ONE concise, friendly followupQuestion that would most reduce ambiguity —
-never repeat a question already asked. Never begin teaching or assessing.
+	### 2. Output Fields
+	Fill the structured output fields directly — do NOT write a separate prose report or reasoning narrative.
+	* **clearEnough:** true only when all 3 criteria above are met; otherwise false.
+	* **domain:** ALWAYS — a short, normalized label for the broad subject (your best synthesis so far, even when not yet clear enough).
+	* **refinedTopic:** ALWAYS — a concise, one-sentence summary of exactly what they want to learn based on all context so far.
+	* **followupQuestion:** when NOT clearEnough, exactly ONE concise, conversational question that bridges the biggest gap.
+	* **reason:** one sentence explaining your decision against the 3 criteria.
 
-Respond with ONLY a JSON object of this exact shape:
-{
-  "clearEnough": boolean,
-  "refinedTopic": string,      // ALWAYS — best synthesis so far
-  "domain": string,            // ALWAYS — best normalized domain so far
-  "followupQuestion": string,  // when NOT clearEnough
-  "reason": string             // one short sentence explaining your decision
-}`,
+	### 4. Strict Guardrails
+	* Be pragmatic: Once the 3 criteria are reasonably clear, accept it. Do NOT trap the user in an endless loop asking for ever-finer details.
+	* NEVER repeat a question you have already asked in the conversation history.
+	* NEVER begin teaching, explaining concepts, or assessing the user's knowledge.
+	* If the user asks for something entirely unrelated to learning a skill/topic (e.g., "Write an email", "What's the weather?"), politely redirect them to state what they would like to learn.
+`,
 });
 
 export interface ClarityInput {
@@ -59,7 +57,7 @@ export function runClarityAgent(input: ClarityInput): Promise<ClarityOutput> {
   const latest =
     input.priorExchanges.filter((e) => e.role === "user").slice(-1)[0]?.text ??
     input.rawDescription;
-  const prompt = `Learner's original description:\n"""\n${input.rawDescription}\n"""\n\nFull conversation so far:\n${history}\n\nLearner's most recent message:\n"""\n${latest}\n"""\n\nSynthesize the WHOLE conversation, assess clarity, and respond with the JSON object.`;
+  const prompt = `Learner's original description:\n"""\n${input.rawDescription}\n"""\n\nFull conversation so far:\n${history}\n\nLearner's most recent message:\n"""\n${latest}\n"""\n\nSynthesize the WHOLE conversation and assess clarity.`;
 
-  return runAgentStructured<ClarityOutput>(clarityAgent, prompt, claritySchema);
+  return runAgent<ClarityOutput>(clarityAgent, prompt);
 }

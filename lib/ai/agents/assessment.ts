@@ -7,66 +7,60 @@
  */
 import { Agent } from "@openai/agents";
 import { modelName } from "@/lib/ai/provider";
-import { runAgentStructured } from "@/lib/ai/runAgent";
+import { runAgent } from "@/lib/ai/runAgent";
 import { quizSchema, type QuizOutput } from "@/lib/ai/schemas";
 
 const quizGenAgent = new Agent({
   name: "Quiz Generator",
   model: modelName(),
-  instructions: `You write a diagnostic multiple-choice quiz to assess a learner's level
-in a domain.
+  outputType: quizSchema,
+  instructions: `
 
-Rules:
-- Every question is multiple-choice: 3-5 "choices" with exactly one correct, and
-  "correctKey" = the zero-based index of the correct choice as a string (e.g. "2").
-- Each question has a "level" from: novice, beginner, intermediate, advanced, expert.
-- Spread the questions across the requested difficulty levels (roughly the given
-  counts), and across DIFFERENT sub-skills ("topic"), do not repeat a topic.
-- Keep prompts self-contained and unambiguous; calibrate difficulty to each level.
-- Dont always make the correct answer the longest one.
-- Keep the options related to each other dont give unrelated options as it is very easy to rule out.
-- More the reasoning required for a question harder it is. Avoid fact based questions on higher level, having logical questions at that 
-	difficulty makes more sense. If the topic is factual then it is okay to ask factual questions.
-- 
+# Role
+you are an expert psychometrician and diagnostic assessment architect. Your objective is to generate a comprehensive, high-fidelity diagnostic multiple-choice quiz across a specified domain.
 
-Examples : 
+# Core Rules & Constraints
+1. **Single-Topic Focus:** Every question must target a distinct sub-skill or sub-topic within the requested domain. Do not repeat a topic across the quiz.
+2. **Options Configuration:** Each question must have between 3 to 5 choices. Exactly one choice must be correct.
+3. **Plausible Distractors:** Options must be highly related to each other. Do not include obvious or completely unrelated fillers. Write distractors based on common misconceptions, systematic processing errors, or typical mental slips in the domain.
+4. **Anti-Bias Length Rule:** Do not make the correct answer systematically longer or more detailed than the distractors. Vary the length and complexity of correct keys naturally.
+5. **Calibrated Difficulty & Reasoning:** - **Novice/Beginner:** Target foundational knowledge, identification, and straightforward recall.
+   - **Intermediate/Advanced/Expert:** Target multi-step logical deduction, system analysis, debugging, or synthesis. Avoid obscure trivia at high levels; increase difficulty by requiring deeper operational reasoning.
 
-	Question : Which of the following hash functions is most likely to cause clustering in a hash table? Here k is the input key value and m is hash table size. You may assume that all four hash functions generate valid indexes in the hash table.
+# Execution Workflow
+For each question, rigorously apply this logic before generating the final text:
+1. Identify the unique sub-skill.
+2. Formulate the core concept and the specific reasoning trap or misconception the distractors will exploit.
+3. Formulate a brief justification explaining why the question fits the target difficulty level.
 
-	Options : 
-		A) h(k) = k % m
+# Examples of High-Quality Question Design
 
-		B) h(k) = floor(m * (k mod 1))
+**Example 1: Demonstrating deep reasoning over pure factual recall (Advanced/Expert)**
+*Topic: Data Structures / Hash Tables*
+*Prompt:* Which of the following hash functions is most likely to cause clustering in a hash table? Here k is the input key value and m is hash table size. You may assume that all four hash functions generate valid indexes in the hash table.
+*Choices:* 
+A) h(k) = k % m
+B) h(k) = floor(m * (k mod 1))
+C) h(k) = k
+D) h(k) = ((k / m) + k * m) + k % m
+*Correct Key:* 2 (Option C)
 
-		C) h(k) = k
+**Example 2: Demonstrating plausible distractors and logical combination (Intermediate)**
+*Topic: Algorithms / Complexity Theory*
+*Prompt:* Which of the following statements are TRUE?
+1. The problem of determining whether there exists a cycle in an undirected graph is in P.
+2. The problem of determining whether there exists a cycle in an undirected graph is in NP.
+3. If a problem A is NP-Complete, there exists a non-deterministic polynomial time algorithm to solve A. 
+*Choices:* 
+A) 1, 2 and 3
+B) 1 and 2 only
+C) 2 and 3 only
+D) 1 and 3 only
+*Correct Key:* 0 (Option A)
 
-		D) h(k) = ((k / m) + k * m) + k % m
+*(Note: Apply this level of logical rigor and distractor quality to the requested domain, regardless of what the target domain is.)*
 
-
-	Question : Which of the following statements are TRUE?
-
-	1. The problem of determining whether there exists
-	a cycle in an undirected graph is in P.
-	2. The problem of determining whether there exists
-	a cycle in an undirected graph is in NP.
-	3. If a problem A is NP-Complete, there exists a 
-	non-deterministic polynomial time algorithm to solve A. 
-		A) 1, 2 and 3
-
-		B) 1 and 2 only
-
-		C) 2 and 3 only
-
-		D) 1 and 3 only
-
-
-IMPORTANT: Respond with ONLY a JSON object of this shape:
-{
-  "questions": [
-    { "topic": string, "level": "novice"|"beginner"|"intermediate"|"advanced"|"expert",
-      "prompt": string, "choices": string[], "correctKey": string }
-  ]
-}`,
+`,
 });
 
 export interface QuizGenInput {
@@ -90,8 +84,6 @@ export function runQuizGenAgent(input: QuizGenInput): Promise<QuizOutput> {
 
   const prompt = `Domain: ${input.domain}
 Learning goal: ${input.refinedTopic}
-Generate ${input.targetLevels.length} questions with this difficulty distribution: ${distribution}.${avoid}
-
-Return the JSON object.`;
-  return runAgentStructured<QuizOutput>(quizGenAgent, prompt, quizSchema);
+Generate ${input.targetLevels.length} questions with this difficulty distribution: ${distribution}.${avoid}`;
+  return runAgent<QuizOutput>(quizGenAgent, prompt);
 }

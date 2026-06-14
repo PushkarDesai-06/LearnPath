@@ -37,7 +37,7 @@ enough; asks follow-ups, capped at 4 cycles).
 | Auth       | **email + password** (bcryptjs) + JWT cookie (`jose`) + revocable `sessions` collection | Sessions are server-side revocable (delete doc = logout); TTL index expires them.                                                             |
 | AI         | **`@openai/agents` v0.11** pointed at an OpenAI-compatible endpoint                     | User asked for "Gemini via the OpenAI Agents SDK," base URL + model in env. Code is **provider-agnostic**.                                    |
 | Validation | **zod v4**                                                                              | Request bodies AND AI structured outputs.                                                                                                     |
-| Frontend   | **shadcn/ui** (radix-nova, neutral base) + Tailwind v4                                   | Components in `components/ui/*` (shadcn CLI-managed); `cn()` in `lib/utils.ts`. Theme is CSS-variable driven — see Accent below.               |
+| Frontend   | **shadcn/ui** (radix-nova, neutral base) + Tailwind v4                                  | Components in `components/ui/*` (shadcn CLI-managed); `cn()` in `lib/utils.ts`. Theme is CSS-variable driven — see Accent below.              |
 
 **Markdown:** LLM markdown (lesson text/analogy/example blocks, tutor replies,
 practice explanations) renders via `components/Markdown.tsx` (`react-markdown` +
@@ -79,32 +79,47 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    a **review** (with correct answers revealed). A second refinement round is
    appended only when band results are **non-monotonic** (passed harder, failed
    easier → looks like guessing). Logic in `domain/assessment.ts`; round 1 always
-   yields a complete result (no half-finished state).
+   yields a complete result (no half-finished state). Each question also has an
+   **"I don't know"** option (sentinel `"__idk__"` in the UI) that grades as
+   incorrect — no special backend handling, it just never matches a choice.
 4. **Curriculum** — `POST /api/curriculum/generate` runs `curriculumAgent` from the
    assessment result, then `buildCurriculumDoc` assigns ids/order, maps prereq
    titles→ids, and **seeds lesson mastery** from assessment (topics ≥0.8 →
    pre-`mastered`/skipped). `adaptCurriculum` normalizes statuses/ordering.
    `GET /api/curriculum` returns the current path.
-5. **Lessons** — `GET /api/lesson/[id]` lazily runs `lessonAgent`, persists the
-   `lessons` doc, and returns **answer-stripped** blocks. `POST .../practice`
+5. **Lessons (generated in the BACKGROUND)** — `GET /api/lesson/[id]` is
+   non-blocking: on first open it inserts a `generating` placeholder `lessons`
+   doc (the unique index dedups concurrent opens) and returns `{status:"generating"}`;
+   the **worker** (`lib/jobs/lessonWorker.ts`, started by `instrumentation.ts`)
+   claims it atomically, runs `lessonAgent`, and writes the **answer-stripped**
+   blocks + `genStatus:"ready"`. The lesson page **polls** until ready. Leaving the
+   page doesn't stop generation, reopening doesn't double-generate, a server
+   restart re-claims stale jobs, and there's a concurrency cap (3). `POST .../practice`
    grades an inline question (MCQ by key, short-answer by `answerGradeAgent`),
    updates **EWMA mastery**, reveals the explanation.
 6. **Progress/adaptation** — `POST /api/progress/complete {curriculumId, lessonRef,
 timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    (deterministic): skip mastered, hoist needs-review, reorder weakest-first
-   respecting the prereq DAG (for *ordering*), bump `version`. **Module gating** is
+   respecting the prereq DAG (for _ordering_), bump `version`. **Module gating** is
    a sliding window (`gateModuleStatuses`, `OPEN_MODULE_WINDOW = 2`): the next 2
-   *incomplete* modules are accessible plus all completed ones — NOT one-at-a-time.
+   _incomplete_ modules are accessible plus all completed ones — NOT one-at-a-time.
    Applied at write AND at read (`GET /api/curriculum`, `GET /api/progress`) so
    existing curricula get the rule without a migration. `GET /api/progress` is the
    dashboard aggregate (mastery rollups, time, recommended-next).
 7. **Tutor (multi-conversation)** — each topic has MANY threads. `POST /api/tutor
-   {message, curriculumId?, conversationId?}` starts a new thread (no id) or
+{message, curriculumId?, conversationId?}` starts a new thread (no id) or
    appends to one; `GET /api/tutor?conversationId=` loads a thread;
    `GET /api/tutor/conversations?curriculumId=` lists them. A conversation's
    identity is its `_id`; `lessonRef` is only a context tag. (The old per-scope
    UNIQUE chats index was replaced — run `scripts/drop-chat-unique.js` on any
-   existing DB; Mongoose won't drop it for you.)
+   existing DB; Mongoose won't drop it for you.) **Grounding**: relevant topic
+   material (curriculum outline + lesson excerpts via keyword search,
+   `lib/ai/tools/topicLookup.ts`, scoped to userId+curriculumId) is INJECTED into
+   the prompt each turn. The same retrieval is also a defined Agents-SDK tool
+   (`makeTopicLookupTool`) but NOT attached to the live agent — the current model
+   (NVIDIA llama over Chat Completions) HANGS when a tool is present, so grounding
+   uses injection, not model-driven function calls. Re-attach the tool with a
+   tool-reliable model.
 
 ---
 
@@ -140,7 +155,9 @@ lib/
     curriculumView.ts    publicCurriculum projection (ObjectId→string).
     curriculumLocate.ts  locateLesson + publicLessonBlock (hides correctKey/rubric/explanation).
     grade.ts             gradeMcq + outcomeFromGrade (shared by assessment & practice).
+  jobs/lessonWorker.ts   ⭐ Background lesson-gen worker (atomic claim, concurrency cap, reaper).
   client/api.ts          Browser fetch helper (throws ApiClientError with status).
+instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).
 app/api/                 17 route handlers (see README table).
 app/                     Client pages: page, login, onboarding, assessment, curriculum,
                          learn/[lessonId], dashboard, tutor.
@@ -172,6 +189,7 @@ Indexes are declared in the Mongoose schemas (`collections.ts`) and built on
 connect (`autoIndex` on in dev).
 
 ### Multi-topic model (a learner can study several topics at once)
+
 - A **topic = one curriculum** (+ its assessment/onboarding lineage). A user can
   own many; nothing is one-at-a-time.
 - `GET /api/topics` lists them (uses `topicListItem` + `summarizeCurriculum` in
@@ -249,6 +267,12 @@ connect (`autoIndex` on in dev).
 - Models often emit optional fields as explicit **`null`**; `runAgent.ts` calls
   `stripNulls()` before parsing. When adding agents, ask the model to ALWAYS
   populate best-effort fields so cap-fallbacks aren't empty.
+- **All-optional schemas hide empty output.** zod strips unknown keys, so a block
+  like `{kind:"text"}` (content under a wrong/absent field) passed as an EMPTY
+  block. The lesson schema (`lessonBlockSchema`) now `.refine`s content per `kind`
+  so empty/misnamed blocks FAIL → trigger the corrective retry. The lesson GET also
+  re-enqueues a stored-but-content-less lesson, so old empty lessons self-heal on
+  reopen. Apply the same "require the content field" rule to any new content schema.
 - The current model is small/terse (8B-class). Prompts are tuned for it; a stronger
   model improves content quality with **no code changes** (just change `GEMINI_MODEL`).
 
@@ -259,9 +283,7 @@ connect (`autoIndex` on in dev).
 - ✅ All 17 API routes + 7 pages implemented. `tsc`, `eslint`, `next build` all clean.
 - ✅ Every feature verified end-to-end against the live model via curl.
 - ✅ Dev server runs (`npm run dev`); MongoDB in Docker container `learnpath-mongo`.
-- ⚠️ **Not committed to git** yet (branch `master`; PRs usually target `main`).
 - ⚠️ `app/api/health` kept as an ops endpoint (public). Temp `ai-smoke` route removed.
-- ✅ Frontend redesigned with shadcn/ui (default neutral accent, `--brand` knob in `globals.css`).
 
 ### Known limitations / next steps
 
@@ -295,4 +317,3 @@ curl -b jar -X POST localhost:3000/api/assessment/start
 - `README.md` — setup + API table.
 - The original plan: `/home/cryo/.claude/plans/students-move-at-sleepy-charm.md`.
 - Agent memory: `dev-environment.md`, `ai-provider-wiring.md` in the project's
-  `.claude/.../memory/` dir.

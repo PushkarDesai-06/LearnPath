@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  * Renders LLM-generated markdown (lesson content, tutor replies, explanations).
  * Styled with the Tailwind typography plugin + a few theme-aligned overrides so
  * it inherits the shadcn neutral palette and dark mode. Raw HTML in the source
- * is NOT rendered (react-markdown escapes it) — safe for model output.
+ * is NOT rendered (react-markdown escapes it), safe for model output.
  */
 export function Markdown({
   children,

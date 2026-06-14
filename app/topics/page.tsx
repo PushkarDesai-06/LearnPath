@@ -158,7 +158,7 @@ export default function TopicsPage() {
                   <Link href={`/tutor?id=${t.id}`}>Tutor</Link>
                 </Button>
                 <Button size="sm" asChild>
-                  <Link href={`/dashboard?id=${t.id}`}>Learn {"->"}</Link>
+                  <Link href={`/dashboard?id=${t.id}`}>Learn {" ->"}</Link>
                 </Button>
               </CardFooter>
             </Card>

@@ -128,19 +128,28 @@ function DashboardInner() {
       <div className="flex items-start justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
         <div className="flex gap-1">
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="link" size="sm" asChild>
             <Link href={`/tutor?id=${data.curriculumId}`}>Tutor</Link>
           </Button>
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="link" size="sm" asChild>
             <Link href="/topics">Topics</Link>
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Overall mastery" value={`${Math.round(s.overallMastery * 100)}%`} />
-        <Stat label="Lessons mastered" value={`${s.lessonsMastered}/${s.lessonsTotal}`} />
-        <Stat label="Modules done" value={`${s.modulesCompleted}/${s.modulesTotal}`} />
+        <Stat
+          label="Overall mastery"
+          value={`${Math.round(s.overallMastery * 100)}%`}
+        />
+        <Stat
+          label="Lessons mastered"
+          value={`${s.lessonsMastered}/${s.lessonsTotal}`}
+        />
+        <Stat
+          label="Modules done"
+          value={`${s.modulesCompleted}/${s.modulesTotal}`}
+        />
         <Stat label="Time spent" value={fmtTime(s.totalTimeMs)} />
       </div>
 
@@ -203,12 +212,17 @@ function DashboardInner() {
                           {l.title}
                         </Link>
                       )}
-                      <Badge variant={statusVariant(l.status)}>{l.status}</Badge>
+                      <Badge variant={statusVariant(l.status)}>
+                        {l.status}
+                      </Badge>
                     </div>
                     <p className="text-muted-foreground text-xs">
                       {l.difficultyLevel} · ~{l.estMinutes} min
                     </p>
-                    <Progress value={l.masteryScore * 100} className="max-w-40" />
+                    <Progress
+                      value={l.masteryScore * 100}
+                      className="max-w-40"
+                    />
                   </div>
                 ))}
               </CardContent>

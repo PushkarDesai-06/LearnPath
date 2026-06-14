@@ -6,12 +6,7 @@ import { ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -40,6 +35,10 @@ interface ResultData {
   nextQuestions: Question[];
 }
 type Phase = "loading" | "quiz" | "result";
+
+// Sentinel answer for "I don't know" — never matches a choice, so it grades as
+// incorrect (which is the honest signal: the learner doesn't know it).
+const IDK = "__idk__";
 
 export default function AssessmentPage() {
   const router = useRouter();
@@ -83,7 +82,8 @@ export default function AssessmentPage() {
         if (!active) return;
         if (err instanceof ApiClientError && err.status === 401)
           router.push("/login");
-        else toast.error(err instanceof Error ? err.message : "Failed to start");
+        else
+          toast.error(err instanceof Error ? err.message : "Failed to start");
       });
     return () => {
       active = false;
@@ -106,9 +106,13 @@ export default function AssessmentPage() {
       setResult(res);
       setShowAnswers(false);
       setPhase("result");
-      toast.success(`Scored ${Math.round(res.score * 100)}% — level ${res.estimatedLevel}`);
+      toast.success(
+        `Scored ${Math.round(res.score * 100)}% — level ${res.estimatedLevel}`,
+      );
       if (res.recommendAnotherRound) {
-        toast.info("Your results look mixed — try one more short quiz to refine.");
+        toast.info(
+          "Your results look mixed — try one more short quiz to refine.",
+        );
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit");
@@ -156,7 +160,9 @@ export default function AssessmentPage() {
       <div className="flex flex-col gap-4">
         <Card className="text-center">
           <CardHeader>
-            <CardTitle className="text-base font-medium">Quiz complete</CardTitle>
+            <CardTitle className="text-base font-medium">
+              Quiz complete
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
             <p className="text-5xl font-bold">
@@ -167,7 +173,10 @@ export default function AssessmentPage() {
               <Badge variant="secondary">{result.estimatedLevel}</Badge>
             </p>
             <div className="flex flex-wrap justify-center gap-2">
-              <Button variant="outline" onClick={() => setShowAnswers((s) => !s)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowAnswers((s) => !s)}
+              >
                 {showAnswers ? "Hide answers" : "Check answers"}
               </Button>
               {result.recommendAnotherRound && (
@@ -201,7 +210,8 @@ export default function AssessmentPage() {
                         key={idx}
                         className={cn(
                           "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
-                          isCorrect && "bg-primary/10 text-foreground font-medium",
+                          isCorrect &&
+                            "bg-primary/10 text-foreground font-medium",
                           isYoursWrong && "text-destructive",
                         )}
                       >
@@ -217,6 +227,11 @@ export default function AssessmentPage() {
                     );
                   })}
                 </div>
+                {r.yourAnswer === IDK && (
+                  <p className="text-muted-foreground text-xs">
+                    You answered: I don&apos;t know
+                  </p>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -229,8 +244,8 @@ export default function AssessmentPage() {
       <div>
         <h1 className="text-2xl font-bold">Knowledge quiz</h1>
         <p className="text-muted-foreground text-sm">
-          Answer every question, then submit once — you&apos;ll get a score and
-          can review the correct answers.
+          Answer every question, then submit once. I will review the answers and
+          decide the curriculum :)
         </p>
       </div>
       {questions.map((q, i) => (
@@ -256,6 +271,15 @@ export default function AssessmentPage() {
                 </Label>
               ))}
             </RadioGroup>
+            <Button
+              type="button"
+              variant={answers[q.id] === IDK ? "secondary" : "ghost"}
+              size="sm"
+              className="self-start"
+              onClick={() => setAnswers((a) => ({ ...a, [q.id]: IDK }))}
+            >
+              I don&apos;t know
+            </Button>
           </CardContent>
         </Card>
       ))}

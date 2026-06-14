@@ -27,8 +27,15 @@ interface Block {
   type?: "mcq" | "short";
   choices?: string[] | null;
 }
+type Lesson = {
+  id: string;
+  curriculumId: string;
+  title: string;
+  blocks: Block[];
+};
 interface LessonResp {
-  lesson: { id: string; curriculumId: string; title: string; blocks: Block[] };
+  status: "ready" | "generating";
+  lesson?: Lesson;
 }
 
 function PracticeBlock({ block }: { block: Block }) {
@@ -52,7 +59,9 @@ function PracticeBlock({ block }: { block: Block }) {
       if (res?.correct) toast.success("Correct!");
       else toast.warning("Not quite — check the explanation.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not grade answer");
+      toast.error(
+        err instanceof Error ? err.message : "Could not grade answer",
+      );
     } finally {
       setBusy(false);
     }
@@ -64,14 +73,21 @@ function PracticeBlock({ block }: { block: Block }) {
         <p className="text-primary text-xs font-semibold uppercase">Practice</p>
         <p className="font-medium">{block.prompt}</p>
         {block.type === "mcq" && block.choices ? (
-          <RadioGroup value={answer} onValueChange={setAnswer} disabled={!!result}>
+          <RadioGroup
+            value={answer}
+            onValueChange={setAnswer}
+            disabled={!!result}
+          >
             {block.choices.map((c, i) => (
               <Label
                 key={i}
                 htmlFor={`${block.questionId}-${i}`}
                 className="flex cursor-pointer items-center gap-2 font-normal"
               >
-                <RadioGroupItem value={String(i)} id={`${block.questionId}-${i}`} />
+                <RadioGroupItem
+                  value={String(i)}
+                  id={`${block.questionId}-${i}`}
+                />
                 {c}
               </Label>
             ))}
@@ -96,7 +112,10 @@ function PracticeBlock({ block }: { block: Block }) {
           </Button>
         ) : (
           <div className="flex flex-col gap-1 text-sm">
-            <Badge variant={result.correct ? "default" : "destructive"} className="self-start">
+            <Badge
+              variant={result.correct ? "default" : "destructive"}
+              className="self-start"
+            >
               {result.correct ? "Correct" : "Not quite"}
             </Badge>
             {result.feedback && <p>{result.feedback}</p>}
@@ -113,33 +132,58 @@ function PracticeBlock({ block }: { block: Block }) {
   );
 }
 
+const POLL_MS = 2500;
+const POLL_TIMEOUT_MS = 3 * 60 * 1000; // give up the spinner after 3 min
+
 export default function LessonPage() {
   const params = useParams<{ lessonId: string }>();
   const router = useRouter();
-  const [data, setData] = useState<LessonResp["lesson"] | null>(null);
+  const [data, setData] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0); // bump to retry
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [startedAt] = useState(() => Date.now());
 
+  // Poll the lesson endpoint until it's generated (it's built in the background).
   useEffect(() => {
     let active = true;
-    api<LessonResp>(`/api/lesson/${params.lessonId}`)
-      .then((res) => active && setData(res.lesson))
-      .catch((err) => {
-        if (!active) return;
-        if (err instanceof ApiClientError && err.status === 401) {
-          router.push("/login");
-          return;
-        }
-        setError(err instanceof Error ? err.message : "Failed to load lesson");
-      })
-      .finally(() => active && setLoading(false));
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+    const poll = () => {
+      api<LessonResp>(`/api/lesson/${params.lessonId}`)
+        .then((res) => {
+          if (!active) return;
+          if (res.status === "ready" && res.lesson) {
+            setData(res.lesson);
+            setLoading(false);
+          } else if (Date.now() >= deadline) {
+            setError("This is taking longer than expected.");
+            setLoading(false);
+          } else {
+            timer = setTimeout(poll, POLL_MS);
+          }
+        })
+        .catch((err) => {
+          if (!active) return;
+          if (err instanceof ApiClientError && err.status === 401) {
+            router.push("/login");
+            return;
+          }
+          setError(
+            err instanceof Error ? err.message : "Failed to load lesson",
+          );
+          setLoading(false);
+        });
+    };
+    poll();
     return () => {
       active = false;
+      clearTimeout(timer);
     };
-  }, [params.lessonId, router]);
+  }, [params.lessonId, router, attempt]);
 
   async function markComplete() {
     if (!data) return;
@@ -166,13 +210,28 @@ export default function LessonPage() {
       <div className="flex flex-col items-center gap-2 py-16">
         <Spinner />
         <p className="text-muted-foreground text-sm">Generating your lesson…</p>
+        <p className="text-muted-foreground text-xs">
+          You can leave — it&apos;ll keep generating in the background.
+        </p>
       </div>
     );
   if (error && !data)
     return (
-      <Alert variant="destructive">
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="flex flex-col items-center gap-3 py-16">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setError("");
+            setLoading(true);
+            setAttempt((a) => a + 1);
+          }}
+        >
+          Retry
+        </Button>
+      </div>
     );
   if (!data) return null;
 
@@ -180,8 +239,8 @@ export default function LessonPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{data.title}</h1>
-        <Button variant="ghost" size="sm" asChild>
-          <Link href={`/dashboard?id=${data.curriculumId}`}>Path</Link>
+        <Button variant="link" size="sm" asChild>
+          <Link href={`/dashboard?id=${data.curriculumId}`}>Path </Link>
         </Button>
       </div>
 
@@ -224,7 +283,9 @@ export default function LessonPage() {
                 Lesson completed
               </Badge>
               <Button
-                onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}
+                onClick={() =>
+                  router.push(`/dashboard?id=${data.curriculumId}`)
+                }
               >
                 Back to path
               </Button>

@@ -202,9 +202,14 @@ const lessonSchema = new Schema<LessonDoc>({
   title: { type: String, required: true },
   blocks: { type: [lessonBlockSchema], default: [] },
   generatedAt: { type: Date, required: true },
-  model: { type: String, required: true },
+  model: { type: String, default: "" },
+  genStatus: { type: String, default: "ready" },
+  genError: { type: String },
+  claimedAt: { type: Date, default: null },
 });
 lessonSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
+// Worker scans for lessons awaiting generation.
+lessonSchema.index({ genStatus: 1, claimedAt: 1 });
 
 const progressEventSchema = new Schema<ProgressEventDoc>({
   userId: { type: Schema.Types.ObjectId, required: true },

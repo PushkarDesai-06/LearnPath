@@ -1,21 +1,33 @@
 /**
- * GET a lesson's content. Generates and persists it on first access
- * (lazy generation), then returns the learner-safe blocks.
+ * GET a lesson's content — non-blocking. On first open the lesson is enqueued
+ * for background generation (a `generating` placeholder doc; the unique
+ * (userId, curriculumId, lessonRef) index dedups concurrent opens). The actual
+ * generation runs in the worker (`lib/jobs/lessonWorker.ts`).
+ *
+ * Response is one of:
+ *   { status: "ready", lesson: {...blocks} }
+ *   { status: "generating" }
+ * A failed OR content-less lesson (e.g. an old doc whose blocks came back empty)
+ * is re-enqueued and reported as "generating".
  */
-import { randomUUID } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { requireUser } from "@/lib/auth/guards";
-import {
-  assessmentsCollection,
-  curriculaCollection,
-  lessonsCollection,
-  progressEventsCollection,
-} from "@/lib/db/collections";
+import { lessonsCollection } from "@/lib/db/collections";
 import type { LessonBlock, LessonDoc } from "@/lib/db/models";
-import { runLessonAgent } from "@/lib/ai/agents/lesson";
-import { modelName } from "@/lib/ai/provider";
 import { locateLesson, publicLessonBlock } from "@/lib/server/curriculumLocate";
 import { handler, json, notFound } from "@/lib/http";
+
+const nonEmpty = (v?: string) => typeof v === "string" && v.trim().length > 0;
+
+/** A block carries real content (guards against stored empty/`{kind}`-only blocks). */
+function hasRealContent(b: LessonBlock): boolean {
+  return nonEmpty(b.markdown) || nonEmpty(b.code) || nonEmpty(b.prompt);
+}
+
+/** A lesson is renderable when it has at least one block with actual content. */
+function isReady(doc: LessonDoc | null): boolean {
+  return !!doc && doc.blocks.length > 0 && doc.blocks.some(hasRealContent);
+}
 
 export const GET = handler(
   async (_request, ctx: { params: Promise<{ lessonId: string }> }) => {
@@ -27,87 +39,66 @@ export const GET = handler(
     const { curriculum, lesson } = located;
 
     const lessons = await lessonsCollection();
-    let lessonDoc: LessonDoc | null = await lessons
-      .findOne({
-        userId: user._id,
-        curriculumId: curriculum._id,
-        lessonRef: lessonId,
-      })
-      .lean();
+    const filter = {
+      userId: user._id,
+      curriculumId: curriculum._id,
+      lessonRef: lessonId,
+    };
 
-    if (!lessonDoc) {
-      // Resolve the learner's overall level for content calibration.
-      const assessments = await assessmentsCollection();
-      const assessment = await assessments
-        .findOne({ _id: curriculum.assessmentId })
-        .lean();
-      const learnerLevel =
-        assessment?.result?.estimatedLevel ?? lesson.difficultyLevel;
-
-      const content = await runLessonAgent({
-        lessonTitle: lesson.title,
-        objectives: lesson.objectives,
-        topics: lesson.topics,
-        difficultyLevel: lesson.difficultyLevel,
-        learnerLevel,
+    const readyResponse = (doc: LessonDoc) =>
+      json({
+        status: "ready",
+        lesson: {
+          id: lessonId,
+          curriculumId: curriculum._id.toHexString(),
+          title: doc.title,
+          blocks: doc.blocks.map(publicLessonBlock),
+        },
       });
 
-      // Assign stable ids to practice blocks.
-      const blocks: LessonBlock[] = content.blocks.map((b) =>
-        b.kind === "practice" ? { ...b, questionId: randomUUID() } : b,
-      );
+    let doc: LessonDoc | null = await lessons.findOne(filter).lean();
+    if (isReady(doc)) return readyResponse(doc!);
 
-      lessonDoc = {
-        _id: new ObjectId(),
-        userId: user._id,
-        curriculumId: curriculum._id,
-        lessonRef: lessonId,
-        title: lesson.title,
-        blocks,
-        generatedAt: new Date(),
-        model: modelName(),
-      } satisfies LessonDoc;
-      await lessons.create(lessonDoc);
+    // A placeholder that's still being generated (no blocks yet).
+    if (doc && doc.genStatus === "generating" && doc.blocks.length === 0) {
+      return json({ status: "generating" });
+    }
 
-      // Mark generated; flip available -> in_progress; log the start event.
-      // Doubly-nested positional updates run on the native collection to avoid
-      // Mongoose's positional-path casting quirks with `$[].$[l]`.
-      const curricula = await curriculaCollection();
-      await curricula.collection.updateOne(
-        { _id: curriculum._id },
-        {
-          $set: {
-            "modules.$[].lessons.$[l].contentGenerated": true,
-            updatedAt: new Date(),
-          },
+    if (!doc) {
+      // First open → enqueue by inserting the placeholder. The unique index
+      // makes this the dedup point: a concurrent open hits E11000 and falls
+      // through.
+      try {
+        await lessons.create({
+          _id: new ObjectId(),
+          userId: user._id,
+          curriculumId: curriculum._id,
+          lessonRef: lessonId,
+          title: lesson.title,
+          blocks: [],
+          generatedAt: new Date(),
+          model: "",
+          genStatus: "generating",
+          claimedAt: null,
+        });
+      } catch (err) {
+        if ((err as { code?: number })?.code !== 11000) throw err;
+      }
+    } else {
+      // Doc exists but failed, or "ready" with empty/broken blocks → regenerate.
+      await lessons.updateOne(filter, {
+        $set: {
+          blocks: [],
+          genStatus: "generating",
+          genError: null,
+          claimedAt: null,
         },
-        { arrayFilters: [{ "l.id": lessonId }] },
-      );
-      await curricula.collection.updateOne(
-        { _id: curriculum._id },
-        { $set: { "modules.$[].lessons.$[l].status": "in_progress" } },
-        { arrayFilters: [{ "l.id": lessonId, "l.status": "available" }] },
-      );
-
-      const events = await progressEventsCollection();
-      await events.create({
-        _id: new ObjectId(),
-        userId: user._id,
-        curriculumId: curriculum._id,
-        lessonRef: lessonId,
-        type: "lesson_started",
-        topics: lesson.topics,
-        at: new Date(),
       });
     }
 
-    return json({
-      lesson: {
-        id: lessonId,
-        curriculumId: curriculum._id.toHexString(),
-        title: lessonDoc.title,
-        blocks: lessonDoc.blocks.map(publicLessonBlock),
-      },
-    });
+    // Handle the race where it became ready between the write and this read.
+    doc = await lessons.findOne(filter).lean();
+    if (isReady(doc)) return readyResponse(doc!);
+    return json({ status: "generating" });
   },
 );

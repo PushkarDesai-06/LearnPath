@@ -1,7 +1,13 @@
 /**
- * Zod schemas describing the JSON each agent must return. We parse model
- * replies against these in runAgentStructured, so schemas can use plain
- * `.optional()` freely (we are not relying on provider strict-mode).
+ * Zod schemas describing the JSON each agent must return. These are attached to
+ * the agents as `outputType`, so the Agents SDK sends them as the model's
+ * structured `response_format` and validates the reply against them for us.
+ *
+ * The SDK forces strict structured output, which makes every property required;
+ * models routinely fill a field they have nothing for with an explicit `null`.
+ * Optional fields therefore use `.nullish()` (accept null OR absent) rather than
+ * `.optional()` — the SDK parses the reply with no null-stripping, so a plain
+ * `.optional()` would reject those nulls and throw.
  *
  * Keep these flat/shallow — the more nested the shape, the more often a model
  * drifts from it.
@@ -16,9 +22,9 @@ export const difficultyEnum = z.enum(
 // --- onboarding clarity ---
 export const claritySchema = z.object({
   clearEnough: z.boolean(),
-  refinedTopic: z.string().optional(),
-  domain: z.string().optional(),
-  followupQuestion: z.string().optional(),
+  refinedTopic: z.string().nullish(),
+  domain: z.string().nullish(),
+  followupQuestion: z.string().nullish(),
   reason: z.string(),
 });
 export type ClarityOutput = z.infer<typeof claritySchema>;
@@ -76,21 +82,56 @@ export const curriculumSchema = z.object({
 export type CurriculumOutput = z.infer<typeof curriculumSchema>;
 
 // --- lesson content generation ---
-export const lessonBlockSchema = z.object({
+const lessonBlockBase = z.object({
   kind: z.enum(["text", "code", "analogy", "example", "practice"]),
-  markdown: z.string().optional(),
-  language: z.string().optional(),
-  code: z.string().optional(),
-  caption: z.string().optional(),
-  prompt: z.string().optional(),
-  type: z.enum(["mcq", "short"]).optional(),
-  choices: z.array(z.string()).optional(),
-  correctKey: z.string().optional(),
-  rubric: z.string().optional(),
-  explanation: z.string().optional(),
+  markdown: z.string().nullish(),
+  language: z.string().nullish(),
+  code: z.string().nullish(),
+  caption: z.string().nullish(),
+  prompt: z.string().nullish(),
+  type: z.enum(["mcq", "short"]).nullish(),
+  choices: z.array(z.string()).nullish(),
+  correctKey: z.string().nullish(),
+  rubric: z.string().nullish(),
+  explanation: z.string().nullish(),
+});
+
+const nonEmpty = (v?: string | null) =>
+  typeof v === "string" && v.trim().length > 0;
+
+/**
+ * A block must carry the content appropriate to its `kind`. Without this,
+ * `{ "kind": "text" }` (no markdown) or a block whose content arrived under the
+ * wrong field name (zod silently strips unknown keys) would pass as an EMPTY
+ * block. Failing here makes runAgent retry with a corrective message.
+ */
+function blockHasContent(b: z.infer<typeof lessonBlockBase>): boolean {
+  switch (b.kind) {
+    case "text":
+    case "analogy":
+    case "example":
+      return nonEmpty(b.markdown);
+    case "code":
+      return nonEmpty(b.code);
+    case "practice":
+      if (!nonEmpty(b.prompt)) return false;
+      if (b.type === "mcq")
+        return !!b.choices && b.choices.length >= 2 && nonEmpty(b.correctKey);
+      if (b.type === "short") return nonEmpty(b.rubric);
+      return false; // practice needs a valid type
+    default:
+      return false;
+  }
+}
+
+export const lessonBlockSchema = lessonBlockBase.refine(blockHasContent, {
+  message:
+    'Each block must include its content. "text"/"analogy"/"example" need a non-empty "markdown"; ' +
+    '"code" needs "code"; "practice" needs "prompt" + "type" ("mcq"|"short"), where "mcq" also needs ' +
+    '"choices" (>=2) and "correctKey", and "short" also needs "rubric". Never emit a block with only "kind".',
 });
 export const lessonContentSchema = z.object({
-  blocks: z.array(lessonBlockSchema),
+  blocks: z.array(lessonBlockSchema).min(3),
 });
 export type LessonContentOutput = z.infer<typeof lessonContentSchema>;
 

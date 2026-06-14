@@ -104,6 +104,8 @@ export const POST = handler(async (request) => {
   }
 
   const result = await runSocraticTutorAgent({
+    userId: user._id,
+    curriculumId: curriculum._id,
     lessonContext,
     history: chat.messages.slice(-HISTORY_WINDOW),
     userMessage: message,

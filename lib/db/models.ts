@@ -212,15 +212,24 @@ export interface LessonBlock {
   explanation?: string;
 }
 
+export type LessonGenStatus = "generating" | "ready" | "failed";
+
 export interface LessonDoc {
   _id: ObjectId;
   userId: ObjectId;
   curriculumId: ObjectId;
   lessonRef: string; // matches CurriculumLesson.id
   title: string;
-  blocks: LessonBlock[];
+  blocks: LessonBlock[]; // empty until generated
   generatedAt: Date;
   model: string;
+  // Background generation state. A doc is created as `generating` (empty blocks)
+  // the moment a lesson is first opened; the worker fills it in. The unique
+  // (userId, curriculumId, lessonRef) index makes that placeholder insert the
+  // dedup point — only one generation runs per lesson.
+  genStatus: LessonGenStatus;
+  genError?: string;
+  claimedAt?: Date | null; // worker claim timestamp (for the stale-claim reaper)
 }
 
 // ---------------------------------------------------------------------------
