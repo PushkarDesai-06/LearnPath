@@ -36,7 +36,7 @@ lib/
   env.ts              validated env access
   db/                 Mongoose connection, schemas/models (collections.ts), TS interfaces (models.ts)
   auth/               bcrypt passwords, jose JWT + revocable sessions, requireUser()
-  ai/                 Agents SDK → provider, runAgent (zod-parse + retry), schemas, agents/
+  ai/                 Agents SDK → provider, runAgent (SDK outputType + retry), schemas, agents/
   domain/             pure logic: adaptive assessment search, EWMA mastery, adaptation
   server/             route helpers (assessment flow, curriculum build/view/locate, grading)
   client/             browser fetch helper
@@ -52,9 +52,10 @@ proxy.ts              cheap auth gate for /api/* (requireUser is the real check)
 `lessons` (generated content blocks), `progressEvents` (append-only log), `chats`.
 
 ### Adaptive logic
-- **Assessment**: binary search over 5 difficulty bands; a confirming question
-  guards against single-question noise; terminates at the competence boundary or
-  a question cap.
+- **Assessment**: a batch quiz of MCQs spread across 5 difficulty bands, generated
+  in one call and graded together; the level estimate is the highest *contiguously
+  passed* band. A second refinement round is offered only when results look noisy
+  (a harder band passed while an easier one failed).
 - **Mastery**: EWMA per lesson (`0.5·outcome + 0.5·prev`), seeded from assessment.
   `≥0.8` mastered, `<0.4` needs-review.
 - **Adaptation**: deterministic — skip mastered, hoist needs-review, reorder
@@ -95,4 +96,9 @@ UI is **shadcn/ui** (config in `components.json`); add components with
 block) — `--primary` is wired to them. Default is the shadcn neutral theme.
 
 ## Scripts
-`npm run dev` · `npm run build` · `npm start` · `npm run lint`
+`npm run dev` · `npm run build` · `npm start` · `npm run lint` · `npm test` (unit) ·
+`npm run test:integration` (live LLM) · `npm run test:all` · `npm run test:watch`
+
+Tests use **Vitest**. `npm test` runs the fast, deterministic unit suite
+(`test/unit/`). `npm run test:integration` (`test/integration/`) hits the live LLM
+and is slow — it self-skips without `GEMINI_API_KEY`.

@@ -111,8 +111,8 @@ timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    appends to one; `GET /api/tutor?conversationId=` loads a thread;
    `GET /api/tutor/conversations?curriculumId=` lists them. A conversation's
    identity is its `_id`; `lessonRef` is only a context tag. (The old per-scope
-   UNIQUE chats index was replaced — run `scripts/drop-chat-unique.js` on any
-   existing DB; Mongoose won't drop it for you.) **Grounding**: relevant topic
+   UNIQUE chats index was replaced; if upgrading an existing DB, drop that index
+   manually — Mongoose won't.) **Grounding**: relevant topic
    material (curriculum outline + lesson excerpts via keyword search,
    `lib/ai/tools/topicLookup.ts`, scoped to userId+curriculumId) is INJECTED into
    the prompt each turn. The same retrieval is also a defined Agents-SDK tool
@@ -141,16 +141,17 @@ lib/
     guards.ts            ⭐ requireUser() — the AUTHORITATIVE auth check, called in every protected route.
   ai/
     provider.ts          OpenAIProvider(useResponses:false) + Runner + setTracingDisabled(true).
-    runAgent.ts          ⭐ runAgentStructured(agent, input, zodSchema): runs agent, extracts JSON,
-                            stripNulls(), zod-parses, retries once with a corrective nudge.
-    schemas.ts           All zod schemas for agent outputs (flat/shallow on purpose).
-    agents/              clarity, assessment(questionGen), grading, curriculum, lesson, tutor.
+    runAgent.ts          ⭐ runAgent(agent, input): runs the agent — its zod outputType makes the SDK
+                            return a parsed, schema-valid object — and retries once with a corrective nudge.
+    schemas.ts           All zod schemas for agent outputs (used as outputType; flat/shallow on purpose).
+    agents/              clarity, assessment(quizGen), grading, curriculum, lesson, tutor.
   domain/                PURE logic (no I/O), unit-testable:
-    assessment.ts        Binary-search step/termination/result computation.
+    assessment.ts        Batch-quiz scoring: band accuracy, contiguous-pass level estimate,
+                            non-monotonic "needs another round" check, result computation.
     mastery.ts           EWMA update + lesson/module status transitions + thresholds.
     adapt.ts             orderModules (topo sort) + adaptCurriculum (reorder/status).
   server/                Route helpers bridging AI + domain + DB:
-    assessmentFlow.ts    generateNextQuestion + publicQuestion (hides answer).
+    assessmentFlow.ts    generateQuizRound + publicQuestion (hides answer) + reviewItem.
     curriculumBuild.ts   AI output → CurriculumDoc (ids, prereq mapping, mastery seeding).
     curriculumView.ts    publicCurriculum projection (ObjectId→string).
     curriculumLocate.ts  locateLesson + publicLessonBlock (hides correctKey/rubric/explanation).
@@ -158,10 +159,12 @@ lib/
   jobs/lessonWorker.ts   ⭐ Background lesson-gen worker (atomic claim, concurrency cap, reaper).
   client/api.ts          Browser fetch helper (throws ApiClientError with status).
 instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).
-app/api/                 17 route handlers (see README table).
+app/api/                 18 route handlers (see README table).
 app/                     Client pages: page, login, onboarding, assessment, curriculum,
                          learn/[lessonId], dashboard, tutor.
 components/              Nav.tsx + ui.tsx (Button/Card/Badge/Spinner/ProgressBar/ErrorText).
+test/                    Vitest: unit/ (pure domain/server/auth/http logic) + integration/
+                         (live-LLM agent tests, self-skip without GEMINI_API_KEY).
 ```
 
 ⭐ = read these first.
@@ -261,26 +264,41 @@ connect (`autoIndex` on in dev).
 - Gemini-compatible endpoints speak **Chat Completions only**, so `provider.ts`
   uses `OpenAIProvider({useResponses:false})` and `setTracingDisabled(true)` (the
   default tracing exporter targets OpenAI and hangs on a non-OpenAI key).
-- **Structured output is done by parsing, not strict schema.** Agents are plain
-  text agents instructed to emit JSON; `runAgentStructured` extracts + zod-parses
-  with one corrective retry. Keep schemas flat/shallow.
-- Models often emit optional fields as explicit **`null`**; `runAgent.ts` calls
-  `stripNulls()` before parsing. When adding agents, ask the model to ALWAYS
-  populate best-effort fields so cap-fallbacks aren't empty.
+- **Structured output uses the SDK's strict `outputType`.** Each agent passes its
+  zod schema as `outputType`, so the SDK sends it as a strict `json_schema`
+  `response_format` and returns a parsed, schema-valid object (`result.finalOutput`);
+  `runAgent` only adds one corrective retry. Keep schemas flat/shallow — deep shapes
+  drift more. (Verified live on NVIDIA/Llama-3.3-70b, incl. nested curriculum and the
+  lesson `.refine()`.)
+- Strict mode makes every schema field required, and models fill inapplicable ones
+  with explicit **`null`**; the SDK parses with no null-stripping, so optional fields
+  use **`.nullish()`** (not `.optional()`) or parsing throws — affects `claritySchema`
+  and `lessonBlockBase` (`lessonWorker` drops those nulls before storing a `LessonBlock`).
+  When adding agents, ask the model to ALWAYS populate best-effort fields so
+  cap-fallbacks aren't empty.
+- **Constrained-decoding latency is prompt-sensitive.** With strict `outputType` on
+  this provider, a system prompt that elicits prose reasoning can make the same
+  tiny-output agent 10-25× slower (one clarity rewrite went 166s → ~20s with no
+  schema/logic change). Keep agent prompts field-oriented, and measure per-agent
+  latency — correctness ("schema-valid") and speed are independent.
 - **All-optional schemas hide empty output.** zod strips unknown keys, so a block
   like `{kind:"text"}` (content under a wrong/absent field) passed as an EMPTY
   block. The lesson schema (`lessonBlockSchema`) now `.refine`s content per `kind`
   so empty/misnamed blocks FAIL → trigger the corrective retry. The lesson GET also
   re-enqueues a stored-but-content-less lesson, so old empty lessons self-heal on
   reopen. Apply the same "require the content field" rule to any new content schema.
-- The current model is small/terse (8B-class). Prompts are tuned for it; a stronger
-  model improves content quality with **no code changes** (just change `GEMINI_MODEL`).
+- The current model is `meta/llama-3.3-70b-instruct`. Prompts are tuned for it; a
+  stronger model improves content quality with **no code changes** (just change
+  `GEMINI_MODEL`).
 
 ---
 
 ## 8. Current state
 
-- ✅ All 17 API routes + 7 pages implemented. `tsc`, `eslint`, `next build` all clean.
+- ✅ All 18 API routes + 7 pages implemented. `tsc`, `eslint`, `next build` all clean.
+- ✅ Automated tests (Vitest): 59 unit tests over `lib/domain/*`, `server/*`, `auth`,
+  and `http`; 5 live-LLM integration tests over the agents. `npm test` (unit, fast) /
+  `npm run test:integration` (live, slow).
 - ✅ Every feature verified end-to-end against the live model via curl.
 - ✅ Dev server runs (`npm run dev`); MongoDB in Docker container `learnpath-mongo`.
 - ⚠️ `app/api/health` kept as an ops endpoint (public). Temp `ai-smoke` route removed.
@@ -290,14 +308,19 @@ connect (`autoIndex` on in dev).
 1. **Page-level auth**: `proxy.ts` only guards `/api/*`. Pages are public and rely
    on client-side 401→`/login` redirects. Harden when redesigning the frontend
    (extend the matcher or add a server check in a layout).
-2. **No automated tests.** `lib/domain/*` is pure and the obvious first target for
-   unit tests (assessment search, EWMA, adapt/topo-sort).
+2. **Test coverage gaps.** Unit tests cover `lib/domain/*`, `server/*`, `auth`, and
+   `http`; live-LLM integration tests cover the agents. NOT yet covered: the
+   `app/api/**` route handlers (e2e), the DB layer, `auth/session` (JWT), and the
+   tutor agent (needs a DB-seeded topic). Route/e2e tests against a seeded Mongo are
+   the next target.
 3. **Tutor chat** is request/response (no streaming). Consider streaming for UX.
 4. **Lesson regeneration**: lessons are generated once and cached; there's no
    "regenerate a simpler version for review" path yet (mentioned in the original
    plan as a future nicety).
-5. **Single curriculum per user assumed** in a few GET routes (latest by date).
-   Multi-goal support would need UI + scoping.
+5. **Clarity-prompt latency under strict `outputType`** (see §7): a prompt that
+   elicits prose reasoning can make constrained decoding very slow on this provider.
+   Keep agent prompts field-oriented and watch per-agent latency when editing prompts.
+   (Multi-topic support, once listed here as a gap, is now implemented — see §5.)
 6. **Model quality**: with the current small model, generated MCQs occasionally
    have weak distractors and the clarity agent can be over-strict. Prompt tuning or
    a bigger model helps.
