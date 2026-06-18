@@ -32,7 +32,7 @@ enough; asks follow-ups, capped at 4 cycles).
 
 | Area       | Choice                                                                                  | Why                                                                                                                                           |
 | ---------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Framework  | **Next.js 16.2.7** (App Router) + React 19                                              | Pre-existing scaffold. NOT older Next — see §6.                                                                                               |
+| Framework  | **Next.js 16.2.9** (App Router) + React 19                                              | Pre-existing scaffold. NOT older Next — see §6.                                                                                               |
 | DB         | **MongoDB** via **Mongoose** (ODM)                                                      | Schemas/models in `lib/db/collections.ts`; TS interfaces in `lib/db/models.ts`. Reads use `.lean()` (plain objects, no hydration). See §5/§7. |
 | Auth       | **email + password** (bcryptjs) + JWT cookie (`jose`) + revocable `sessions` collection | Sessions are server-side revocable (delete doc = logout); TTL index expires them.                                                             |
 | AI         | **`@openai/agents` v0.11** pointed at an OpenAI-compatible endpoint                     | User asked for "Gemini via the OpenAI Agents SDK," base URL + model in env. Code is **provider-agnostic**.                                    |
@@ -250,6 +250,15 @@ connect (`autoIndex` on in dev).
   a function containing `setState` — even after `await`. **Fix used**: fetch with a
   `.then()/.catch()/.finally()` promise chain + an `active` cleanup flag (see any
   page's `useEffect`). Do NOT call an async `useCallback` loader directly in an effect.
+- **If `npm run dev` prints `✓ Ready` then exits silently** (or with a
+  `Module not found: Can't resolve '@openai/agents-core'` from inside instrumentation):
+  the installed `node_modules` is partially corrupted. **Fix:** `rm -rf node_modules
+  && npm ci`. Root cause was a stray `bun.lock` from an earlier `bun install` that
+  produced incomplete extracts (missing `.mjs` and `.d.ts` files in several
+  packages). `bun.lock` has been removed; **stick to one package manager** (npm
+  here — `package-lock.json` is authoritative). On Next 16.2.7 this failure was
+  silent; 16.2.9 surfaces the underlying Turbopack resolve error first, which is
+  why the package was bumped.
 
 ---
 
@@ -302,6 +311,10 @@ connect (`autoIndex` on in dev).
 - ✅ Every feature verified end-to-end against the live model via curl.
 - ✅ Dev server runs (`npm run dev`); MongoDB in Docker container `learnpath-mongo`.
 - ⚠️ `app/api/health` kept as an ops endpoint (public). Temp `ai-smoke` route removed.
+- ⚠️ `npm audit` reports 2 moderate vulns — both are postcss-inside-Next
+  (XSS via unescaped `</style>` in stringified CSS output). `npm audit fix` only
+  resolves them by downgrading Next to 9.x, which we won't do. Acceptable: this is
+  build-time CSS stringification, not a runtime risk in our app.
 
 ### Known limitations / next steps
 
