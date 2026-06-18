@@ -37,8 +37,7 @@ export default function Home() {
         Adaptive learning, paced for you
       </p>
       <h1 className="h-display text-4xl sm:text-5xl">
-        A path drawn from where{" "}
-        <span className="text-primary">you actually are.</span>
+        A path drawn from where you actually are.
       </h1>
       <p className="text-muted-foreground max-w-xl text-base leading-relaxed">
         Describe what you want to learn. LearnPath diagnoses your level with

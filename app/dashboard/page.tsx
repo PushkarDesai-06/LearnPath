@@ -130,7 +130,9 @@ function DashboardInner() {
             Your path
           </p>
           <div className="flex items-end justify-between gap-4">
-            <h1 className="h-display text-3xl sm:text-4xl">{data.title}</h1>
+            <h1 className="h-display text-3xl sm:text-4xl">
+              {data.title}
+            </h1>
             <div className="flex shrink-0 gap-2">
               <Button variant="ghost" size="sm" asChild>
                 <Link href={`/tutor?id=${data.curriculumId}`}>Tutor</Link>

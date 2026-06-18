@@ -10,6 +10,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
+  /* Sampler — use these as Tailwind classes (`font-inter`, `font-dm`, …).
+     Each variable is loaded in app/layout.tsx via next/font/google. */
+  --font-inter: var(--font-inter);
+  --font-dm: var(--font-dm);
+  --font-manrope: var(--font-manrope);
+  --font-space: var(--font-space);
+  --font-jakarta: var(--font-jakarta);
+  --font-instrument: var(--font-instrument);
+  --font-jetbrains: var(--font-jetbrains);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,7 +55,7 @@
   --color-tone-review: var(--tone-review);
   --color-tone-locked: var(--tone-locked);
   --color-tone-generating: var(--tone-generating);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-dm);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -57,61 +66,62 @@
 }
 
 /* ==========================================================================
-   STUDIO PALETTE — LearnPath
-   A deep slate-cyan room with a single mint accent. Three surface tiers,
-   warm coral for failure (sits opposite mint on the wheel, never red).
-   Five named status tones drive every badge across the app.
-   App is dark-only: :root and .dark are identical so server-rendered HTML
-   matches what next-themes (or our forced .dark class) will produce.
+   STUDIO PALETTE — LearnPath (Monochromatic)
+   A deep slate-cyan room. Single hue family (~200°), chroma kept ≤0.02
+   everywhere — accent is a high-lightness near-white, not a color. Status
+   tones differ by LIGHTNESS, never by hue. The slight cool cast keeps
+   surfaces from looking dead-neutral (pure greyscale reads as flat OLED).
    ========================================================================== */
 :root,
 .dark {
   /* Surfaces — cool, deep, three tiers (floor → card → elevated) */
-  --background: oklch(0.18 0.015 200);
-  --foreground: oklch(0.96 0.005 200);
-  --surface-1: oklch(0.22 0.015 200);
-  --surface-2: oklch(0.26 0.018 200);
+  --background: oklch(0.18 0.012 200);
+  --foreground: oklch(0.97 0.005 200);
+  --surface-1: oklch(0.22 0.012 200);
+  --surface-2: oklch(0.26 0.014 200);
 
   --card: var(--surface-1);
   --card-foreground: var(--foreground);
   --popover: var(--surface-2);
   --popover-foreground: var(--foreground);
 
-  /* Mint accent — the single brand knob. Calm, slightly cool. */
-  --brand: oklch(0.86 0.13 175);
-  --brand-foreground: oklch(0.18 0.02 200);
+  /* Accent — high-lightness near-white, slight cool cast. The single
+     "brand" knob; reads as bright neutral rather than a color. */
+  --brand: oklch(0.93 0.008 200);
+  --brand-foreground: oklch(0.16 0.012 200);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
 
   /* Quiet surfaces */
-  --secondary: oklch(0.27 0.018 200);
+  --secondary: oklch(0.28 0.014 200);
   --secondary-foreground: oklch(0.92 0.005 200);
-  --muted: oklch(0.24 0.015 200);
-  --muted-foreground: oklch(0.68 0.012 200);
-  --accent: oklch(0.86 0.13 175 / 12%);
-  --accent-foreground: oklch(0.92 0.05 175);
+  --muted: oklch(0.24 0.012 200);
+  --muted-foreground: oklch(0.66 0.01 200);
+  --accent: oklch(0.95 0.005 200 / 10%);
+  --accent-foreground: oklch(0.94 0.005 200);
 
-  /* Coral, not red */
-  --destructive: oklch(0.7 0.18 25);
+  /* Destructive — still neutral, but a hair of warmth so "danger" reads.
+     Chroma 0.04 is below the eye's "color" threshold against this background. */
+  --destructive: oklch(0.78 0.04 25);
 
   /* Hairlines + rings */
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.86 0.13 175 / 50%);
+  --ring: oklch(0.93 0.008 200 / 45%);
 
-  /* Status tones (mapped to a single statusTone() util in lib/format.ts) */
-  --tone-mastered: oklch(0.86 0.13 175);
-  --tone-progress: oklch(0.82 0.13 75);
-  --tone-review: oklch(0.78 0.16 25);
-  --tone-locked: oklch(0.6 0.012 200);
-  --tone-generating: oklch(0.78 0.06 175);
+  /* Status tones — pure lightness ladder, all in the same hue family. */
+  --tone-mastered: oklch(0.95 0.005 200);
+  --tone-progress: oklch(0.82 0.008 200);
+  --tone-review: oklch(0.78 0.04 25);
+  --tone-locked: oklch(0.5 0.008 200);
+  --tone-generating: oklch(0.7 0.008 200);
 
-  /* Charts — tuned to mint→teal→amber for adaptive learning analytics */
-  --chart-1: oklch(0.86 0.13 175);
-  --chart-2: oklch(0.74 0.12 195);
-  --chart-3: oklch(0.62 0.1 215);
-  --chart-4: oklch(0.82 0.13 75);
-  --chart-5: oklch(0.7 0.18 25);
+  /* Charts — lightness ladder, monochromatic. */
+  --chart-1: oklch(0.93 0.008 200);
+  --chart-2: oklch(0.78 0.008 200);
+  --chart-3: oklch(0.64 0.008 200);
+  --chart-4: oklch(0.5 0.008 200);
+  --chart-5: oklch(0.78 0.04 25);
 
   --radius: 0.625rem;
 
@@ -135,10 +145,10 @@
   html {
     @apply font-sans;
   }
-  /* Hero heading utility — sans-serif, tight tracking, balanced wrap.
-     Single source of truth so we can re-tune all h1s from one place. */
+  /* Hero heading utility — Space Grotesk for every page-level h1. Single
+     source of truth: re-tune all hero h1s from one place. */
   .h-display {
-    font-family: var(--font-sans);
+    font-family: var(--font-space), var(--font-sans);
     font-style: normal;
     font-weight: 600;
     letter-spacing: -0.02em;

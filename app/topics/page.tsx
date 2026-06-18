@@ -81,9 +81,7 @@ export default function TopicsPage() {
           <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
             Your studies
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Topics
-          </h1>
+          <h1 className="h-display text-3xl sm:text-4xl">Topics</h1>
         </div>
         <Button asChild>
           <Link href="/onboarding?new=1">
@@ -114,9 +112,7 @@ export default function TopicsPage() {
                     variant="secondary"
                     onClick={() =>
                       router.push(
-                        p.next === "onboarding"
-                          ? "/onboarding"
-                          : "/assessment",
+                        p.next === "onboarding" ? "/onboarding" : "/assessment",
                       )
                     }
                   >
@@ -176,9 +172,9 @@ export default function TopicsPage() {
                 <CardContent className="flex flex-1 flex-col justify-end gap-3">
                   <Progress value={pct} />
                   <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
-                    {t.summary.lessonsMastered}/{t.summary.lessonsTotal}{" "}
-                    lessons · {t.summary.modulesCompleted}/
-                    {t.summary.modulesTotal} modules
+                    {t.summary.lessonsMastered}/{t.summary.lessonsTotal} lessons
+                    · {t.summary.modulesCompleted}/{t.summary.modulesTotal}{" "}
+                    modules
                   </p>
                 </CardContent>
                 <CardFooter className="flex justify-between gap-1">

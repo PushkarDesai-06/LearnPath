@@ -165,9 +165,7 @@ function TutorInner() {
           <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
             Socratic tutor
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Think it through.
-          </h1>
+          <h1 className="h-display text-3xl">Think it through.</h1>
           <p className="text-muted-foreground text-sm">
             I guide you toward answers. I won&apos;t hand them over.
           </p>
