@@ -10,7 +10,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
+  --font-display: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -40,6 +41,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-tone-mastered: var(--tone-mastered);
+  --color-tone-progress: var(--tone-progress);
+  --color-tone-review: var(--tone-review);
+  --color-tone-locked: var(--tone-locked);
+  --color-tone-generating: var(--tone-generating);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -49,89 +57,73 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  /* ==========================================================================
-     BRAND ACCENT — the single project-wide knob for the app's accent color.
-     Drives primary buttons, links, active/selected states, highlights.
-     Default = the shadcn neutral theme. To rebrand the whole app, change just
-     these two values (and the .dark counterparts below). Example — blue:
-       --brand: oklch(0.55 0.20 264);  --brand-foreground: oklch(0.985 0 0);
-     ========================================================================== */
-  --brand: oklch(0.205 0 0);
-  --brand-foreground: oklch(0.985 0 0);
-
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* --primary is wired to --brand (defined at the top of :root) so the accent
-     is controlled from one place. Default = shadcn neutral. */
-  --primary: var(--brand);
-  --primary-foreground: var(--brand-foreground);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-}
-
+/* ==========================================================================
+   STUDIO PALETTE — LearnPath
+   A deep slate-cyan room with a single mint accent. Three surface tiers,
+   warm coral for failure (sits opposite mint on the wheel, never red).
+   Five named status tones drive every badge across the app.
+   App is dark-only: :root and .dark are identical so server-rendered HTML
+   matches what next-themes (or our forced .dark class) will produce.
+   ========================================================================== */
+:root,
 .dark {
-  /* Dark-mode brand accent (see :root --brand for the light value). */
-  --brand: oklch(0.922 0 0);
-  --brand-foreground: oklch(0.205 0 0);
+  /* Surfaces — cool, deep, three tiers (floor → card → elevated) */
+  --background: oklch(0.18 0.015 200);
+  --foreground: oklch(0.96 0.005 200);
+  --surface-1: oklch(0.22 0.015 200);
+  --surface-2: oklch(0.26 0.018 200);
 
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
+  --card: var(--surface-1);
+  --card-foreground: var(--foreground);
+  --popover: var(--surface-2);
+  --popover-foreground: var(--foreground);
+
+  /* Mint accent — the single brand knob. Calm, slightly cool. */
+  --brand: oklch(0.86 0.13 175);
+  --brand-foreground: oklch(0.18 0.02 200);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+
+  /* Quiet surfaces */
+  --secondary: oklch(0.27 0.018 200);
+  --secondary-foreground: oklch(0.92 0.005 200);
+  --muted: oklch(0.24 0.015 200);
+  --muted-foreground: oklch(0.68 0.012 200);
+  --accent: oklch(0.86 0.13 175 / 12%);
+  --accent-foreground: oklch(0.92 0.05 175);
+
+  /* Coral, not red */
+  --destructive: oklch(0.7 0.18 25);
+
+  /* Hairlines + rings */
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.86 0.13 175 / 50%);
+
+  /* Status tones (mapped to a single statusTone() util in lib/format.ts) */
+  --tone-mastered: oklch(0.86 0.13 175);
+  --tone-progress: oklch(0.82 0.13 75);
+  --tone-review: oklch(0.78 0.16 25);
+  --tone-locked: oklch(0.6 0.012 200);
+  --tone-generating: oklch(0.78 0.06 175);
+
+  /* Charts — tuned to mint→teal→amber for adaptive learning analytics */
+  --chart-1: oklch(0.86 0.13 175);
+  --chart-2: oklch(0.74 0.12 195);
+  --chart-3: oklch(0.62 0.1 215);
+  --chart-4: oklch(0.82 0.13 75);
+  --chart-5: oklch(0.7 0.18 25);
+
+  --radius: 0.625rem;
+
+  --sidebar: var(--surface-1);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--brand);
+  --sidebar-primary-foreground: var(--brand-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
 }
 
 @layer base {
@@ -143,5 +135,36 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Display utility — editorial italic serif for hero h1s.
+     The one aesthetic risk: italic display on app UI. Used sparingly. */
+  .font-display {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-feature-settings: "ss01", "ss02";
+  }
+  .h-display {
+    font-family: var(--font-display), ui-serif, Georgia, serif;
+    font-style: italic;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    text-wrap: balance;
+  }
+  /* Subtle ambient texture: a near-invisible noise to keep the deep
+     background from looking flat under OLED. Pure CSS, no asset. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.025;
+    background-image:
+      radial-gradient(
+        circle at 1px 1px,
+        oklch(1 0 0) 0.5px,
+        transparent 0.5px
+      );
+    background-size: 3px 3px;
   }
 }

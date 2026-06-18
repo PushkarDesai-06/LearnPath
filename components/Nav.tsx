@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCap, LogOut, Plus } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
@@ -35,28 +35,40 @@ export function Nav() {
   }
 
   return (
-    <header className="bg-background/80 sticky top-0 z-10 border-b backdrop-blur">
-      <nav className="mx-auto flex h-14 w-full max-w-3xl items-center gap-2 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <GraduationCap className="text-primary size-5" />
-          LearnPath
+    <header className="bg-background/70 sticky top-0 z-10 border-b border-border/60 backdrop-blur-xl">
+      <nav className="mx-auto flex h-14 w-full max-w-4xl items-center gap-2 px-4 sm:px-6">
+        <Link
+          href="/"
+          className="flex items-center gap-2 font-medium tracking-tight"
+        >
+          {/* Logo mark — a mint dot tracing back to the trail rail signature */}
+          <span
+            aria-hidden
+            className="bg-primary shadow-primary/40 size-2 rounded-full shadow-[0_0_8px]"
+          />
+          <span className="font-display text-base italic">LearnPath</span>
         </Link>
         {me && (
           <>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/topics">Topics</Link>
-            </Button>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/onboarding?new=1">
-                <Plus data-icon="inline-start" />
-                New topic
-              </Link>
-            </Button>
+            <div className="ml-1 flex items-center">
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/topics">Topics</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/onboarding?new=1">
+                  <Plus data-icon="inline-start" />
+                  New topic
+                </Link>
+              </Button>
+            </div>
             <div className="ml-auto flex items-center gap-2">
-              <span className="text-muted-foreground hidden text-sm sm:inline">
+              <span className="text-muted-foreground hidden font-mono text-[11px] tracking-tight sm:inline">
                 {me.user.email}
               </span>
-              <Separator orientation="vertical" className="hidden h-5 sm:block" />
+              <Separator
+                orientation="vertical"
+                className="hidden h-4 sm:block"
+              />
               <Button variant="ghost" size="sm" onClick={logout}>
                 <LogOut data-icon="inline-start" />
                 Log out

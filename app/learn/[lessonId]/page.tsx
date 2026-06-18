@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Markdown } from "@/components/Markdown";
+import { cn } from "@/lib/utils";
 
 interface Block {
   kind: "text" | "code" | "analogy" | "example" | "practice";
@@ -56,8 +57,8 @@ function PracticeBlock({ block }: { block: Block }) {
         { body: { questionId: block.questionId, answer } },
       );
       setResult(res);
-      if (res?.correct) toast.success("Correct!");
-      else toast.warning("Not quite — check the explanation.");
+      if (res?.correct) toast.success("Correct.");
+      else toast.warning("Not quite. Read the explanation.");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not grade answer",
@@ -67,10 +68,23 @@ function PracticeBlock({ block }: { block: Block }) {
     }
   }
 
+  const edge = !result
+    ? "border-primary/30"
+    : result.correct
+      ? "border-tone-mastered/50"
+      : "border-tone-review/50";
+
   return (
-    <Card className="border-primary/30 bg-primary/5">
+    <Card
+      className={cn(
+        "relative overflow-hidden border-l-4 transition-colors",
+        edge,
+      )}
+    >
       <CardContent className="flex flex-col gap-3">
-        <p className="text-primary text-xs font-semibold uppercase">Practice</p>
+        <p className="text-primary font-mono text-[10px] uppercase tracking-[0.18em]">
+          Practice
+        </p>
         <p className="font-medium">{block.prompt}</p>
         {block.type === "mcq" && block.choices ? (
           <RadioGroup
@@ -82,7 +96,7 @@ function PracticeBlock({ block }: { block: Block }) {
               <Label
                 key={i}
                 htmlFor={`${block.questionId}-${i}`}
-                className="flex cursor-pointer items-center gap-2 font-normal"
+                className="hover:bg-surface-2/50 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 font-normal transition-colors"
               >
                 <RadioGroupItem
                   value={String(i)}
@@ -98,6 +112,7 @@ function PracticeBlock({ block }: { block: Block }) {
             value={answer}
             disabled={!!result}
             onChange={(e) => setAnswer(e.target.value)}
+            placeholder="Your answer…"
           />
         )}
         {!result ? (
@@ -111,17 +126,20 @@ function PracticeBlock({ block }: { block: Block }) {
             Check answer
           </Button>
         ) : (
-          <div className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-col gap-2 text-sm">
             <Badge
-              variant={result.correct ? "default" : "destructive"}
+              variant="status"
+              tone={result.correct ? "mastered" : "review"}
               className="self-start"
             >
               {result.correct ? "Correct" : "Not quite"}
             </Badge>
             {result.feedback && <p>{result.feedback}</p>}
             {result.explanation && (
-              <div className="text-muted-foreground">
-                <span className="font-medium">Explanation:</span>
+              <div className="text-muted-foreground border-border/60 mt-1 border-l-2 pl-3">
+                <p className="text-foreground/80 mb-1 text-xs font-medium uppercase tracking-wider">
+                  Explanation
+                </p>
                 <Markdown>{result.explanation}</Markdown>
               </div>
             )}
@@ -133,7 +151,12 @@ function PracticeBlock({ block }: { block: Block }) {
 }
 
 const POLL_MS = 2500;
-const POLL_TIMEOUT_MS = 3 * 60 * 1000; // give up the spinner after 3 min
+const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+const BLOCK_LABELS: Record<string, string> = {
+  analogy: "Analogy",
+  example: "Example",
+};
 
 export default function LessonPage() {
   const params = useParams<{ lessonId: string }>();
@@ -141,12 +164,11 @@ export default function LessonPage() {
   const [data, setData] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [attempt, setAttempt] = useState(0); // bump to retry
+  const [attempt, setAttempt] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [startedAt] = useState(() => Date.now());
 
-  // Poll the lesson endpoint until it's generated (it's built in the background).
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -197,7 +219,7 @@ export default function LessonPage() {
         },
       });
       setCompleted(true);
-      toast.success("Lesson completed — your path was updated.");
+      toast.success("Lesson complete. Path updated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed");
     } finally {
@@ -207,17 +229,17 @@ export default function LessonPage() {
 
   if (loading)
     return (
-      <div className="flex flex-col items-center gap-2 py-16">
-        <Spinner />
-        <p className="text-muted-foreground text-sm">Generating your lesson…</p>
+      <div className="flex flex-col items-center gap-3 py-24">
+        <span className="bg-tone-generating/30 size-3 animate-pulse rounded-full" />
+        <p className="text-foreground text-sm">Writing your lesson</p>
         <p className="text-muted-foreground text-xs">
-          You can leave — it&apos;ll keep generating in the background.
+          You can leave. It keeps generating in the background.
         </p>
       </div>
     );
   if (error && !data)
     return (
-      <div className="flex flex-col items-center gap-3 py-16">
+      <div className="flex flex-col items-center gap-3 py-24">
         <Alert variant="destructive" className="max-w-md">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
@@ -236,73 +258,76 @@ export default function LessonPage() {
   if (!data) return null;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{data.title}</h1>
-        <Button variant="link" size="sm" asChild>
-          <Link href={`/dashboard?id=${data.curriculumId}`}>Path </Link>
-        </Button>
-      </div>
+    <article className="mx-auto flex max-w-2xl flex-col gap-6">
+      <Button variant="ghost" size="sm" asChild className="self-start -ml-2">
+        <Link href={`/dashboard?id=${data.curriculumId}`}>
+          <ArrowLeft data-icon="inline-start" />
+          Back to path
+        </Link>
+      </Button>
+      <header className="flex flex-col gap-2">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Lesson
+        </p>
+        <h1 className="h-display text-3xl sm:text-4xl">{data.title}</h1>
+      </header>
 
       {data.blocks.map((b, i) => {
         if (b.kind === "practice")
           return <PracticeBlock key={b.questionId ?? i} block={b} />;
         if (b.kind === "code")
           return (
-            <Card key={i}>
-              <CardContent className="flex flex-col gap-1">
-                {b.caption && (
-                  <p className="text-muted-foreground text-xs">{b.caption}</p>
-                )}
-                <pre className="bg-muted overflow-x-auto rounded-md p-3 font-mono text-xs">
-                  <code>{b.code}</code>
-                </pre>
-              </CardContent>
-            </Card>
-          );
-        return (
-          <Card key={i}>
-            <CardContent className="flex flex-col gap-1">
-              {b.kind !== "text" && (
-                <p className="text-muted-foreground text-xs font-semibold uppercase">
-                  {b.kind}
+            <div key={i} className="flex flex-col gap-1">
+              {b.caption && (
+                <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
+                  {b.caption}
                 </p>
               )}
+              <pre className="bg-surface-1 border-border/60 overflow-x-auto rounded-xl border p-4 font-mono text-xs leading-relaxed">
+                <code>{b.code}</code>
+              </pre>
+            </div>
+          );
+        const label = BLOCK_LABELS[b.kind];
+        return (
+          <section key={i} className="flex flex-col gap-2">
+            {label && (
+              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+                {label}
+              </p>
+            )}
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:font-display prose-headings:not-italic">
               <Markdown>{b.markdown ?? ""}</Markdown>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         );
       })}
 
-      <Card>
-        <CardContent className="flex items-center justify-between gap-3">
-          {completed ? (
-            <>
-              <Badge>
-                <CheckCircle2 data-icon="inline-start" />
-                Lesson completed
-              </Badge>
-              <Button
-                onClick={() =>
-                  router.push(`/dashboard?id=${data.curriculumId}`)
-                }
-              >
-                Back to path
-              </Button>
-            </>
-          ) : (
-            <>
-              <span className="text-muted-foreground text-sm">
-                Finished reading and practicing?
-              </span>
-              <Button onClick={markComplete} disabled={completing}>
-                {completing && <Spinner data-icon="inline-start" />}
-                Mark complete
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-6">
+        {completed ? (
+          <>
+            <Badge variant="status" tone="mastered">
+              <CheckCircle2 data-icon="inline-start" />
+              Complete
+            </Badge>
+            <Button
+              onClick={() => router.push(`/dashboard?id=${data.curriculumId}`)}
+            >
+              Back to path
+            </Button>
+          </>
+        ) : (
+          <>
+            <span className="text-muted-foreground text-sm">
+              Done reading and practicing?
+            </span>
+            <Button onClick={markComplete} disabled={completing}>
+              {completing && <Spinner data-icon="inline-start" />}
+              Mark complete
+            </Button>
+          </>
+        )}
+      </div>
+    </article>
   );
 }

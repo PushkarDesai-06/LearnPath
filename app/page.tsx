@@ -2,16 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { GraduationCap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function Home() {
@@ -33,29 +26,66 @@ export default function Home() {
 
   if (loggedIn === null)
     return (
-      <div className="flex justify-center py-16">
+      <div className="flex justify-center py-24">
         <Spinner />
       </div>
     );
 
   return (
-    <Card className="mx-auto max-w-md text-center">
-      <CardHeader>
-        <div className="bg-primary/10 mx-auto flex size-12 items-center justify-center rounded-full">
-          <GraduationCap className="text-primary size-6" />
-        </div>
-        <CardTitle className="text-2xl">LearnPath</CardTitle>
-        <CardDescription>
-          An adaptive learning platform that diagnoses your level, generates a
-          personalized curriculum, and adapts as you learn, across as many
-          topics as you want.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-12 sm:py-20">
+      <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+        Adaptive learning, paced for you
+      </p>
+      <h1 className="h-display text-5xl sm:text-6xl">
+        A path drawn from where{" "}
+        <span className="text-primary">you actually are.</span>
+      </h1>
+      <p className="text-muted-foreground max-w-xl text-base leading-relaxed">
+        Describe what you want to learn. LearnPath diagnoses your level with
+        a short adaptive quiz, generates a curriculum that respects what you
+        already know, and reorders itself as your mastery shifts. A Socratic
+        tutor stays beside you — guiding, never handing over the answer.
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
         <Button size="lg" onClick={() => router.push("/login")}>
           Get started
+          <ArrowRight data-icon="inline-end" />
         </Button>
-      </CardContent>
-    </Card>
+        <span className="text-muted-foreground font-mono text-xs">
+          Sign in to pick up where you left off.
+        </span>
+      </div>
+
+      {/* Three quiet pillars */}
+      <ul className="border-border mt-6 grid gap-x-8 gap-y-6 border-t pt-8 sm:grid-cols-3">
+        {[
+          {
+            n: "01",
+            t: "Diagnose",
+            d: "A short adaptive quiz finds your actual level — no guessing.",
+          },
+          {
+            n: "02",
+            t: "Generate",
+            d: "Modules and lessons are written for you, in the right order.",
+          },
+          {
+            n: "03",
+            t: "Adapt",
+            d: "Mastery moves the path. Review surfaces what you forget.",
+          },
+        ].map((p) => (
+          <li key={p.n} className="flex flex-col gap-2">
+            <span className="text-muted-foreground/60 font-mono text-[10px] tracking-[0.16em]">
+              {p.n}
+            </span>
+            <span className="font-medium">{p.t}</span>
+            <span className="text-muted-foreground text-sm leading-relaxed">
+              {p.d}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

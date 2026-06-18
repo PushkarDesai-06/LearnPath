@@ -52,11 +52,16 @@ export default function LoginPage() {
   return (
     <Card className="mx-auto max-w-sm">
       <CardHeader>
-        <CardTitle>{isLogin ? "Log in" : "Create account"}</CardTitle>
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          LearnPath
+        </p>
+        <CardTitle className="h-display text-3xl">
+          {isLogin ? "Welcome back." : "Start something."}
+        </CardTitle>
         <CardDescription>
           {isLogin
-            ? "Welcome back, pick up where you left off."
-            : "Start building personalized learning paths."}
+            ? "Pick up where you left off."
+            : "Personalized paths begin with a sign-up."}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -117,13 +117,16 @@ function OnboardingInner() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold">What do you want to learn?</h1>
-        <p className="text-muted-foreground text-sm">
-          Describe it in detail. I&apos;ll ask follow-ups until it&apos;s clear
-          enough to build a curriculum.
+      <header className="flex flex-col gap-2">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Setup
         </p>
-      </div>
+        <h1 className="h-display text-3xl">What do you want to learn?</h1>
+        <p className="text-muted-foreground text-sm">
+          Describe it in your own words. I&apos;ll ask follow-ups until it&apos;s
+          clear enough to plan a curriculum.
+        </p>
+      </header>
 
       <div className="flex flex-col gap-3">
         {turns.map((t, i) => (

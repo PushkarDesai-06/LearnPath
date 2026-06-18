@@ -241,13 +241,16 @@ export default function AssessmentPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-2xl font-bold">Knowledge quiz</h1>
-        <p className="text-muted-foreground text-sm">
-          Answer every question, then submit once. I will review the answers and
-          decide the curriculum :)
+      <header className="flex flex-col gap-2">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Diagnostic
         </p>
-      </div>
+        <h1 className="h-display text-3xl">Knowledge check</h1>
+        <p className="text-muted-foreground text-sm">
+          Answer every question. One submit. I&apos;ll read what you wrote and
+          shape the curriculum.
+        </p>
+      </header>
       {questions.map((q, i) => (
         <Card key={q.id}>
           <CardContent className="flex flex-col gap-3">
