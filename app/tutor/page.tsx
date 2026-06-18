@@ -18,19 +18,16 @@ interface Conversation {
   messageCount: number;
 }
 
-function SocraticMark({ className }: { className?: string }) {
-  // The tutor's identity mark — italic Newsreader "S" inside a mint hairline
-  // ring. Quiet, but consistent across every tutor message.
+/** Mint dot prefix for assistant turns — matches the logo + trail-rail mark. */
+function TutorDot({ className }: { className?: string }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "border-primary/40 text-primary inline-flex size-6 shrink-0 items-center justify-center rounded-full border bg-primary/5 font-display text-sm italic",
+        "bg-primary shadow-primary/40 mt-2 size-1.5 shrink-0 rounded-full shadow-[0_0_6px]",
         className,
       )}
-    >
-      S
-    </span>
+    />
   );
 }
 
@@ -90,7 +87,7 @@ function TutorInner() {
   function newConversation() {
     setActiveId(null);
     setMessages([]);
-    toast.message("Started a new conversation");
+    toast.message("New thread started");
   }
 
   async function send(e: React.FormEvent) {
@@ -126,7 +123,7 @@ function TutorInner() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-[200px_1fr]">
+    <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
       {/* Conversation rail */}
       <aside className="flex flex-col gap-1">
         <Button
@@ -138,49 +135,55 @@ function TutorInner() {
           <Plus data-icon="inline-start" />
           New chat
         </Button>
+        <p className="text-muted-foreground/80 mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em]">
+          Threads
+        </p>
         {conversations.map((c) => (
           <Button
             key={c.id}
             variant={activeId === c.id ? "secondary" : "ghost"}
             size="sm"
-            className="justify-start"
+            className="h-auto min-h-9 justify-start py-2 text-left"
             onClick={() => setActiveId(c.id)}
             title={c.title}
           >
-            <span className="truncate text-left">{c.title}</span>
+            <span className="truncate text-left text-sm font-normal">
+              {c.title}
+            </span>
           </Button>
         ))}
         {conversations.length === 0 && (
-          <p className="text-muted-foreground px-1 text-xs">
-            No conversations yet.
+          <p className="text-muted-foreground/70 px-2 text-xs">
+            No threads yet.
           </p>
         )}
       </aside>
 
-      <div className="flex flex-col gap-6">
+      {/* Chat column — capped for reading comfort */}
+      <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-6">
         <header className="flex flex-col gap-2">
           <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
             Socratic tutor
           </p>
-          <h1 className="h-display text-3xl">Think it through.</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Think it through.
+          </h1>
           <p className="text-muted-foreground text-sm">
             I guide you toward answers. I won&apos;t hand them over.
           </p>
         </header>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-6 pb-4">
           {messages.length === 0 && (
-            <div className="border-border rounded-2xl border border-dashed p-6">
-              <div className="flex items-start gap-3">
-                <SocraticMark />
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm">
-                    Ask whatever you&apos;re stuck on. I&apos;ll ask back.
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    Each chat is its own thread.
-                  </p>
-                </div>
+            <div className="flex gap-3">
+              <TutorDot />
+              <div className="flex flex-col gap-1 pt-0.5">
+                <p className="text-sm">
+                  Ask whatever you&apos;re stuck on. I&apos;ll ask back.
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  Each chat is its own thread.
+                </p>
               </div>
             </div>
           )}
@@ -189,58 +192,61 @@ function TutorInner() {
               key={i}
               className={cn(
                 "flex gap-3",
-                m.role === "user" && "justify-end",
+                m.role === "user" && "flex-row-reverse",
               )}
             >
-              {m.role === "assistant" && <SocraticMark />}
-              <div
-                className={cn(
-                  "max-w-[78%] text-sm leading-relaxed",
-                  m.role === "user"
-                    ? "bg-surface-2 rounded-2xl rounded-br-md px-4 py-2.5 whitespace-pre-wrap"
-                    : "pt-0.5",
-                )}
-              >
-                {m.role === "assistant" ? (
-                  <Markdown className="prose-p:my-1.5 prose-pre:my-2">
+              {m.role === "assistant" && <TutorDot />}
+              {m.role === "user" ? (
+                <div className="bg-surface-2/80 max-w-[85%] rounded-xl rounded-tr-sm px-3.5 py-2 text-sm whitespace-pre-wrap">
+                  {m.text}
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1 pt-0.5 text-sm leading-relaxed">
+                  <Markdown className="prose-p:my-2 prose-pre:my-2 prose-code:text-foreground">
                     {m.text}
                   </Markdown>
-                ) : (
-                  m.text
-                )}
-              </div>
+                </div>
+              )}
             </div>
           ))}
           {busy && (
             <div className="flex items-center gap-3">
-              <SocraticMark />
-              <Spinner className="text-muted-foreground" />
+              <TutorDot className="mt-0 animate-pulse" />
+              <span className="text-muted-foreground text-xs">Thinking…</span>
             </div>
           )}
         </div>
 
         <form
           onSubmit={send}
-          className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-2 rounded-2xl border p-3 transition-colors"
+          className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
         >
           <Textarea
             rows={2}
             placeholder="What are you stuck on?"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="resize-none border-0 bg-transparent shadow-none focus-visible:ring-0"
+            className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 send(e as unknown as React.FormEvent);
               }
             }}
           />
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground/70 text-xs">
-              ⌘↵ to send
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-muted-foreground/60 font-mono text-[10px] uppercase tracking-[0.14em]">
+              ⌘ + ↵ to send
             </span>
-            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
-              <Send data-icon="inline-start" />
+            <Button
+              type="submit"
+              size="sm"
+              disabled={busy || !input.trim()}
+            >
+              {busy ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Send data-icon="inline-start" />
+              )}
               Ask
             </Button>
           </div>

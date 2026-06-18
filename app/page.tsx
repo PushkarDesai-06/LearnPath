@@ -36,7 +36,7 @@ export default function Home() {
       <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
         Adaptive learning, paced for you
       </p>
-      <h1 className="h-display text-5xl sm:text-6xl">
+      <h1 className="h-display text-4xl sm:text-5xl">
         A path drawn from where{" "}
         <span className="text-primary">you actually are.</span>
       </h1>

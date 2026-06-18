@@ -296,7 +296,7 @@ export default function LessonPage() {
                 {label}
               </p>
             )}
-            <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 prose-headings:font-display prose-headings:not-italic">
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-2">
               <Markdown>{b.markdown ?? ""}</Markdown>
             </div>
           </section>

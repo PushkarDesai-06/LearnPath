@@ -136,7 +136,7 @@ export default function TopicsPage() {
             <EmptyMedia variant="icon">
               <BookOpen />
             </EmptyMedia>
-            <EmptyTitle className="font-sans text-lg not-italic">
+            <EmptyTitle className="text-lg">
               Pick something you want to learn.
             </EmptyTitle>
             <EmptyDescription>
@@ -164,7 +164,7 @@ export default function TopicsPage() {
                       <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.14em] truncate">
                         {t.domain}
                       </p>
-                      <CardTitle className="truncate font-sans text-lg font-medium not-italic">
+                      <CardTitle className="truncate text-lg font-medium">
                         {t.title}
                       </CardTitle>
                     </div>

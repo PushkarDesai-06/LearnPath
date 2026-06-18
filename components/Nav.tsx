@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import Image from "next/image";
+import logo from "../public/logo.svg";
 
 interface Me {
   user: { email: string };
@@ -42,11 +44,18 @@ export function Nav() {
           className="flex items-center gap-2 font-medium tracking-tight"
         >
           {/* Logo mark — a mint dot tracing back to the trail rail signature */}
-          <span
-            aria-hidden
-            className="bg-primary shadow-primary/40 size-2 rounded-full shadow-[0_0_8px]"
-          />
-          <span className="font-display text-base italic">LearnPath</span>
+          <span className="">
+            <Image
+              src={logo}
+              width={20}
+              height={0}
+              alt="logo"
+              className="invert"
+            />
+          </span>
+          <span className="text-base font-semibold tracking-tight">
+            LearnPath
+          </span>
         </Link>
         {me && (
           <>
