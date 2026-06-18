@@ -81,7 +81,9 @@ export default function TopicsPage() {
           <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
             Your studies
           </p>
-          <h1 className="h-display text-3xl sm:text-4xl">Topics</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+            Topics
+          </h1>
         </div>
         <Button asChild>
           <Link href="/onboarding?new=1">
@@ -134,7 +136,9 @@ export default function TopicsPage() {
             <EmptyMedia variant="icon">
               <BookOpen />
             </EmptyMedia>
-            <EmptyTitle>Pick something you want to learn.</EmptyTitle>
+            <EmptyTitle className="font-sans text-lg not-italic">
+              Pick something you want to learn.
+            </EmptyTitle>
             <EmptyDescription>
               Describe a goal; LearnPath builds the path.
             </EmptyDescription>
@@ -155,12 +159,12 @@ export default function TopicsPage() {
                 className="group hover:border-primary/30 flex flex-col transition-colors"
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex flex-col gap-1 min-w-0">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-1">
                       <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.14em] truncate">
                         {t.domain}
                       </p>
-                      <CardTitle className="truncate text-lg font-medium">
+                      <CardTitle className="truncate font-sans text-lg font-medium not-italic">
                         {t.title}
                       </CardTitle>
                     </div>
