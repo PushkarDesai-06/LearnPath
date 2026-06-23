@@ -276,12 +276,16 @@ export default function AssessmentPage() {
             </RadioGroup>
             <Button
               type="button"
-              variant={answers[q.id] === IDK ? "secondary" : "ghost"}
+              variant={answers[q.id] === IDK ? "default" : "secondary"}
               size="sm"
-              className="self-start"
+              className={cn(
+                "self-start border-dashed",
+                answers[q.id] === IDK && "ring-primary border-solid",
+              )}
               onClick={() => setAnswers((a) => ({ ...a, [q.id]: IDK }))}
             >
-              I don&apos;t know
+              {answers[q.id] === IDK && <Check data-icon="inline-start" />}I
+              don't know
             </Button>
           </CardContent>
         </Card>
