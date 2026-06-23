@@ -59,5 +59,5 @@ export function runClarityAgent(input: ClarityInput): Promise<ClarityOutput> {
     input.rawDescription;
   const prompt = `Learner's original description:\n"""\n${input.rawDescription}\n"""\n\nFull conversation so far:\n${history}\n\nLearner's most recent message:\n"""\n${latest}\n"""\n\nSynthesize the WHOLE conversation and assess clarity.`;
 
-  return runAgent<ClarityOutput>(clarityAgent, prompt);
+  return runAgent(clarityAgent, prompt, claritySchema);
 }

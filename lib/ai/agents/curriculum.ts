@@ -67,5 +67,5 @@ Gaps: ${result.gaps.join(", ") || "(none identified)"}
 Per-topic mastery: ${mastery || "(none)"}
 
 Design the learning path.`;
-  return runAgent<CurriculumOutput>(curriculumAgent, prompt);
+  return runAgent(curriculumAgent, prompt, curriculumSchema);
 }

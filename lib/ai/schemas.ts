@@ -41,15 +41,32 @@ export const questionSchema = z.object({
 export type QuestionOutput = z.infer<typeof questionSchema>;
 
 // --- batch quiz generation (whole quiz in one call, MCQ only) ---
-export const quizQuestionSchema = z.object({
-  topic: z.string(),
-  level: difficultyEnum,
-  prompt: z.string(),
-  choices: z.array(z.string()).min(2),
-  correctKey: z.string(), // zero-based index of the correct choice, e.g. "2"
-});
+export const quizQuestionSchema = z
+  .object({
+    topic: z.string().trim().min(1),
+    level: difficultyEnum,
+    prompt: z.string().trim().min(1),
+    choices: z.array(z.string().trim().min(1)).min(2),
+    correctKey: z.string(), // zero-based index INTO `choices`, as a string, e.g. "2"
+  })
+  // `correctKey` must point at a real choice: a digit-string index in
+  // [0, choices.length). Without this, "5" on a 3-choice question (or "", "abc")
+  // passes structurally but produces an MCQ with no reachable correct answer.
+  // Kept as a STRING because every consumer indexes it as one (DB String field,
+  // gradeMcq's `.trim()`, the UI's `String(idx) === correctKey`).
+  .refine(
+    (q) => {
+      const key = q.correctKey.trim();
+      return /^\d+$/.test(key) && Number(key) < q.choices.length;
+    },
+    {
+      message:
+        'correctKey must be a string holding a zero-based index into choices (e.g. "2"), within 0..choices.length-1.',
+      path: ["correctKey"],
+    },
+  );
 export const quizSchema = z.object({
-  questions: z.array(quizQuestionSchema),
+  questions: z.array(quizQuestionSchema).min(1),
 });
 export type QuizOutput = z.infer<typeof quizSchema>;
 
@@ -115,8 +132,12 @@ function blockHasContent(b: z.infer<typeof lessonBlockBase>): boolean {
       return nonEmpty(b.code);
     case "practice":
       if (!nonEmpty(b.prompt)) return false;
-      if (b.type === "mcq")
-        return !!b.choices && b.choices.length >= 2 && nonEmpty(b.correctKey);
+      if (b.type === "mcq") {
+        if (!b.choices || b.choices.length < 2) return false;
+        // correctKey must index a real choice (same rule as the quiz).
+        const key = (b.correctKey ?? "").trim();
+        return /^\d+$/.test(key) && Number(key) < b.choices.length;
+      }
       if (b.type === "short") return nonEmpty(b.rubric);
       return false; // practice needs a valid type
     default:
@@ -128,7 +149,8 @@ export const lessonBlockSchema = lessonBlockBase.refine(blockHasContent, {
   message:
     'Each block must include its content. "text"/"analogy"/"example" need a non-empty "markdown"; ' +
     '"code" needs "code"; "practice" needs "prompt" + "type" ("mcq"|"short"), where "mcq" also needs ' +
-    '"choices" (>=2) and "correctKey", and "short" also needs "rubric". Never emit a block with only "kind".',
+    '"choices" (>=2) and a "correctKey" that is a zero-based index into "choices" (e.g. "2"), and ' +
+    '"short" also needs "rubric". Never emit a block with only "kind".',
 });
 export const lessonContentSchema = z.object({
   blocks: z.array(lessonBlockSchema).min(3),

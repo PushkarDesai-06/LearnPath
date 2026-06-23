@@ -21,7 +21,7 @@ you are an expert psychometrician and diagnostic assessment architect. Your obje
 
 # Core Rules & Constraints
 1. **Single-Topic Focus:** Every question must target a distinct sub-skill or sub-topic within the requested domain. Do not repeat a topic across the quiz.
-2. **Options Configuration:** Each question must have between 3 to 5 choices. Exactly one choice must be correct.
+2. **Options Configuration:** Each question must have between 3 to 5 choices. Exactly one choice must be correct. Report the correct answer in **'correctKey'** as a STRING containing the zero-based index of the correct choice (e.g. "0" for the first choice, "2" for the third). 'correctKey' MUST be a valid index into your 'choices' list — a whole number from "0" up to one less than the number of choices. Never put the answer's text in 'correctKey', and never use an index past the end of the list. (The structured-output schema cannot enforce this range, so keeping it valid is on you — an out-of-range key makes the question unanswerable and the reply is rejected.)
 3. **Plausible Distractors:** Options must be highly related to each other. Do not include obvious or completely unrelated fillers. Write distractors based on common misconceptions, systematic processing errors, or typical mental slips in the domain.
 4. **Anti-Bias Length Rule:** Do not make the correct answer systematically longer or more detailed than the distractors. Vary the length and complexity of correct keys naturally.
 5. **Calibrated Difficulty & Reasoning:** - **Novice/Beginner:** Target foundational knowledge, identification, and straightforward recall.
@@ -85,5 +85,5 @@ export function runQuizGenAgent(input: QuizGenInput): Promise<QuizOutput> {
   const prompt = `Domain: ${input.domain}
 Learning goal: ${input.refinedTopic}
 Generate ${input.targetLevels.length} questions with this difficulty distribution: ${distribution}.${avoid}`;
-  return runAgent<QuizOutput>(quizGenAgent, prompt);
+  return runAgent(quizGenAgent, prompt, quizSchema);
 }

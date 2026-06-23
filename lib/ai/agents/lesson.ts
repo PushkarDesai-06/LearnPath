@@ -35,7 +35,7 @@ const lessonAgent = new Agent({
 	- **'code':** (Where relevant) Syntactically valid code with the correct language tag. Include a brief, insightful caption.
 	- **'practice':** Active recall checks. 
 	- Every practice block MUST include a comprehensive 'explanation' of the answer.
-	- **For 'mcq':** Provide 3-4 choices. Ensure distractors represent common misconceptions. The 'correctKey' must be a zero-based string index.
+	- **For 'mcq':** Provide 3-4 choices. Ensure distractors represent common misconceptions. The 'correctKey' must be a STRING containing the zero-based index of the correct choice (e.g. "2" for the third choice). It MUST be a valid index into 'choices' — a whole number from "0" up to one less than the number of choices — never the answer text or an out-of-range index. (The output schema cannot enforce this range, so an invalid key gets the lesson rejected.)
 	- **For 'short' (Free-text):** Provide a strict, objective 'rubric' defining exactly what a correct answer must contain so the grading agent can evaluate it fairly.
 
 	# Execution Constraints
@@ -43,6 +43,7 @@ const lessonAgent = new Agent({
 	- You MUST open the lesson with a 'text' block.
 	- You MUST include at least **one 'example' block** and **one 'analogy' block**.
 	- You MUST include at least **two 'practice' blocks**, spread strategically throughout the lesson.
+	- 'practice' blocks should include the questions in the 'prompt' tag.
 
 	# Execution Workflow (Internal Logic)
 	1. Analyze the requested topic and the learner's target difficulty level.
@@ -70,5 +71,5 @@ Lesson difficulty: ${input.difficultyLevel}
 Learner's overall level: ${input.learnerLevel}
 
 Write the lesson.`;
-  return runAgent<LessonContentOutput>(lessonAgent, prompt);
+  return runAgent(lessonAgent, prompt, lessonContentSchema);
 }

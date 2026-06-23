@@ -88,5 +88,5 @@ export async function runSocraticTutorAgent(
     : "";
   const prompt = `${context}Relevant material from this topic:\n"""\n${material}\n"""\n\nConversation so far:\n${history}\n\nLearner's new message:\n"""\n${input.userMessage}\n"""\n\nRespond Socratically.`;
 
-  return runAgent<TutorOutput>(agent, prompt);
+  return runAgent(agent, prompt, tutorSchema);
 }

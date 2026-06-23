@@ -74,5 +74,5 @@ Learner's answer:
 ${input.learnerAnswer}
 
 Grade it. `;
-  return runAgent<GradeOutput>(answerGradeAgent, prompt);
+  return runAgent(answerGradeAgent, prompt, gradeSchema);
 }

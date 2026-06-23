@@ -199,7 +199,7 @@ function TutorInner() {
                   {m.text}
                 </div>
               ) : (
-                <div className="min-w-0 flex-1 pt-0.5 text-sm leading-relaxed">
+                <div className="min-w-0 flex-1 pt-0.5 text-sm bg-white/10 rounded-md p-2 px-4">
                   <Markdown className="prose-p:my-2 prose-pre:my-2 prose-code:text-foreground">
                     {m.text}
                   </Markdown>
@@ -224,22 +224,18 @@ function TutorInner() {
             placeholder="What are you stuck on?"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
+            className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 px-2.5 py-1.5"
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                 send(e as unknown as React.FormEvent);
               }
             }}
           />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground/60 font-mono text-[10px] uppercase tracking-[0.14em]">
-              ⌘ + ↵ to send
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
+              ctrl + ↵ to send
             </span>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={busy || !input.trim()}
-            >
+            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
               {busy ? (
                 <Spinner data-icon="inline-start" />
               ) : (
