@@ -90,8 +90,8 @@ function TutorInner() {
     toast.message("New thread started");
   }
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
+  async function send() {
+    if (busy) return;
     const message = input.trim();
     if (!message) return;
     setMessages((m) => [...m, { role: "user", text: message }]);
@@ -216,7 +216,10 @@ function TutorInner() {
         </div>
 
         <form
-          onSubmit={send}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
           className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
         >
           <Textarea
@@ -226,14 +229,17 @@ function TutorInner() {
             onChange={(e) => setInput(e.target.value)}
             className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 px-2.5 py-1.5"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                send(e as unknown as React.FormEvent);
+              // Ignore Enter while an IME is composing a character.
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
               }
             }}
           />
           <div className="flex items-center justify-between gap-2 mt-1">
             <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
-              ctrl + ↵ to send
+              ↵ to send · ⇧↵ for newline
             </span>
             <Button type="submit" size="sm" disabled={busy || !input.trim()}>
               {busy ? (

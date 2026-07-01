@@ -1,14 +1,15 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Send } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 interface ClarityResponse {
   clearEnough: boolean;
@@ -31,6 +32,7 @@ function OnboardingInner() {
   const [done, setDone] = useState<ClarityResponse | null>(null);
   // Don't auto-resume when the learner explicitly started a NEW topic.
   const [loading, setLoading] = useState(!isNew);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Resume an in-progress onboarding so the past questions aren't lost.
   useEffect(() => {
@@ -72,10 +74,15 @@ function OnboardingInner() {
     };
   }, [isNew, router]);
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    if (!input.trim()) return;
+  // Keep the latest message / thinking indicator in view as the chat grows.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns, busy]);
+
+  async function send() {
+    if (busy) return;
     const description = input.trim();
+    if (!description) return;
     const firstMessage = turns.length === 0;
     setTurns((t) => [...t, { role: "user", text: description }]);
     setInput("");
@@ -132,7 +139,10 @@ function OnboardingInner() {
         {turns.map((t, i) => (
           <Card
             key={i}
-            className={t.role === "user" ? "bg-muted/50 ml-8" : "mr-8"}
+            className={cn(
+              "animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ease-out",
+              t.role === "user" ? "bg-muted/50 ml-8" : "mr-8",
+            )}
           >
             <CardContent>
               <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
@@ -142,11 +152,31 @@ function OnboardingInner() {
             </CardContent>
           </Card>
         ))}
-        {busy && <Spinner className="text-muted-foreground" />}
+        {busy && (
+          <Card className="animate-in fade-in-0 slide-in-from-bottom-2 mr-8 duration-300 ease-out">
+            <CardContent>
+              <p className="text-muted-foreground mb-1 text-xs font-medium uppercase">
+                LearnPath
+              </p>
+              <span
+                className="flex items-center gap-1.5"
+                role="status"
+                aria-label="LearnPath is thinking"
+              >
+                <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" />
+                <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full [animation-delay:-0.15s]" />
+                <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full" />
+                <span className="text-muted-foreground ml-1.5 text-xs">
+                  Thinking…
+                </span>
+              </span>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {done ? (
-        <Card className="border-primary/40">
+        <Card className="border-primary/40 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ease-out">
           <CardContent className="flex items-center justify-between gap-3">
             <p className="text-sm">
               Topic locked in.
@@ -161,18 +191,46 @@ function OnboardingInner() {
           </CardContent>
         </Card>
       ) : (
-        <form onSubmit={send} className="flex flex-col gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+          className="bg-surface-1 border-border focus-within:border-primary/30 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
+        >
           <Textarea
-            rows={3}
+            autoFocus
+            rows={2}
             placeholder="e.g. I want to learn React hooks to build a side project…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              // Ignore Enter while an IME is composing a character.
+              if (e.nativeEvent.isComposing) return;
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            className="min-h-[60px] resize-none border-0 bg-transparent p-1 px-2.5 py-1.5 shadow-none focus-visible:ring-0"
           />
-          <Button type="submit" disabled={busy} className="self-start">
-            Send
-          </Button>
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
+              ↵ to send · ⇧↵ for newline
+            </span>
+            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
+              {busy ? (
+                <Spinner data-icon="inline-start" />
+              ) : (
+                <Send data-icon="inline-start" />
+              )}
+              Send
+            </Button>
+          </div>
         </form>
       )}
+      {/* Scroll target: kept below the composer so it stays in view. */}
+      <div ref={bottomRef} aria-hidden />
     </div>
   );
 }
