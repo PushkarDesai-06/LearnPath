@@ -8,7 +8,7 @@ import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { cn } from "@/lib/utils";
 
 interface ClarityResponse {
@@ -117,9 +117,7 @@ function OnboardingInner() {
 
   if (loading)
     return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
+      <PageLoader />
     );
 
   return (
@@ -220,7 +218,7 @@ function OnboardingInner() {
             </span>
             <Button type="submit" size="sm" disabled={busy || !input.trim()}>
               {busy ? (
-                <Spinner data-icon="inline-start" />
+                <LoadingRing data-icon="inline-start" />
               ) : (
                 <Send data-icon="inline-start" />
               )}
@@ -237,7 +235,7 @@ function OnboardingInner() {
 
 export default function OnboardingPage() {
   return (
-    <Suspense fallback={<Spinner />}>
+    <Suspense fallback={<PageLoader />}>
       <OnboardingInner />
     </Suspense>
   );

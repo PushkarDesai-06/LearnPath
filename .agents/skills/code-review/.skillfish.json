@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "code-review",
+  "owner": "blackbearhq",
+  "repo": "claude-config",
+  "path": "skills/code-review",
+  "branch": "main",
+  "sha": "01c6aa08e0bfffc406ec13d2147238773d72d5f7",
+  "source": "manual"
+}

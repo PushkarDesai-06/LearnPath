@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
@@ -122,7 +122,7 @@ function PracticeBlock({ block }: { block: Block }) {
             onClick={submit}
             disabled={busy || !answer.trim()}
           >
-            {busy && <Spinner data-icon="inline-start" />}
+            {busy && <LoadingRing data-icon="inline-start" />}
             Check answer
           </Button>
         ) : (
@@ -229,13 +229,10 @@ export default function LessonPage() {
 
   if (loading)
     return (
-      <div className="flex flex-col items-center gap-3 py-24">
-        <span className="bg-tone-generating/30 size-3 animate-pulse rounded-full" />
-        <p className="text-foreground text-sm">Writing your lesson</p>
-        <p className="text-muted-foreground text-xs">
-          You can leave. It keeps generating in the background.
-        </p>
-      </div>
+      <PageLoader
+        label="Writing your lesson…"
+        sublabel="You can leave — it keeps generating in the background."
+      />
     );
   if (error && !data)
     return (
@@ -322,7 +319,7 @@ export default function LessonPage() {
               Done reading and practicing?
             </span>
             <Button onClick={markComplete} disabled={completing}>
-              {completing && <Spinner data-icon="inline-start" />}
+              {completing && <LoadingRing data-icon="inline-start" />}
               Mark complete
             </Button>
           </>

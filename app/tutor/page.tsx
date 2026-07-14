@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
 
@@ -243,7 +243,7 @@ function TutorInner() {
             </span>
             <Button type="submit" size="sm" disabled={busy || !input.trim()}>
               {busy ? (
-                <Spinner data-icon="inline-start" />
+                <LoadingRing data-icon="inline-start" />
               ) : (
                 <Send data-icon="inline-start" />
               )}
@@ -258,7 +258,7 @@ function TutorInner() {
 
 export default function TutorPage() {
   return (
-    <Suspense fallback={<Spinner />}>
+    <Suspense fallback={<PageLoader />}>
       <TutorInner />
     </Suspense>
   );

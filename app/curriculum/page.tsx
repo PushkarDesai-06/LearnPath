@@ -4,7 +4,7 @@
 // just redirects any old /curriculum?id= links to /dashboard?id=.
 import { Suspense, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loading-ring";
 
 function Redirect() {
   const router = useRouter();
@@ -12,22 +12,12 @@ function Redirect() {
   useEffect(() => {
     router.replace(id ? `/dashboard?id=${id}` : "/dashboard");
   }, [router, id]);
-  return (
-    <div className="flex justify-center py-16">
-      <Spinner />
-    </div>
-  );
+  return <PageLoader />;
 }
 
 export default function CurriculumPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoader />}>
       <Redirect />
     </Suspense>
   );

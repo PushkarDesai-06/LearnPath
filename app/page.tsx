@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { ArrowRight } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loading-ring";
+
+// WebGL background — client-only. three.js can't run during SSR, and this
+// keeps the ~three.js chunk out of the initial bundle until the page mounts.
+const Dither = dynamic(() => import("@/components/Dither"), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
@@ -24,39 +29,52 @@ export default function Home() {
     };
   }, [router]);
 
-  if (loggedIn === null)
-    return (
-      <div className="flex justify-center py-24">
-        <Spinner />
-      </div>
-    );
+  if (loggedIn === null) return <PageLoader />;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-12 sm:py-20">
-      <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-        Adaptive learning, paced for you
-      </p>
-      <h1 className="h-display text-4xl sm:text-5xl">
-        A path drawn from where you actually are.
-      </h1>
-      <p className="text-muted-foreground max-w-xl text-base leading-relaxed">
-        Describe what you want to learn. LearnPath diagnoses your level with
-        a short adaptive quiz, generates a curriculum that respects what you
-        already know, and reorders itself as your mastery shifts. A Socratic
-        tutor stays beside you — guiding, never handing over the answer.
-      </p>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="lg" onClick={() => router.push("/login")}>
-          Get started
-          <ArrowRight data-icon="inline-end" />
-        </Button>
-        <span className="text-muted-foreground font-mono text-xs">
-          Sign in to pick up where you left off.
-        </span>
+    <>
+      {/* Full-bleed animated background — scoped to this page, fixed behind all
+          content. Cool-slate waves sit inside the ~200° theme; the gradient
+          darkens downward so copy stays legible and the field blends into the
+          page background. Mouse interaction is off since it sits behind content. */}
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <Dither
+          waveColor={[0.3, 0.4, 0.46]}
+          waveSpeed={0.03}
+          waveFrequency={3}
+          waveAmplitude={0.3}
+          colorNum={4}
+          pixelSize={2}
+          enableMouseInteraction={false}
+        />
+        <div className="from-background/25 via-background/55 to-background absolute inset-0 bg-linear-to-b" />
       </div>
 
-      {/* Three quiet pillars */}
-      <ul className="border-border mt-6 grid gap-x-8 gap-y-6 border-t pt-8 sm:grid-cols-3">
+      <div className="mx-auto flex max-w-2xl flex-col gap-8 py-12 sm:py-20">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Adaptive learning, paced for you
+        </p>
+        <h1 className="h-display text-4xl sm:text-5xl">
+          A path drawn from where you actually are.
+        </h1>
+        <p className="text-muted-foreground max-w-xl text-base leading-relaxed">
+          Describe what you want to learn. LearnPath diagnoses your level with a
+          short adaptive quiz, generates a curriculum that respects what you
+          already know, and reorders itself as your mastery shifts. A Socratic
+          tutor stays beside you — guiding, never handing over the answer.
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button size="lg" onClick={() => router.push("/login")}>
+            Get started
+            <ArrowRight data-icon="inline-end" />
+          </Button>
+          <span className="text-muted-foreground font-mono text-xs">
+            Sign in to pick up where you left off.
+          </span>
+        </div>
+
+        {/* Three quiet pillars */}
+        <ul className="border-border mt-6 grid gap-x-8 gap-y-6 border-t pt-8 sm:grid-cols-3">
         {[
           {
             n: "01",
@@ -84,7 +102,8 @@ export default function Home() {
             </span>
           </li>
         ))}
-      </ul>
-    </div>
+        </ul>
+      </div>
+    </>
   );
 }

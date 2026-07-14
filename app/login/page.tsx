@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingRing } from "@/components/ui/loading-ring";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -101,7 +101,7 @@ export default function LoginPage() {
               />
             </Field>
             <Button type="submit" disabled={busy}>
-              {busy && <Spinner data-icon="inline-start" />}
+              {busy && <LoadingRing data-icon="inline-start" />}
               {isLogin ? "Log in" : "Sign up"}
             </Button>
           </FieldGroup>

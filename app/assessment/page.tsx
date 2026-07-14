@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Spinner } from "@/components/ui/spinner";
+import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { cn } from "@/lib/utils";
 
 interface Question {
@@ -147,11 +147,7 @@ export default function AssessmentPage() {
   }
 
   if (phase === "loading")
-    return (
-      <div className="flex justify-center py-16">
-        <Spinner />
-      </div>
-    );
+    return <PageLoader label="Preparing your quiz…" />;
 
   if (phase === "result" && result) {
     const correct = result.review.filter((r) => r.correct).length;
@@ -172,24 +168,35 @@ export default function AssessmentPage() {
               {correct}/{total} correct · estimated level{" "}
               <Badge variant="secondary">{result.estimatedLevel}</Badge>
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowAnswers((s) => !s)}
-              >
-                {showAnswers ? "Hide answers" : "Check answers"}
-              </Button>
-              {result.recommendAnotherRound && (
-                <Button variant="outline" onClick={refine}>
-                  Refine my level
+            {generating ? (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <LoadingRing className="size-6" />
+                <p className="text-foreground text-sm">
+                  Building your personalized path…
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  This can take a moment.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowAnswers((s) => !s)}
+                >
+                  {showAnswers ? "Hide answers" : "Check answers"}
                 </Button>
-              )}
-              <Button onClick={generatePath} disabled={generating}>
-                {generating && <Spinner data-icon="inline-start" />}
-                Generate my path
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </div>
+                {result.recommendAnotherRound && (
+                  <Button variant="outline" onClick={refine}>
+                    Refine my level
+                  </Button>
+                )}
+                <Button onClick={generatePath} disabled={generating}>
+                  Generate my path
+                  <ArrowRight data-icon="inline-end" />
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -280,7 +287,7 @@ export default function AssessmentPage() {
               size="sm"
               className={cn(
                 "self-start border-dashed",
-                answers[q.id] === IDK && "ring-primary border-solid",
+                // answers[q.id] === IDK && "ring-primary border-solid",
               )}
               onClick={() => setAnswers((a) => ({ ...a, [q.id]: IDK }))}
             >
@@ -292,7 +299,7 @@ export default function AssessmentPage() {
       ))}
       <div className="flex items-center gap-3">
         <Button onClick={submit} disabled={busy || !allAnswered}>
-          {busy && <Spinner data-icon="inline-start" />}
+          {busy && <LoadingRing data-icon="inline-start" />}
           Submit quiz
         </Button>
         {!allAnswered && (
