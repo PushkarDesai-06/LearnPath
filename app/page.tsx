@@ -30,6 +30,7 @@ export default function Home() {
   }, [router]);
 
   if (loggedIn === null) return <PageLoader />;
+  // if (loggedIn === null) return "Hello";
 
   return (
     <>
@@ -75,33 +76,33 @@ export default function Home() {
 
         {/* Three quiet pillars */}
         <ul className="border-border mt-6 grid gap-x-8 gap-y-6 border-t pt-8 sm:grid-cols-3">
-        {[
-          {
-            n: "01",
-            t: "Diagnose",
-            d: "A short adaptive quiz finds your actual level — no guessing.",
-          },
-          {
-            n: "02",
-            t: "Generate",
-            d: "Modules and lessons are written for you, in the right order.",
-          },
-          {
-            n: "03",
-            t: "Adapt",
-            d: "Mastery moves the path. Review surfaces what you forget.",
-          },
-        ].map((p) => (
-          <li key={p.n} className="flex flex-col gap-2">
-            <span className="text-muted-foreground/60 font-mono text-[10px] tracking-[0.16em]">
-              {p.n}
-            </span>
-            <span className="font-medium">{p.t}</span>
-            <span className="text-muted-foreground text-sm leading-relaxed">
-              {p.d}
-            </span>
-          </li>
-        ))}
+          {[
+            {
+              n: "01",
+              t: "Diagnose",
+              d: "A short adaptive quiz finds your actual level — no guessing.",
+            },
+            {
+              n: "02",
+              t: "Generate",
+              d: "Modules and lessons are written for you, in the right order.",
+            },
+            {
+              n: "03",
+              t: "Adapt",
+              d: "Mastery moves the path. Review surfaces what you forget.",
+            },
+          ].map((p) => (
+            <li key={p.n} className="flex flex-col gap-2">
+              <span className="text-muted-foreground/60 font-mono text-[10px] tracking-[0.16em]">
+                {p.n}
+              </span>
+              <span className="font-medium">{p.t}</span>
+              <span className="text-muted-foreground text-sm leading-relaxed">
+                {p.d}
+              </span>
+            </li>
+          ))}
         </ul>
       </div>
     </>

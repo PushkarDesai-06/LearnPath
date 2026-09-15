@@ -8,6 +8,7 @@ import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
 
@@ -31,14 +32,65 @@ function TutorDot({ className }: { className?: string }) {
   );
 }
 
+// Layout-matched loading state for a thread transcript — alternating user
+// bubbles and assistant blocks, sized like the real turns they stand in for.
+const SKELETON_TURNS = [
+  { role: "user", lines: ["w-36"] },
+  { role: "assistant", lines: ["w-full", "w-11/12", "w-2/3"] },
+  { role: "user", lines: ["w-52"] },
+  { role: "assistant", lines: ["w-full", "w-3/4"] },
+] as const;
+
+function TranscriptSkeleton() {
+  return (
+    <div
+      className="flex flex-col gap-6"
+      role="status"
+      aria-label="Loading thread"
+    >
+      {SKELETON_TURNS.map((turn, i) =>
+        turn.role === "user" ? (
+          <div key={i} className="flex flex-row-reverse gap-3">
+            <div className="bg-surface-2/80 flex max-w-[85%] flex-col gap-2 rounded-xl rounded-tr-sm px-3.5 py-2.5">
+              {turn.lines.map((w, j) => (
+                <Skeleton key={j} className={cn("h-3", w)} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div key={i} className="flex gap-3">
+            <Skeleton className="mt-2 size-1.5 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-md bg-white/10 p-3 px-4">
+              {turn.lines.map((w, j) => (
+                <Skeleton key={j} className={cn("h-3", w)} />
+              ))}
+            </div>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 function TutorInner() {
   const router = useRouter();
   const topicId = useSearchParams().get("id");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // null until the thread list arrives — distinguishes "still loading" from "none".
+  const [conversations, setConversations] = useState<Conversation[] | null>(
+    null,
+  );
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  // Id of the thread whose transcript `messages` currently holds — null for a
+  // fresh, unsaved chat. Anything else than `activeId` means we're still loading.
+  const [loadedId, setLoadedId] = useState<string | null>(null);
+
+  const loadingThread = activeId !== null && loadedId !== activeId;
+  // The thread list and the first thread's history load back to back, so treat
+  // them as one uninterrupted loading window.
+  const loading = conversations === null || loadingThread;
 
   const q = topicId ? `?curriculumId=${topicId}` : "";
 
@@ -57,8 +109,13 @@ function TutorInner() {
         if (res.conversations.length > 0) setActiveId(res.conversations[0].id);
       })
       .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401)
+        if (!active) return;
+        if (err instanceof ApiClientError && err.status === 401) {
           router.push("/login");
+          return;
+        }
+        setConversations([]);
+        toast.error("Couldn't load your threads");
       });
     return () => {
       active = false;
@@ -66,32 +123,51 @@ function TutorInner() {
   }, [q, router]);
 
   useEffect(() => {
-    if (!activeId) return;
+    // `loadedId === activeId` covers both an already-fetched thread and one we
+    // just created by sending — its messages are already on screen.
+    if (!activeId || loadedId === activeId) return;
+    const id = activeId;
     let active = true;
     api<{ messages: { role: "user" | "assistant"; content: string }[] }>(
-      `/api/tutor?conversationId=${activeId}`,
+      `/api/tutor?conversationId=${id}`,
     )
-      .then(
-        (res) =>
-          active &&
-          setMessages(
-            res.messages.map((m) => ({ role: m.role, text: m.content })),
-          ),
-      )
-      .catch(() => {});
+      .then((res) => {
+        if (!active) return;
+        setMessages(
+          res.messages.map((m) => ({ role: m.role, text: m.content })),
+        );
+        setLoadedId(id);
+      })
+      .catch(() => {
+        if (!active) return;
+        toast.error("Couldn't load that thread");
+        // Settle on the empty transcript rather than spinning forever.
+        setLoadedId(id);
+      });
     return () => {
       active = false;
     };
-  }, [activeId]);
+  }, [activeId, loadedId]);
+
+  /** Switch threads: drop the old transcript immediately so nothing stale shows. */
+  function selectConversation(id: string) {
+    if (id === activeId || busy || loading) return;
+    setMessages([]);
+    setActiveId(id);
+  }
 
   function newConversation() {
+    // Blocked while a thread's history is in flight — that fetch would land on
+    // the fresh chat and drop someone else's transcript into it.
+    if (busy || loading) return;
     setActiveId(null);
+    setLoadedId(null);
     setMessages([]);
     toast.message("New thread started");
   }
 
   async function send() {
-    if (busy) return;
+    if (busy || loading) return;
     const message = input.trim();
     if (!message) return;
     setMessages((m) => [...m, { role: "user", text: message }]);
@@ -109,7 +185,10 @@ function TutorInner() {
         },
       );
       setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
-      if (!activeId) setActiveId(res.conversationId);
+      if (!activeId) {
+        setLoadedId(res.conversationId);
+        setActiveId(res.conversationId);
+      }
       refreshList();
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 401) {
@@ -128,6 +207,7 @@ function TutorInner() {
       <aside className="flex flex-col gap-1">
         <Button
           onClick={newConversation}
+          disabled={busy || loading}
           variant="outline"
           size="sm"
           className="mb-2 justify-start"
@@ -138,41 +218,61 @@ function TutorInner() {
         <p className="text-muted-foreground/80 mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em]">
           Threads
         </p>
-        {conversations.map((c) => (
-          <Button
-            key={c.id}
-            variant={activeId === c.id ? "secondary" : "ghost"}
-            size="sm"
-            className="h-auto min-h-9 justify-start py-2 text-left"
-            onClick={() => setActiveId(c.id)}
-            title={c.title}
-          >
-            <span className="truncate text-left text-sm font-normal">
-              {c.title}
-            </span>
-          </Button>
-        ))}
-        {conversations.length === 0 && (
+        {conversations === null ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-9 w-full rounded-lg" />
+          ))
+        ) : conversations.length === 0 ? (
           <p className="text-muted-foreground/70 px-2 text-xs">
             No threads yet.
           </p>
+        ) : (
+          conversations.map((c) => (
+            <Button
+              key={c.id}
+              variant={activeId === c.id ? "secondary" : "ghost"}
+              size="sm"
+              className="h-auto min-h-9 justify-start py-2 text-left"
+              onClick={() => selectConversation(c.id)}
+              disabled={busy || loading}
+              title={c.title}
+            >
+              <span className="truncate text-left text-sm font-normal">
+                {c.title}
+              </span>
+              {activeId === c.id && loadingThread && (
+                <LoadingRing className="ml-auto size-3 shrink-0" />
+              )}
+            </Button>
+          ))
         )}
       </aside>
 
       {/* Chat column — capped for reading comfort */}
       <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-6">
         <header className="flex flex-col gap-2">
-          <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-            Socratic tutor
-          </p>
-          <h1 className="h-display text-3xl">Think it through.</h1>
-          <p className="text-muted-foreground text-sm">
-            I guide you toward answers. I won&apos;t hand them over.
-          </p>
+          {loading ? (
+            <>
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-9 w-64 max-w-full" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+                Socratic tutor
+              </p>
+              <h1 className="h-display text-3xl">Think it through.</h1>
+              <p className="text-muted-foreground text-sm">
+                I guide you toward answers. I won&apos;t hand them over.
+              </p>
+            </>
+          )}
         </header>
 
         <div className="flex flex-col gap-6 pb-4">
-          {messages.length === 0 && (
+          {loading && <TranscriptSkeleton />}
+          {!loading && messages.length === 0 && (
             <div className="flex gap-3">
               <TutorDot />
               <div className="flex flex-col gap-1 pt-0.5">
@@ -185,28 +285,29 @@ function TutorInner() {
               </div>
             </div>
           )}
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex gap-3",
-                m.role === "user" && "flex-row-reverse",
-              )}
-            >
-              {m.role === "assistant" && <TutorDot />}
-              {m.role === "user" ? (
-                <div className="bg-surface-2/80 max-w-[85%] rounded-xl rounded-tr-sm px-3.5 py-2 text-sm whitespace-pre-wrap">
-                  {m.text}
-                </div>
-              ) : (
-                <div className="min-w-0 flex-1 pt-0.5 text-sm bg-white/10 rounded-md p-2 px-4">
-                  <Markdown className="prose-p:my-2 prose-pre:my-2 prose-code:text-foreground">
+          {!loading &&
+            messages.map((m, i) => (
+              <div
+                key={i}
+                className={cn(
+                  "flex gap-3",
+                  m.role === "user" && "flex-row-reverse",
+                )}
+              >
+                {m.role === "assistant" && <TutorDot />}
+                {m.role === "user" ? (
+                  <div className="bg-surface-2/80 max-w-[85%] rounded-xl rounded-tr-sm px-3.5 py-2 text-sm whitespace-pre-wrap">
                     {m.text}
-                  </Markdown>
-                </div>
-              )}
-            </div>
-          ))}
+                  </div>
+                ) : (
+                  <div className="min-w-0 flex-1 pt-0.5 text-sm bg-white/10 rounded-md p-2 px-4">
+                    <Markdown className="prose-p:my-2 prose-pre:my-2 prose-code:text-foreground">
+                      {m.text}
+                    </Markdown>
+                  </div>
+                )}
+              </div>
+            ))}
           {busy && (
             <div className="flex items-center gap-3">
               <TutorDot className="mt-0 animate-pulse" />
@@ -215,42 +316,44 @@ function TutorInner() {
           )}
         </div>
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-          className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
-        >
-          <Textarea
-            rows={2}
-            placeholder="What are you stuck on?"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 px-2.5 py-1.5"
-            onKeyDown={(e) => {
-              // Ignore Enter while an IME is composing a character.
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
+        {!loading && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
             }}
-          />
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
-              ↵ to send · ⇧↵ for newline
-            </span>
-            <Button type="submit" size="sm" disabled={busy || !input.trim()}>
-              {busy ? (
-                <LoadingRing data-icon="inline-start" />
-              ) : (
-                <Send data-icon="inline-start" />
-              )}
-              Ask
-            </Button>
-          </div>
-        </form>
+            className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
+          >
+            <Textarea
+              rows={2}
+              placeholder="What are you stuck on?"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 px-2.5 py-1.5"
+              onKeyDown={(e) => {
+                // Ignore Enter while an IME is composing a character.
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+            />
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
+                ↵ to send · ⇧↵ for newline
+              </span>
+              <Button type="submit" size="sm" disabled={busy || !input.trim()}>
+                {busy ? (
+                  <LoadingRing data-icon="inline-start" />
+                ) : (
+                  <Send data-icon="inline-start" />
+                )}
+                Ask
+              </Button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

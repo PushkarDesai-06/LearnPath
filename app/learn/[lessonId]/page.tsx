@@ -231,7 +231,7 @@ export default function LessonPage() {
     return (
       <PageLoader
         label="Writing your lesson…"
-        sublabel="You can leave — it keeps generating in the background."
+        sublabel="Please come back later, it keeps generating in the background."
       />
     );
   if (error && !data)
