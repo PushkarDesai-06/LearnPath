@@ -12,6 +12,7 @@ import {
 } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/Nav";
+import { SessionProvider } from "@/components/SessionProvider";
 import { Toaster } from "@/components/ui/sonner";
 
 // ── Default body + mono ──────────────────────────────────────────────────────
@@ -66,10 +67,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${fontVars} h-full antialiased`}>
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        <Nav />
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
-          {children}
-        </main>
+        <SessionProvider>
+          <Nav />
+          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+            {children}
+          </main>
+        </SessionProvider>
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>
     </html>

@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ArrowRight } from "lucide-react";
-import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/ui/loading-ring";
+import { useSession } from "@/components/SessionProvider";
 
 // WebGL background — client-only. three.js can't run during SSR, and this
 // keeps the ~three.js chunk out of the initial bundle until the page mounts.
@@ -14,23 +14,15 @@ const Dither = dynamic(() => import("@/components/Dither"), { ssr: false });
 
 export default function Home() {
   const router = useRouter();
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const { me } = useSession();
 
   useEffect(() => {
-    let active = true;
-    api("/api/me")
-      .then(() => active && router.replace("/topics"))
-      .catch((err) => {
-        if (active && err instanceof ApiClientError) setLoggedIn(false);
-        else if (active) setLoggedIn(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [router]);
+    if (me) router.replace("/topics");
+  }, [me, router]);
 
-  if (loggedIn === null) return <PageLoader />;
-  // if (loggedIn === null) return "Hello";
+  // `undefined` is the session still resolving; a signed-in learner gets the
+  // redirect above, so only the signed-out marketing page falls through.
+  if (me === undefined || me) return <PageLoader />;
 
   return (
     <>

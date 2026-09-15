@@ -30,5 +30,6 @@ export function publicUser(user: UserDoc) {
     id: user._id.toHexString(),
     email: user.email,
     displayName: user.displayName ?? null,
+    createdAt: user.createdAt.toISOString(),
   };
 }

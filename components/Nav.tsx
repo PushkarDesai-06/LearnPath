@@ -1,40 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { LogOut, Plus } from "lucide-react";
-import { toast } from "sonner";
-import { api } from "@/lib/client/api";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { TopicSwitcher } from "@/components/TopicSwitcher";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useSession } from "@/components/SessionProvider";
 import Image from "next/image";
 import logo from "../public/logo.svg";
 
-interface Me {
-  user: { email: string };
-}
-
 export function Nav() {
-  const router = useRouter();
-  const [me, setMe] = useState<Me | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    api<Me>("/api/me")
-      .then((res) => active && setMe(res))
-      .catch(() => active && setMe(null));
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  async function logout() {
-    await api("/api/auth/logout", { method: "POST" }).catch(() => {});
-    setMe(null);
-    toast.success("Logged out");
-    router.push("/login");
-  }
+  // Undefined (still resolving) and null (signed out) both render bare chrome.
+  const { me, signOut } = useSession();
 
   return (
     <header className="bg-background/70 sticky top-0 z-10 border-b border-border/60 backdrop-blur-xl">
@@ -59,7 +36,8 @@ export function Nav() {
         </Link>
         {me && (
           <>
-            <div className="ml-1 flex items-center">
+            <TopicSwitcher />
+            <div className="flex items-center">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/topics">Topics</Link>
               </Button>
@@ -70,18 +48,12 @@ export function Nav() {
                 </Link>
               </Button>
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-muted-foreground hidden font-mono text-[11px] tracking-tight sm:inline">
-                {me.user.email}
-              </span>
-              <Separator
-                orientation="vertical"
-                className="hidden h-4 sm:block"
+            <div className="ml-auto flex items-center">
+              <AccountMenu
+                email={me.email}
+                displayName={me.displayName}
+                onLogout={signOut}
               />
-              <Button variant="ghost" size="sm" onClick={logout}>
-                <LogOut data-icon="inline-start" />
-                Log out
-              </Button>
             </div>
           </>
         )}

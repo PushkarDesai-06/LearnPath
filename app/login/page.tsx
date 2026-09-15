@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/client/api";
+import { useSession } from "@/components/SessionProvider";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,32 +16,50 @@ import {
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { LoadingRing } from "@/components/ui/loading-ring";
+import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { me, refresh } = useSession();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
+  // Set once this page starts authenticating, so the "already signed in"
+  // redirect below doesn't steal the destination we picked for the new session
+  // (signup goes to onboarding, not /topics).
+  const [authenticating, setAuthenticating] = useState(false);
+
+  // Nothing to log into with a live session — send them to their studies.
+  useEffect(() => {
+    if (me && !authenticating) router.replace("/topics");
+  }, [me, authenticating, router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setAuthenticating(true);
     try {
       if (mode === "signup") {
         await api("/api/auth/signup", {
           body: { email, password, displayName: displayName || undefined },
         });
+        // The layout (and its topbar) doesn't remount on a client navigation,
+        // so the new session has to be picked up before we leave this page.
+        await refresh();
         toast.success("Account created — welcome to LearnPath!");
         router.push("/onboarding?new=1");
       } else {
         await api("/api/auth/login", { body: { email, password } });
+        await refresh();
         toast.success("Welcome back!");
-        router.push("/");
+        // Straight to the studies rather than bouncing off "/" (which only
+        // redirects here anyway, after mounting the WebGL landing page).
+        router.push("/topics");
       }
     } catch (err) {
+      setAuthenticating(false);
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
@@ -48,6 +67,10 @@ export default function LoginPage() {
   }
 
   const isLogin = mode === "login";
+
+  // Hold the loader while the session resolves, and while the redirect above is
+  // in flight, so a signed-in learner never sees the form.
+  if (me === undefined || (me && !authenticating)) return <PageLoader />;
 
   return (
     <Card className="mx-auto max-w-sm">
