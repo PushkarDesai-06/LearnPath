@@ -292,7 +292,7 @@ export default function AssessmentPage() {
               onClick={() => setAnswers((a) => ({ ...a, [q.id]: IDK }))}
             >
               {answers[q.id] === IDK && <Check data-icon="inline-start" />}I
-              don't know
+              don&apos;t know
             </Button>
           </CardContent>
         </Card>
