@@ -4,16 +4,15 @@ import { cn } from "@/lib/utils";
 import { statusTone, type StatusTone } from "@/lib/format";
 
 /**
- * TrailRail — the dashboard's signature element.
+ * TrailRail — the dashboard's module navigator.
  *
- * A vertical hairline with mint dots at each module marker. The path collapsed
- * into a clickable rail. It encodes three things at once:
+ * A vertical hairline with a small dot at each module marker, sized to match
+ * the dashboard skeleton so nothing shifts when real data lands. It encodes:
  *   - sequence (top-to-bottom = curriculum order)
  *   - status  (dot variant by tone)
- *   - position (active marker pops a mint glow)
+ *   - position (active row goes solid foreground)
  *
- * Not decoration: this is a real navigator. Clicks scroll the page to the
- * module anchor (`#mod-<id>` on the module Card).
+ * Clicks scroll the page to the module anchor (`#mod-<id>` on the module Card).
  */
 
 export interface RailItem {
@@ -28,14 +27,14 @@ interface Props {
   className?: string;
 }
 
+// Flat dots — no glows, no offsets. `bg-background` on the hollow variants
+// masks the hairline running behind them.
 const DOT_BY_TONE: Record<StatusTone, string> = {
-  mastered: "bg-tone-mastered shadow-[0_0_0_3px_var(--color-tone-mastered)]/15",
-  progress:
-    "bg-transparent border border-tone-progress shadow-[0_0_12px_var(--color-tone-progress)]/30",
+  mastered: "bg-tone-mastered",
+  progress: "bg-background border border-tone-progress",
   review: "bg-tone-review",
-  locked: "bg-transparent border border-tone-locked/60",
-  generating:
-    "bg-tone-generating/40 border border-tone-generating animate-pulse",
+  locked: "bg-background border border-tone-locked/50",
+  generating: "bg-tone-generating/50 animate-pulse",
   neutral: "bg-muted",
 };
 
@@ -46,44 +45,44 @@ export function TrailRail({ items, activeId, className }: Props) {
     <nav
       aria-label="Learning path"
       className={cn(
-        "relative hidden flex-col py-1 lg:flex",
+        "relative hidden flex-col lg:flex",
         // Sticky rail on desktop; sits in its own column in the dashboard grid.
         "sticky top-20 self-start",
         className,
       )}
     >
-      {/* The hairline runs through the center of the dots */}
+      {/* Hairline through the dot centers — first/last row half-heights inset */}
       <div
         aria-hidden
-        className="absolute top-2 bottom-2 left-[7px] w-px bg-border"
+        className="bg-border absolute top-3 bottom-3 left-[4.5px] w-px"
       />
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col gap-1">
         {items.map((item) => {
           const tone = statusTone(item.status);
           const isActive = item.id === activeId;
           return (
-            <li key={item.id} className="relative">
+            <li key={item.id}>
               <a
                 href={`#mod-${item.id}`}
+                title={item.title}
+                aria-current={isActive ? "true" : undefined}
                 className={cn(
-                  "group flex items-start gap-3 rounded-md py-1 pl-0 pr-2",
+                  "flex h-6 items-center gap-2.5 pr-2",
                   "transition-colors hover:text-foreground",
                   isActive ? "text-foreground" : "text-muted-foreground",
                 )}
               >
                 <span
-                  className={cn(
-                    "mt-1.5 size-3.5 shrink-0 rounded-full transition-all",
-                    DOT_BY_TONE[tone],
-                    isActive &&
-                      "ring-2 ring-primary/40 ring-offset-2 ring-offset-background",
-                  )}
                   aria-hidden
+                  className={cn(
+                    "relative size-2.5 shrink-0 rounded-full",
+                    DOT_BY_TONE[tone],
+                  )}
                 />
                 <span
                   className={cn(
-                    "text-xs leading-tight",
-                    isActive ? "font-medium" : "font-normal",
+                    "truncate text-xs leading-none",
+                    isActive && "font-medium",
                   )}
                 >
                   {item.title}

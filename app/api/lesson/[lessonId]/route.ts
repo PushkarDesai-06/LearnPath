@@ -6,28 +6,17 @@
  *
  * Response is one of:
  *   { status: "ready", lesson: {...blocks} }
- *   { status: "generating" }
+ *   { status: "generating", curriculumId }
  * A failed OR content-less lesson (e.g. an old doc whose blocks came back empty)
  * is re-enqueued and reported as "generating".
  */
 import { ObjectId } from "mongodb";
 import { requireUser } from "@/lib/auth/guards";
 import { lessonsCollection } from "@/lib/db/collections";
-import type { LessonBlock, LessonDoc } from "@/lib/db/models";
+import type { LessonDoc } from "@/lib/db/models";
 import { locateLesson, publicLessonBlock } from "@/lib/server/curriculumLocate";
+import { isLessonReady } from "@/lib/server/lessonReady";
 import { handler, json, notFound } from "@/lib/http";
-
-const nonEmpty = (v?: string) => typeof v === "string" && v.trim().length > 0;
-
-/** A block carries real content (guards against stored empty/`{kind}`-only blocks). */
-function hasRealContent(b: LessonBlock): boolean {
-  return nonEmpty(b.markdown) || nonEmpty(b.code) || nonEmpty(b.prompt);
-}
-
-/** A lesson is renderable when it has at least one block with actual content. */
-function isReady(doc: LessonDoc | null): boolean {
-  return !!doc && doc.blocks.length > 0 && doc.blocks.some(hasRealContent);
-}
 
 export const GET = handler(
   async (_request, ctx: { params: Promise<{ lessonId: string }> }) => {
@@ -57,11 +46,14 @@ export const GET = handler(
       });
 
     let doc: LessonDoc | null = await lessons.findOne(filter).lean();
-    if (isReady(doc)) return readyResponse(doc!);
+    if (isLessonReady(doc)) return readyResponse(doc!);
 
     // A placeholder that's still being generated (no blocks yet).
     if (doc && doc.genStatus === "generating" && doc.blocks.length === 0) {
-      return json({ status: "generating" });
+      return json({
+        status: "generating",
+        curriculumId: curriculum._id.toHexString(),
+      });
     }
 
     if (!doc) {
@@ -98,7 +90,10 @@ export const GET = handler(
 
     // Handle the race where it became ready between the write and this read.
     doc = await lessons.findOne(filter).lean();
-    if (isReady(doc)) return readyResponse(doc!);
-    return json({ status: "generating" });
+    if (isLessonReady(doc)) return readyResponse(doc!);
+    return json({
+      status: "generating",
+      curriculumId: curriculum._id.toHexString(),
+    });
   },
 );

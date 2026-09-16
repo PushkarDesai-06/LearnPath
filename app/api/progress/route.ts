@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { progressEventsCollection } from "@/lib/db/collections";
 import type { CurriculumLesson } from "@/lib/db/models";
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
+import { generatedLessonRefs } from "@/lib/server/lessonReady";
 import { summarizeCurriculum } from "@/lib/server/curriculumView";
 import { gateModuleStatuses } from "@/lib/domain/adapt";
 import { handler, json } from "@/lib/http";
@@ -26,6 +27,11 @@ export const GET = handler(async (request) => {
       .filter((l) => l.status === "needs_review")
       .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),
   );
+
+  // Which lessons already have written content. Sent down with each lesson so
+  // opening one can show the right wait state immediately, instead of the learn
+  // page having to ask the API first.
+  const generated = await generatedLessonRefs(user._id, curriculum._id);
 
   const modules = curriculum.modules.map((m) => {
     const done = m.lessons.filter((l) => l.status === "mastered").length;
@@ -51,6 +57,7 @@ export const GET = handler(async (request) => {
           difficultyLevel: l.difficultyLevel,
           estMinutes: l.estMinutes,
           masteryScore: Number(l.masteryScore.toFixed(3)),
+          generated: generated.has(l.id),
         })),
     };
   });
@@ -112,6 +119,7 @@ export const GET = handler(async (request) => {
           moduleTitle: recommendation.moduleTitle,
           lessonId: recommendation.lesson.id,
           lessonTitle: recommendation.lesson.title,
+          generated: generated.has(recommendation.lesson.id),
           masteryScore: Number(recommendation.lesson.masteryScore.toFixed(3)),
         }
       : null,

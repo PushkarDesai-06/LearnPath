@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
+import { LoadingRing } from "@/components/ui/loading-ring";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,8 @@ type Lesson = {
 interface LessonResp {
   status: "ready" | "generating";
   lesson?: Lesson;
+  /** Present on "generating" — lets the page link back to the right path. */
+  curriculumId?: string;
 }
 
 function PracticeBlock({ block }: { block: Block }) {
@@ -158,12 +161,80 @@ const BLOCK_LABELS: Record<string, string> = {
   example: "Example",
 };
 
-export default function LessonPage() {
+/**
+ * Shown while the first GET is still in flight. At that point we don't know yet
+ * whether the lesson is already stored — so mirror the article layout instead
+ * of claiming it's being written.
+ */
+function LessonSkeleton() {
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      <Skeleton className="h-8 w-28" />
+      <header className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-16" />
+        <Skeleton className="h-9 w-3/4" />
+      </header>
+      {Array.from({ length: 3 }).map((_, i) => (
+        <section key={i} className="flex flex-col gap-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-2/3" />
+        </section>
+      ))}
+      <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-6">
+        <Skeleton className="h-4 w-56" />
+        <Skeleton className="h-9 w-32" />
+      </div>
+    </div>
+  );
+}
+
+/** Shown once the API has told us the lesson isn't written yet. */
+function LessonGenerating({ curriculumId }: { curriculumId?: string }) {
+  return (
+    <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-24 text-center">
+      <LoadingRing className="size-7" />
+      <div className="flex flex-col gap-1.5">
+        <p className="text-foreground text-sm">Writing your lesson…</p>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          This one hasn&apos;t been generated yet. It keeps building in the
+          background — stay here and it will appear on its own, or come back
+          later.
+        </p>
+      </div>
+      <Button variant="secondary" size="sm" asChild>
+        <Link
+          href={curriculumId ? `/dashboard?id=${curriculumId}` : "/dashboard"}
+        >
+          <ArrowLeft data-icon="inline-start" />
+          Back to path
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * "checking" — waiting on content we expect to exist (skeleton).
+ * "generating" — no content yet, so show the come-back-later notice.
+ */
+type Phase = "checking" | "generating" | "ready" | "error";
+
+function LessonPageInner() {
   const params = useParams<{ lessonId: string }>();
   const router = useRouter();
+  // The dashboard already knows whether this lesson is written and says so in
+  // `?ready=`. Trust it for the first paint so a not-yet-generated lesson never
+  // flashes a skeleton while the API confirms what we were just told; the poll
+  // below corrects the state either way.
+  const readyHint = useSearchParams().get("ready");
   const [data, setData] = useState<Lesson | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [phase, setPhase] = useState<Phase>(
+    readyHint === "0" ? "generating" : "checking",
+  );
   const [error, setError] = useState("");
+  const [curriculumId, setCurriculumId] = useState<string>();
   const [attempt, setAttempt] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -180,11 +251,14 @@ export default function LessonPage() {
           if (!active) return;
           if (res.status === "ready" && res.lesson) {
             setData(res.lesson);
-            setLoading(false);
+            setPhase("ready");
           } else if (Date.now() >= deadline) {
             setError("This is taking longer than expected.");
-            setLoading(false);
+            setPhase("error");
           } else {
+            // Not in the DB yet — swap the skeleton for the generating notice.
+            setCurriculumId(res.curriculumId);
+            setPhase("generating");
             timer = setTimeout(poll, POLL_MS);
           }
         })
@@ -197,7 +271,7 @@ export default function LessonPage() {
           setError(
             err instanceof Error ? err.message : "Failed to load lesson",
           );
-          setLoading(false);
+          setPhase("error");
         });
     };
     poll();
@@ -227,13 +301,9 @@ export default function LessonPage() {
     }
   }
 
-  if (loading)
-    return (
-      <PageLoader
-        label="Writing your lesson…"
-        sublabel="Please come back later, it keeps generating in the background."
-      />
-    );
+  if (phase === "checking") return <LessonSkeleton />;
+  if (phase === "generating")
+    return <LessonGenerating curriculumId={curriculumId} />;
   if (error && !data)
     return (
       <div className="flex flex-col items-center gap-3 py-24">
@@ -244,7 +314,7 @@ export default function LessonPage() {
           variant="secondary"
           onClick={() => {
             setError("");
-            setLoading(true);
+            setPhase("checking");
             setAttempt((a) => a + 1);
           }}
         >
@@ -326,5 +396,15 @@ export default function LessonPage() {
         )}
       </div>
     </article>
+  );
+}
+
+export default function LessonPage() {
+  // useSearchParams needs a Suspense boundary; the skeleton is the right
+  // fallback since at that point we haven't read the hint yet.
+  return (
+    <Suspense fallback={<LessonSkeleton />}>
+      <LessonPageInner />
+    </Suspense>
   );
 }

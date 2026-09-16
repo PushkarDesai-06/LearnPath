@@ -26,6 +26,8 @@ interface Lesson {
   difficultyLevel: string;
   estMinutes: number;
   masteryScore: number;
+  /** Content already written — passed to /learn so it picks its wait state. */
+  generated: boolean;
 }
 interface ModuleData {
   id: string;
@@ -56,7 +58,16 @@ interface ProgressData {
     moduleTitle: string;
     lessonId: string;
     lessonTitle: string;
+    generated: boolean;
   } | null;
+}
+
+/**
+ * The learn page reads `?ready=` to decide between a skeleton and the
+ * "generating, come back later" notice without a round-trip of its own.
+ */
+function lessonHref(lessonId: string, generated: boolean) {
+  return `/learn/${lessonId}?ready=${generated ? "1" : "0"}`;
 }
 
 function fmtTime(ms: number) {
@@ -69,9 +80,9 @@ function fmtTime(ms: number) {
 function DashboardSkeleton() {
   return (
     <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
-      <div className="hidden flex-col gap-4 lg:flex">
+      <div className="hidden flex-col gap-1 lg:flex">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i} className="flex h-6 items-center gap-2.5">
             <Skeleton className="size-2.5 rounded-full" />
             <Skeleton className="h-3 w-24" />
           </div>
@@ -184,9 +195,7 @@ function DashboardInner() {
             Your path
           </p>
           <div className="flex items-end justify-between gap-4">
-            <h1 className="h-display text-3xl sm:text-4xl">
-              {data.title}
-            </h1>
+            <h1 className="h-display text-3xl sm:text-4xl">{data.title}</h1>
             <div className="flex shrink-0 gap-2">
               <Button variant="ghost" size="sm" asChild>
                 <Link href={`/tutor?id=${data.curriculumId}`}>Tutor</Link>
@@ -218,7 +227,10 @@ function DashboardInner() {
         {/* Recommended next */}
         {data.recommendedNext && (
           <Link
-            href={`/learn/${data.recommendedNext.lessonId}`}
+            href={lessonHref(
+              data.recommendedNext.lessonId,
+              data.recommendedNext.generated,
+            )}
             className="group bg-surface-2/40 ring-primary/15 hover:ring-primary/35 relative block overflow-hidden rounded-2xl border border-primary/20 p-5 ring-1 transition-all"
           >
             <div className="bg-primary/8 absolute -right-12 -top-12 size-40 rounded-full blur-3xl" />
@@ -289,7 +301,7 @@ function DashboardInner() {
                               </span>
                             ) : (
                               <Link
-                                href={`/learn/${l.id}`}
+                                href={lessonHref(l.id, l.generated)}
                                 className="hover:text-primary text-sm font-medium transition-colors"
                               >
                                 {l.title}
