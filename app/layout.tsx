@@ -69,9 +69,9 @@ export default function RootLayout({
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <SessionProvider>
           <Nav />
-          <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
-            {children}
-          </main>
+          {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
+              the reading-width container, `(marketing)` stays full-bleed. */}
+          {children}
         </SessionProvider>
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>

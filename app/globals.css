@@ -79,6 +79,37 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   Landing-page motion. Both are decorative and both are disabled under
+   `prefers-reduced-motion` at the bottom of this file.
+   -------------------------------------------------------------------------- */
+
+/* Scroll reveal. `Reveal` (app/(marketing)/_components) flips `data-shown` via
+   IntersectionObserver; the transition lives here so it costs no re-render. */
+.reveal {
+  opacity: 0;
+  transform: translateY(0.75rem);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Hero underline that draws itself once, just after the headline lands. */
+.underline-draw {
+  stroke-dasharray: 320;
+  stroke-dashoffset: 320;
+  animation: draw-underline 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.5s forwards;
+}
+@keyframes draw-underline {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 /* ==========================================================================
    STUDIO PALETTE — LearnPath (Monochromatic)
    A deep slate-cyan room. Single hue family (~200°), chroma kept ≤0.02
@@ -189,8 +220,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The sweep is decorative; the text beside it already says what's happening. */
-  .animate-sweep {
+  /* All three are decorative: the sweep has text beside it saying what's
+     happening, and the landing page reads identically without its motion. */
+  .animate-sweep,
+  .underline-draw {
     animation: none;
+  }
+  .underline-draw {
+    stroke-dashoffset: 0;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
