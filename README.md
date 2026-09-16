@@ -83,7 +83,7 @@ scoped to the owner (`{ _id, userId }`) — passing another user's id returns 40
 | POST       | `/api/assessment/start`                                          | begin/resume the quiz, or report a completed one (resumable)                      |
 | POST       | `/api/assessment/submit`                                         | grade the whole quiz at once → score + review + optional refinement round         |
 | POST       | `/api/curriculum/generate` · GET `/api/curriculum?curriculumId=` | generate / fetch a topic's path                                                   |
-| GET        | `/api/lesson/[id]`                                               | lazy-generate + fetch lesson content (lesson ids are global)                      |
+| GET        | `/api/lesson/[id]`                                               | lazy-generate + fetch lesson content (MCQ keys included; short-answer keys not)   |
 | POST       | `/api/lesson/[id]/practice`                                      | grade inline practice → mastery                                                   |
 | POST       | `/api/progress/complete`                                         | finalize lesson + run adaptation                                                  |
 | GET        | `/api/progress?curriculumId=`                                    | a topic's dashboard aggregate + recommended next                                  |

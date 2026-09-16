@@ -15,7 +15,7 @@ import {
   recommendAnotherRound,
   round2Levels,
 } from "@/lib/domain/assessment";
-import { gradeMcq } from "@/lib/server/grade";
+import { gradeMcq } from "@/lib/domain/grade";
 import {
   generateQuizRound,
   publicQuestion,

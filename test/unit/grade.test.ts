@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gradeMcq, outcomeFromGrade } from "@/lib/server/grade";
+import { gradeMcq, outcomeFromGrade } from "@/lib/domain/grade";
 
 describe("gradeMcq", () => {
   const choices = ["London", "Paris", "Rome"];

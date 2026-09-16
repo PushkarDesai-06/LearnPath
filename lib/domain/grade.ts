@@ -1,5 +1,7 @@
 /**
- * Shared grading helpers used by assessment and lesson-practice routes.
+ * Pure grading helpers. Shared by the assessment + lesson-practice routes AND by
+ * the lesson page in the browser, which grades MCQs locally for instant feedback
+ * (see `publicLessonBlock`). Both sides must agree, so there is exactly one copy.
  */
 
 /** MCQ correctness: accept either the choice index (as string) or choice text. */

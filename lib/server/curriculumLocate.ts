@@ -57,15 +57,36 @@ export async function locateLesson(
   return null;
 }
 
-/** Strip answer-revealing fields (correctKey, rubric, explanation) from blocks. */
+/**
+ * Project a block to its learner-safe shape.
+ *
+ * MCQ practice blocks ship their `correctKey` and `explanation` with the lesson
+ * so the page can grade a choice locally and reveal the answer with no round
+ * trip — the answer is a fixed index we would reveal on the very next request
+ * anyway. The trade-off is that a learner who opens devtools can read the key
+ * before answering; mastery stays honest only to the extent that they don't.
+ * The POST to `/practice` still re-grades server-side and is what actually
+ * moves mastery, so a tampered client can't fake a score it didn't earn — it
+ * can only spoil its own.
+ *
+ * SHORT-answer blocks reveal nothing: their `rubric` and `explanation` are the
+ * answer in prose, and grading needs the model. `rubric` is never sent for any
+ * block kind.
+ */
 export function publicLessonBlock(block: LessonBlock) {
   if (block.kind === "practice") {
-    return {
+    const base = {
       kind: block.kind,
       questionId: block.questionId,
       prompt: block.prompt,
       type: block.type,
       choices: block.choices ?? null,
+    };
+    if (block.type !== "mcq") return base;
+    return {
+      ...base,
+      correctKey: block.correctKey ?? null,
+      explanation: block.explanation ?? null,
     };
   }
   const { ...rest } = block;

@@ -63,6 +63,20 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Left-to-right light sweep, for "the server is working on this" waits
+     (see the practice card while a short answer is being graded). */
+  --animate-sweep: sweep 1.6s ease-in-out infinite;
+}
+
+/* Sweep — a highlight travelling across an element's width. Pair with an
+   absolutely-positioned overlay inside an `overflow-hidden` container. */
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* ==========================================================================
@@ -171,5 +185,12 @@
         transparent 0.5px
       );
     background-size: 3px 3px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The sweep is decorative; the text beside it already says what's happening. */
+  .animate-sweep {
+    animation: none;
   }
 }

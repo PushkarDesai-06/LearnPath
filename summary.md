@@ -91,12 +91,34 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    non-blocking: on first open it inserts a `generating` placeholder `lessons`
    doc (the unique index dedups concurrent opens) and returns `{status:"generating"}`;
    the **worker** (`lib/jobs/lessonWorker.ts`, started by `instrumentation.ts`)
-   claims it atomically, runs `lessonAgent`, and writes the **answer-stripped**
-   blocks + `genStatus:"ready"`. The lesson page **polls** until ready. Leaving the
+   claims it atomically, runs `lessonAgent`, and writes the blocks +
+   `genStatus:"ready"`. The lesson page **polls** until ready. Leaving the
    page doesn't stop generation, reopening doesn't double-generate, a server
    restart re-claims stale jobs, and there's a concurrency cap (3). `POST .../practice`
    grades an inline question (MCQ by key, short-answer by `answerGradeAgent`),
    updates **EWMA mastery**, reveals the explanation.
+
+   **Practice grading is split by question type** (`publicLessonBlock`):
+   - **MCQ** — the `correctKey` + `explanation` ship **with the lesson**, so the
+     page grades the choice locally (`gradeMcq`, the same pure fn the route uses)
+     and reveals the verdict with **no round trip**. The POST still fires, in the
+     background, because the server re-grade is what moves mastery; only its
+     failure surfaces (inline "Couldn't save" + retry). Trade-off: devtools
+     reveals the key early — a learner can spoil their own mastery signal, not
+     fake a score, since the server never trusts the client's verdict.
+   - **Short answer** — nothing is revealed (`rubric`/`explanation` stay server-
+     side); it waits on `answerGradeAgent` behind a bouncing-dots indicator and a
+     `animate-sweep` highlight across the card.
+   `rubric` is never sent to the client for any block kind.
+
+   **Reset / Try again** — each question can be cleared and retaken. Replays are
+   still graded (MCQ locally, short answer by the agent) but must NOT move
+   mastery: the answer has been on screen since the first attempt. The client
+   tracks a per-question `spent` flag and sends `countsTowardMastery:false`
+   afterwards; the route then skips the mastery write AND the `progressEvents`
+   log and reports the learner's unchanged standing. An MCQ replay skips the POST
+   entirely. **Preserve this flag if you add another practice surface** — without
+   it, reset is a one-click mastery inflator.
 6. **Progress/adaptation** — `POST /api/progress/complete {curriculumId, lessonRef,
 timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    (deterministic): skip mastered, hoist needs-review, reorder weakest-first
@@ -149,13 +171,15 @@ lib/
     assessment.ts        Batch-quiz scoring: band accuracy, contiguous-pass level estimate,
                             non-monotonic "needs another round" check, result computation.
     mastery.ts           EWMA update + lesson/module status transitions + thresholds.
+    grade.ts             gradeMcq + outcomeFromGrade. Shared by the assessment/practice routes
+                            AND by the lesson page (client-side MCQ grading) — one grader, no drift.
     adapt.ts             orderModules (topo sort) + adaptCurriculum (reorder/status).
   server/                Route helpers bridging AI + domain + DB:
     assessmentFlow.ts    generateQuizRound + publicQuestion (hides answer) + reviewItem.
     curriculumBuild.ts   AI output → CurriculumDoc (ids, prereq mapping, mastery seeding).
     curriculumView.ts    publicCurriculum projection (ObjectId→string).
-    curriculumLocate.ts  locateLesson + publicLessonBlock (hides correctKey/rubric/explanation).
-    grade.ts             gradeMcq + outcomeFromGrade (shared by assessment & practice).
+    curriculumLocate.ts  locateLesson + publicLessonBlock (ships the MCQ key+explanation for
+                            instant client grading; hides everything for short answers).
   jobs/lessonWorker.ts   ⭐ Background lesson-gen worker (atomic claim, concurrency cap, reaper).
   client/api.ts          Browser fetch helper (throws ApiClientError with status).
 instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).

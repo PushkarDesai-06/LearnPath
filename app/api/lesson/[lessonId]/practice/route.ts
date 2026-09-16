@@ -1,6 +1,10 @@
 /**
  * Grade an inline practice question, update the lesson's mastery (EWMA), and
  * reveal the explanation. Weak performance flips the lesson to needs_review.
+ *
+ * `countsTowardMastery:false` grades and explains WITHOUT touching mastery or
+ * logging an event — that's a replay after the learner reset a question they'd
+ * already seen the answer to. Only the first attempt is honest signal.
  */
 import { z } from "zod";
 import { ObjectId } from "mongodb";
@@ -12,20 +16,25 @@ import {
 } from "@/lib/db/collections";
 import { runAnswerGradeAgent } from "@/lib/ai/agents/grading";
 import { lessonStatusFor, updateMastery } from "@/lib/domain/mastery";
-import { gradeMcq, outcomeFromGrade } from "@/lib/server/grade";
+import { gradeMcq, outcomeFromGrade } from "@/lib/domain/grade";
 import { locateLesson } from "@/lib/server/curriculumLocate";
 import { handler, json, notFound, readJson } from "@/lib/http";
 
 const Body = z.object({
   questionId: z.string(),
   answer: z.string().min(1),
+  /** False on a replay: grade it, but leave the learner's progress alone. */
+  countsTowardMastery: z.boolean().default(true),
 });
 
 export const POST = handler(
   async (request, ctx: { params: Promise<{ lessonId: string }> }) => {
     const { lessonId } = await ctx.params;
     const user = await requireUser();
-    const { questionId, answer } = await readJson(request, Body);
+    const { questionId, answer, countsTowardMastery } = await readJson(
+      request,
+      Body,
+    );
 
     const lessons = await lessonsCollection();
     const lessonDoc = await lessons
@@ -61,46 +70,52 @@ export const POST = handler(
     if (!located) throw notFound("Lesson not found in curriculum");
     const { curriculum, lesson } = located;
 
-    const outcome = outcomeFromGrade(correct, confidence);
-    const newScore = updateMastery(lesson.masteryScore, outcome);
-    const newStatus = lessonStatusFor(newScore, true);
+    // A replay reports the grade against the learner's UNCHANGED standing.
+    let newScore = lesson.masteryScore;
+    let newStatus = lesson.status;
 
-    const curricula = await curriculaCollection();
-    await curricula.collection.updateOne(
-      { _id: curriculum._id },
-      {
-        $set: {
-          "modules.$[].lessons.$[l].masteryScore": newScore,
-          "modules.$[].lessons.$[l].status": newStatus,
-          updatedAt: new Date(),
+    if (countsTowardMastery) {
+      const outcome = outcomeFromGrade(correct, confidence);
+      newScore = updateMastery(lesson.masteryScore, outcome);
+      newStatus = lessonStatusFor(newScore, true);
+
+      const curricula = await curriculaCollection();
+      await curricula.collection.updateOne(
+        { _id: curriculum._id },
+        {
+          $set: {
+            "modules.$[].lessons.$[l].masteryScore": newScore,
+            "modules.$[].lessons.$[l].status": newStatus,
+            updatedAt: new Date(),
+          },
         },
-      },
-      { arrayFilters: [{ "l.id": lessonId }] },
-    );
+        { arrayFilters: [{ "l.id": lessonId }] },
+      );
 
-    const events = await progressEventsCollection();
-    const now = new Date();
-    await events.create({
-      _id: new ObjectId(),
-      userId: user._id,
-      curriculumId: curriculum._id,
-      lessonRef: lessonId,
-      type: "practice_answered",
-      topics: lesson.topics,
-      correct,
-      score: newScore,
-      at: now,
-    });
-    if (newStatus === "needs_review") {
+      const events = await progressEventsCollection();
+      const now = new Date();
       await events.create({
         _id: new ObjectId(),
         userId: user._id,
         curriculumId: curriculum._id,
         lessonRef: lessonId,
-        type: "review_triggered",
+        type: "practice_answered",
         topics: lesson.topics,
+        correct,
+        score: newScore,
         at: now,
       });
+      if (newStatus === "needs_review") {
+        await events.create({
+          _id: new ObjectId(),
+          userId: user._id,
+          curriculumId: curriculum._id,
+          lessonRef: lessonId,
+          type: "review_triggered",
+          topics: lesson.topics,
+          at: now,
+        });
+      }
     }
 
     return json({
@@ -109,6 +124,7 @@ export const POST = handler(
       explanation: block.explanation ?? null,
       masteryScore: Number(newScore.toFixed(3)),
       status: newStatus,
+      counted: countsTowardMastery,
     });
   },
 );
