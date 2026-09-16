@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/client/api";
 import { useSession } from "@/components/SessionProvider";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   // Set once this page starts authenticating, so the "already signed in"
@@ -58,15 +60,23 @@ export default function LoginPage() {
         // redirects here anyway, after mounting the WebGL landing page).
         router.push("/topics");
       }
+      // Deliberately leave `busy` set: the navigation above is still in flight,
+      // and this page stays mounted until it lands. Clearing it here would flip
+      // the button back to its idle label mid-redirect.
     } catch (err) {
       setAuthenticating(false);
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
       setBusy(false);
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     }
   }
 
   const isLogin = mode === "login";
+
+  function toggleMode() {
+    setMode(isLogin ? "signup" : "login");
+    // Don't carry a revealed password across the switch.
+    setShowPassword(false);
+  }
 
   // Hold the loader while the session resolves, and while the redirect above is
   // in flight, so a signed-in learner never sees the form.
@@ -96,6 +106,7 @@ export default function LoginPage() {
                 <Input
                   id="displayName"
                   placeholder="Optional"
+                  disabled={busy}
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                 />
@@ -107,25 +118,59 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 required
+                disabled={busy}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </Field>
             <Field>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={isLogin ? undefined : 8}
-                placeholder={isLogin ? undefined : "At least 8 characters"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  minLength={isLogin ? undefined : 8}
+                  placeholder={isLogin ? undefined : "At least 8 characters"}
+                  disabled={busy}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-9"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  // Sits inside the field's padding gutter; the input keeps the
+                  // focus ring, so keep this one visually quiet.
+                  className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-1 my-auto"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  aria-controls="password"
+                  disabled={busy}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="size-3.5" />
+                  ) : (
+                    <Eye className="size-3.5" />
+                  )}
+                </Button>
+              </div>
             </Field>
-            <Button type="submit" disabled={busy}>
-              {busy && <LoadingRing data-icon="inline-start" />}
-              {isLogin ? "Log in" : "Sign up"}
+            <Button type="submit" disabled={busy} aria-busy={busy}>
+              {/* Inherit the button's foreground — the ring's default text-primary
+                  is invisible against a primary-filled button. */}
+              {busy && (
+                <LoadingRing data-icon="inline-start" className="text-current" />
+              )}
+              {busy
+                ? isLogin
+                  ? "Logging in…"
+                  : "Creating account…"
+                : isLogin
+                  ? "Log in"
+                  : "Sign up"}
             </Button>
           </FieldGroup>
         </form>
@@ -135,8 +180,9 @@ export default function LoginPage() {
           {isLogin ? "No account?" : "Have an account?"}{" "}
           <button
             type="button"
-            className="text-primary font-medium hover:underline"
-            onClick={() => setMode(isLogin ? "signup" : "login")}
+            className="text-primary font-medium hover:underline disabled:pointer-events-none disabled:opacity-50"
+            disabled={busy}
+            onClick={toggleMode}
           >
             {isLogin ? "Sign up" : "Log in"}
           </button>
