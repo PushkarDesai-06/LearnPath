@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
 import { TrailRail } from "@/components/TrailRail";
+import { DashboardSkeleton } from "./DashboardSkeleton";
 import { formatStatus, statusTone } from "@/lib/format";
 
 interface Lesson {
@@ -75,87 +75,41 @@ function fmtTime(ms: number) {
   return min < 1 ? "<1 min" : `${min} min`;
 }
 
-// Layout-matched loading state — mirrors the rail + hero + stats + module cards
-// so content doesn't jump when the real data arrives.
-function DashboardSkeleton() {
-  return (
-    <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
-      <div className="hidden flex-col gap-1 lg:flex">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex h-6 items-center gap-2.5">
-            <Skeleton className="size-2.5 rounded-full" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-8">
-        <header className="flex flex-col gap-3">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-9 w-2/3" />
-        </header>
-
-        <section className="border-border grid grid-cols-2 gap-x-6 gap-y-5 border-y py-5 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex flex-col gap-2">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-6 w-12" />
-            </div>
-          ))}
-        </section>
-
-        <section className="flex flex-col gap-3">
-          <Skeleton className="h-3 w-16" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="flex items-center justify-between gap-3">
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
-                </div>
-                <Skeleton className="mt-2 h-3 w-3/4" />
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2.5">
-                {Array.from({ length: 2 }).map((_, j) => (
-                  <div
-                    key={j}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5"
-                  >
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-3 w-10" />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
-        </section>
-      </div>
-    </div>
-  );
-}
-
 function DashboardInner() {
   const router = useRouter();
   const topicId = useSearchParams().get("id");
-  const [data, setData] = useState<ProgressData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Held response is tagged with the topic it belongs to. Switching topics
+  // therefore invalidates it for free — no stale path lingers on screen while
+  // the new one loads, and there's no separate `loading` flag to keep in sync.
+  // `data: null` marks a settled failure, so a failed fetch stops the skeleton.
+  const [fetched, setFetched] = useState<{
+    topicId: string;
+    data: ProgressData | null;
+  } | null>(null);
+  const key = topicId ?? "";
+  const current = fetched?.topicId === key ? fetched : null;
 
   useEffect(() => {
     let active = true;
-    const q = topicId ? `?curriculumId=${topicId}` : "";
+    const q = key ? `?curriculumId=${key}` : "";
     api<ProgressData>(`/api/progress${q}`)
-      .then((res) => active && setData(res))
+      .then((res) => active && setFetched({ topicId: key, data: res }))
       .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401)
+        if (!active) return;
+        if (err instanceof ApiClientError && err.status === 401) {
           router.push("/login");
-      })
-      .finally(() => active && setLoading(false));
+          return;
+        }
+        setFetched({ topicId: key, data: null });
+      });
     return () => {
       active = false;
     };
-  }, [router, topicId]);
+  }, [router, key]);
 
-  if (loading) return <DashboardSkeleton />;
+  // Nothing for this topic yet — first load or a switch still in flight.
+  if (!current) return <DashboardSkeleton />;
+  const data = current.data;
   if (!data) return null;
 
   if (!data.hasCurriculum)

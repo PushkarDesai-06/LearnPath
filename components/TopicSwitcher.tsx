@@ -68,7 +68,17 @@ function TopicSwitcherInner() {
 
   function select(id: string) {
     if (active && id === active.id) return;
-    router.push(`${scoped ? pathname : "/dashboard"}?id=${id}`);
+    if (!scoped) {
+      router.push(`/dashboard?id=${id}`);
+      return;
+    }
+    // Same route, only `?id=` changes — and these pages read the id on the
+    // client and fetch their own data. `router.push` would still wait on the
+    // RSC payload before anything on screen moved, so the page looked frozen
+    // until the server answered. The native History API is wired into the
+    // router (it syncs `useSearchParams`), so this updates the URL on the click
+    // and the page can show its skeleton immediately.
+    window.history.pushState(null, "", `${pathname}?id=${id}`);
   }
 
   return (

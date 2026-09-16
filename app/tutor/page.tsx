@@ -75,10 +75,13 @@ function TranscriptSkeleton() {
 function TutorInner() {
   const router = useRouter();
   const topicId = useSearchParams().get("id");
-  // null until the thread list arrives — distinguishes "still loading" from "none".
-  const [conversations, setConversations] = useState<Conversation[] | null>(
-    null,
-  );
+  // The thread list, tagged with the topic it was fetched for. Switching topics
+  // invalidates it for free, so `conversations` reads null again and the page
+  // falls back to its skeleton instead of showing the old topic's threads.
+  const [threads, setThreads] = useState<{
+    key: string;
+    list: Conversation[];
+  } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -87,16 +90,19 @@ function TutorInner() {
   // fresh, unsaved chat. Anything else than `activeId` means we're still loading.
   const [loadedId, setLoadedId] = useState<string | null>(null);
 
+  const q = topicId ? `?curriculumId=${topicId}` : "";
+  // null until the list for THIS topic arrives — distinguishes "still loading"
+  // from "none".
+  const conversations = threads?.key === q ? threads.list : null;
+
   const loadingThread = activeId !== null && loadedId !== activeId;
   // The thread list and the first thread's history load back to back, so treat
   // them as one uninterrupted loading window.
   const loading = conversations === null || loadingThread;
 
-  const q = topicId ? `?curriculumId=${topicId}` : "";
-
   const refreshList = useCallback(() => {
     api<{ conversations: Conversation[] }>(`/api/tutor/conversations${q}`)
-      .then((res) => setConversations(res.conversations))
+      .then((res) => setThreads({ key: q, list: res.conversations }))
       .catch(() => {});
   }, [q]);
 
@@ -105,8 +111,12 @@ function TutorInner() {
     api<{ conversations: Conversation[] }>(`/api/tutor/conversations${q}`)
       .then((res) => {
         if (!active) return;
-        setConversations(res.conversations);
-        if (res.conversations.length > 0) setActiveId(res.conversations[0].id);
+        setThreads({ key: q, list: res.conversations });
+        // Always re-point the selection: on a topic switch the old thread is
+        // not in this list, and a topic with no threads must clear it entirely.
+        setActiveId(res.conversations[0]?.id ?? null);
+        setLoadedId(null);
+        setMessages([]);
       })
       .catch((err) => {
         if (!active) return;
@@ -114,7 +124,7 @@ function TutorInner() {
           router.push("/login");
           return;
         }
-        setConversations([]);
+        setThreads({ key: q, list: [] });
         toast.error("Couldn't load your threads");
       });
     return () => {
