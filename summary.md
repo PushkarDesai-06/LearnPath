@@ -184,8 +184,17 @@ lib/
   client/api.ts          Browser fetch helper (throws ApiClientError with status).
 instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).
 app/api/                 18 route handlers (see README table).
-app/                     Client pages: page, login, onboarding, assessment, curriculum,
-                         learn/[lessonId], dashboard, tutor.
+app/(app)/               Signed-in pages: login, onboarding, assessment, curriculum,
+                         learn/[lessonId], dashboard, topics, tutor, account. Its layout
+                         holds the max-w-4xl reading container.
+app/(marketing)/         The landing page (URL stays `/` — route groups aren't in the path).
+                         Its layout imposes no width, so the page runs full-bleed.
+  _components/           Landing-only UI; `_` keeps the folder non-routable.
+    Reveal.tsx           Scroll reveal — flips `data-shown` via IntersectionObserver
+                            (no setState, so no re-render and no React 19 effect-rule fight).
+    AdaptivePathDemo.tsx The animated path: rows are absolutely positioned and moved by
+                            translateY, so a reorder animates. Stages mirror real
+                            adapt.ts/mastery.ts transitions — keep them honest.
 components/              Nav.tsx + ui.tsx (Button/Card/Badge/Spinner/ProgressBar/ErrorText).
 test/                    Vitest: unit/ (pure domain/server/auth/http logic) + integration/
                          (live-LLM agent tests, self-skip without GEMINI_API_KEY).
