@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ interface ClarityResponse {
 
 type Turn = { role: "user" | "assistant"; text: string };
 
-function OnboardingInner() {
+export default function OnboardingPage() {
   const router = useRouter();
   const isNew = useSearchParams().get("new") === "1";
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -230,13 +230,5 @@ function OnboardingInner() {
       {/* Scroll target: kept below the composer so it stays in view. */}
       <div ref={bottomRef} aria-hidden />
     </div>
-  );
-}
-
-export default function OnboardingPage() {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <OnboardingInner />
-    </Suspense>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { LoadingRing } from "@/components/ui/loading-ring";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LessonSkeleton } from "./LessonSkeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Markdown } from "@/components/Markdown";
 import { gradeMcq } from "@/lib/domain/grade";
@@ -332,35 +332,6 @@ const BLOCK_LABELS: Record<string, string> = {
   example: "Example",
 };
 
-/**
- * Shown while the first GET is still in flight. At that point we don't know yet
- * whether the lesson is already stored — so mirror the article layout instead
- * of claiming it's being written.
- */
-function LessonSkeleton() {
-  return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <Skeleton className="h-8 w-28" />
-      <header className="flex flex-col gap-2">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="h-9 w-3/4" />
-      </header>
-      {Array.from({ length: 3 }).map((_, i) => (
-        <section key={i} className="flex flex-col gap-2">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-2/3" />
-        </section>
-      ))}
-      <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-6">
-        <Skeleton className="h-4 w-56" />
-        <Skeleton className="h-9 w-32" />
-      </div>
-    </div>
-  );
-}
-
 /** Shown once the API has told us the lesson isn't written yet. */
 function LessonGenerating({ curriculumId }: { curriculumId?: string }) {
   return (
@@ -392,7 +363,7 @@ function LessonGenerating({ curriculumId }: { curriculumId?: string }) {
  */
 type Phase = "checking" | "generating" | "ready" | "error";
 
-function LessonPageInner() {
+export default function LessonPage() {
   const params = useParams<{ lessonId: string }>();
   const router = useRouter();
   // The dashboard already knows whether this lesson is written and says so in
@@ -567,15 +538,5 @@ function LessonPageInner() {
         )}
       </div>
     </article>
-  );
-}
-
-export default function LessonPage() {
-  // useSearchParams needs a Suspense boundary; the skeleton is the right
-  // fallback since at that point we haven't read the hint yet.
-  return (
-    <Suspense fallback={<LessonSkeleton />}>
-      <LessonPageInner />
-    </Suspense>
   );
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
+import { LoadingRing } from "@/components/ui/loading-ring";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
@@ -72,7 +72,7 @@ function TranscriptSkeleton() {
   );
 }
 
-function TutorInner() {
+export default function TutorPage() {
   const router = useRouter();
   const topicId = useSearchParams().get("id");
   // The thread list, tagged with the topic it was fetched for. Switching topics
@@ -366,13 +366,5 @@ function TutorInner() {
         )}
       </div>
     </div>
-  );
-}
-
-export default function TutorPage() {
-  return (
-    <Suspense fallback={<PageLoader />}>
-      <TutorInner />
-    </Suspense>
   );
 }

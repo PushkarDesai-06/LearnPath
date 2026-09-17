@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Lock, ArrowUpRight } from "lucide-react";
@@ -75,7 +75,7 @@ function fmtTime(ms: number) {
   return min < 1 ? "<1 min" : `${min} min`;
 }
 
-function DashboardInner() {
+export default function DashboardPage() {
   const router = useRouter();
   const topicId = useSearchParams().get("id");
   // Held response is tagged with the topic it belongs to. Switching topics
@@ -301,13 +301,5 @@ function Stat({ label, value }: { label: string; value: string }) {
         {label}
       </p>
     </div>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardInner />
-    </Suspense>
   );
 }
