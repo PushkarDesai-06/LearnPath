@@ -38,10 +38,15 @@ export default async function TopicsPage() {
           </p>
           <h1 className="h-display text-3xl sm:text-4xl">Topics</h1>
         </div>
-        <Button asChild>
+        <Button asChild className="cta-path">
           <Link href="/onboarding?new=1">
-            <Plus data-icon="inline-start" />
+            <Plus
+              data-icon="inline-start"
+              className="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/button:rotate-90"
+            />
             New topic
+            {/* Draws the trail on hover — see `.cta-path` in globals.css. */}
+            <span aria-hidden className="cta-trail" />
           </Link>
         </Button>
       </header>

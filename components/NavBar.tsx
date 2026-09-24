@@ -25,10 +25,11 @@ export function NavBar({
       <nav className="mx-auto flex h-14 w-full max-w-4xl items-center gap-2 px-4 sm:px-6">
         <Link
           href="/"
-          className="flex items-center gap-2 font-medium tracking-tight"
+          className="logo-lockup flex items-center gap-2 font-medium tracking-tight"
         >
-          {/* Logo mark — a mint dot tracing back to the trail rail signature */}
-          <span className="">
+          {/* Hover sends a ring out from behind the mark and runs a sweep
+              across the wordmark — see `.logo-lockup` in globals.css. */}
+          <span className="logo-mark">
             <Image
               src={logo}
               width={20}
@@ -37,7 +38,7 @@ export function NavBar({
               className="invert"
             />
           </span>
-          <span className="text-base font-semibold tracking-tight">
+          <span className="logo-word text-base font-semibold tracking-tight">
             LearnPath
           </span>
         </Link>

@@ -110,6 +110,155 @@
   }
 }
 
+/* --------------------------------------------------------------------------
+   "New topic" CTA (/topics). Hover traces a path across the button: a hairline
+   drawn left-to-right with a dot riding its head — the trail-rail signature,
+   scaled down — while the button lifts off the page. The mark's quarter-turn
+   is a Tailwind utility on the icon itself. Decorative; the motion is stripped
+   under `prefers-reduced-motion` at the bottom of this file.
+   -------------------------------------------------------------------------- */
+.cta-path {
+  position: relative;
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.25s ease;
+}
+.cta-path:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -8px
+    color-mix(in oklch, var(--primary), transparent 45%);
+}
+/* Wins over the lift, so a press still reads as a press. */
+.cta-path:active {
+  transform: translateY(1px);
+}
+
+/* The trail. Sized by `width` rather than `scaleX` so the head dot rides the
+   line's end at its true size instead of being stretched with it. */
+.cta-trail {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.25rem;
+  left: 0.5rem;
+  height: 1px;
+  pointer-events: none;
+}
+.cta-trail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  background: currentColor;
+  opacity: 0.4;
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cta-trail::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 3px;
+  height: 3px;
+  margin-top: -1.5px;
+  margin-left: -1.5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  transition:
+    left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease;
+}
+.cta-path:hover .cta-trail::before,
+.cta-path:focus-visible .cta-trail::before {
+  width: 100%;
+}
+.cta-path:hover .cta-trail::after,
+.cta-path:focus-visible .cta-trail::after {
+  left: 100%;
+  opacity: 0.75;
+}
+
+/* --------------------------------------------------------------------------
+   Nav logo lockup. Hover sends a ring out from behind the mark — the trail-rail
+   dot at lockup scale — and runs a sweep across the wordmark. The mark is an
+   <Image>, so everything here works on the frame around it rather than on the
+   artwork. Decorative; stripped under `prefers-reduced-motion` below.
+   -------------------------------------------------------------------------- */
+.logo-mark {
+  position: relative;
+  display: inline-flex;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.logo-lockup:hover .logo-mark,
+.logo-lockup:focus-visible .logo-mark {
+  transform: scale(1.12);
+}
+
+/* The ring. Keyed off an animation rather than a transition so it fires once
+   per hover and clears itself, instead of reversing on the way out. */
+.logo-mark::after {
+  content: "";
+  position: absolute;
+  inset: -0.375rem;
+  border: 1px solid color-mix(in oklch, var(--primary), transparent 55%);
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+}
+.logo-lockup:hover .logo-mark::after,
+.logo-lockup:focus-visible .logo-mark::after {
+  animation: logo-ping 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes logo-ping {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.55);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* Positioned, so the wordmark paints over `.logo-mark::after` — a later
+   sibling wins at the same level — and the ring slips behind the letters at
+   full stretch instead of cutting across them. */
+.logo-word {
+  position: relative;
+}
+
+/* Wordmark sweep. The gradient is the text's own colour everywhere but a
+   narrow band, so parked off to one side the wordmark renders exactly as it
+   would untreated — the effect costs the resting logo nothing.
+
+   Every stop is a token on purpose. Turbopack's CSS parser panics on a
+   gradient that mixes `currentColor` with an `oklch()` literal: the build dies
+   with `parse_css failed` and names no token. Either alone is fine, and so is
+   `currentColor` beside a hex colour; `var()` sidesteps it entirely. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .logo-word {
+    background-image: linear-gradient(
+      100deg,
+      var(--foreground) 42%,
+      var(--logo-sweep) 50%,
+      var(--foreground) 58%
+    );
+    background-repeat: no-repeat;
+    background-size: 250% 100%;
+    background-position: 100% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: background-position 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .logo-lockup:hover .logo-word,
+  .logo-lockup:focus-visible .logo-word {
+    background-position: 0 0;
+  }
+}
+
 /* ==========================================================================
    STUDIO PALETTE — LearnPath (Monochromatic)
    A deep slate-cyan room. Single hue family (~200°), chroma kept ≤0.02
@@ -136,6 +285,10 @@
   --brand-foreground: oklch(0.16 0.012 200);
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
+  /* The nav wordmark's sweep band. A DIP on the lightness ladder, not a
+     highlight: the wordmark already sits at 0.97, so a brighter band would be
+     invisible — the light has to read as passing behind the letters. */
+  --logo-sweep: oklch(0.75 0.01 200);
 
   /* Quiet surfaces */
   --secondary: oklch(0.28 0.014 200);
@@ -233,5 +386,31 @@
     opacity: 1;
     transform: none;
     transition: none;
+  }
+  /* The CTA still answers hover — it just stops travelling to do it. */
+  .cta-path,
+  .cta-trail::before,
+  .cta-trail::after {
+    transition: none;
+  }
+  .cta-path:hover {
+    transform: none;
+  }
+  /* Same for the logo: the ring never fires, the sweep never travels. */
+  .logo-mark,
+  .logo-word {
+    transition: none;
+  }
+  .logo-lockup:hover .logo-mark,
+  .logo-lockup:focus-visible .logo-mark {
+    transform: none;
+  }
+  .logo-lockup:hover .logo-mark::after,
+  .logo-lockup:focus-visible .logo-mark::after {
+    animation: none;
+  }
+  .logo-lockup:hover .logo-word,
+  .logo-lockup:focus-visible .logo-word {
+    background-position: 100% 0;
   }
 }
