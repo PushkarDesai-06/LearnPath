@@ -45,8 +45,9 @@ export function TrailRail({ items, activeId, className }: Props) {
     <nav
       aria-label="Learning path"
       className={cn(
-        "relative hidden flex-col lg:flex",
-        // Sticky rail on desktop; sits in its own column in the dashboard grid.
+        "relative flex flex-col",
+        // Sticky within the gutter the caller positions it in — the caller also
+        // owns when the rail is shown, since that depends on gutter width.
         "sticky top-20 self-start",
         className,
       )}

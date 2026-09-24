@@ -65,8 +65,13 @@ export async function DashboardContent({
     null;
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
-      <TrailRail items={railItems} activeId={currentModule} />
+    // The path column is centred on the screen; the rail hangs in the gutter to
+    // its left (`right-full`), so it never pulls the content off-centre. It
+    // only appears once that gutter is actually wide enough to hold it.
+    <div className="relative mx-auto w-full max-w-2xl">
+      <div className="absolute inset-y-0 right-full hidden w-44 pr-6 min-[1180px]:block">
+        <TrailRail items={railItems} activeId={currentModule} />
+      </div>
 
       <div className="flex flex-col gap-8">
         {/* Hero */}

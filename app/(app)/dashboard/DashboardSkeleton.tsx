@@ -10,14 +10,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function DashboardSkeleton() {
   return (
-    <div className="grid gap-10 lg:grid-cols-[180px_1fr]">
-      <div className="hidden flex-col gap-1 lg:flex">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex h-6 items-center gap-2.5">
-            <Skeleton className="size-2.5 rounded-full" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-        ))}
+    <div className="relative mx-auto w-full max-w-2xl">
+      <div className="absolute inset-y-0 right-full hidden w-44 pr-6 min-[1180px]:block">
+        <div className="sticky top-20 flex flex-col gap-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex h-6 items-center gap-2.5">
+              <Skeleton className="size-2.5 rounded-full" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-8">
