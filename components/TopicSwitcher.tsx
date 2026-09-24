@@ -4,9 +4,10 @@
  * Topbar topic switcher. Topic-scoped pages read the active topic from `?id=`
  * and fall back to the learner's newest curriculum when it's absent (see
  * `resolveCurriculum`), so the trigger mirrors that: the matching topic, or the
- * first of the list when the URL carries no id. On any other route no topic is
- * active, so the trigger reads "Select topic" and picking one opens its
- * dashboard.
+ * first of the list when the URL carries no id. A lesson has no `?id=` but does
+ * belong to a topic, so it announces one via `ActiveTopicMarker`. On any other
+ * route no topic is active, so the trigger reads "Select topic" and picking one
+ * opens its dashboard.
  *
  * The list comes from the server (`Nav`); it refreshes whenever the tree does
  * (`router.refresh()` after a mutation, or a hard load).
@@ -17,6 +18,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useActiveTopic } from "@/components/ActiveTopic";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,19 +43,23 @@ function TopicSwitcherInner({ topics }: { topics: SwitcherTopic[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const topicId = useSearchParams().get("id");
+  const announced = useActiveTopic();
 
   if (topics.length === 0) return null;
 
-  // Only a topic-scoped route has an active topic. Elsewhere (/topics, a lesson,
-  // the landing page) nothing is selected and the trigger stays a prompt.
+  // A topic-scoped route names its topic in the URL; anywhere else the page may
+  // announce one (a lesson does). Failing both — /topics, the landing page —
+  // nothing is selected and the trigger stays a prompt.
   const scoped = TOPIC_SCOPED.includes(pathname);
-  const active = !scoped
-    ? undefined
-    : topicId
+  const active = scoped
+    ? topicId
       ? topics.find((t) => t.id === topicId)
       : // No id in the URL: the server falls back to the newest curriculum,
         // which is the first entry of this list (sorted createdAt desc).
-        topics[0];
+        topics[0]
+    : announced
+      ? topics.find((t) => t.id === announced)
+      : undefined;
 
   const hrefFor = (id: string) =>
     scoped ? `${pathname}?id=${id}` : `/dashboard?id=${id}`;

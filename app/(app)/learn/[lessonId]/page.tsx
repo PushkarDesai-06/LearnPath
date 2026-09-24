@@ -7,6 +7,7 @@ import type { LessonDTO } from "@/lib/data/types";
 import { Button } from "@/components/ui/button";
 import { LoadingRing } from "@/components/ui/loading-ring";
 import { Markdown } from "@/components/Markdown";
+import { ActiveTopicMarker } from "@/components/ActiveTopic";
 import { PracticeBlock } from "./PracticeBlock";
 import { LessonFooter } from "./LessonFooter";
 import { LessonPoller } from "./LessonPoller";
@@ -109,10 +110,21 @@ export default async function LessonPage({
   const view = await readLessonView(user._id.toHexString(), lessonId);
   if (!view) notFound();
 
-  if (view.status === "ready") return <LessonArticle lesson={view.lesson} />;
+  // The URL names only the lesson, so tell the topbar which topic we're in —
+  // both branches know it, written or not.
+  const curriculumId =
+    view.status === "ready" ? view.lesson.curriculumId : view.curriculumId;
+
   return (
-    <LessonPoller lessonId={lessonId}>
-      <LessonGenerating curriculumId={view.curriculumId} />
-    </LessonPoller>
+    <>
+      <ActiveTopicMarker curriculumId={curriculumId} />
+      {view.status === "ready" ? (
+        <LessonArticle lesson={view.lesson} />
+      ) : (
+        <LessonPoller lessonId={lessonId}>
+          <LessonGenerating curriculumId={view.curriculumId} />
+        </LessonPoller>
+      )}
+    </>
   );
 }

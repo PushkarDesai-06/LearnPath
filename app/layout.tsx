@@ -15,6 +15,7 @@ import { Suspense } from "react";
 import { Nav } from "@/components/Nav";
 import { NavBar } from "@/components/NavBar";
 import { Toaster } from "@/components/ui/sonner";
+import { ActiveTopicProvider } from "@/components/ActiveTopic";
 
 // ── Default body + mono ──────────────────────────────────────────────────────
 const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
@@ -68,15 +69,20 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${fontVars} h-full antialiased`}>
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        {/* The Nav reads the session cookie. Behind its own boundary so that
-            read doesn't hold the first streamed byte; the fallback is the
-            logo-only bar. */}
-        <Suspense fallback={<NavBar user={null} topics={[]} />}>
-          <Nav />
-        </Suspense>
-        {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
-            the reading-width container, `(marketing)` stays full-bleed. */}
-        {children}
+        {/* Spans the nav and the page so a route whose topic isn't in the URL
+            (a lesson) can announce it to the topic switcher. `children` stays a
+            server-rendered subtree — the provider only passes it through. */}
+        <ActiveTopicProvider>
+          {/* The Nav reads the session cookie. Behind its own boundary so that
+              read doesn't hold the first streamed byte; the fallback is the
+              logo-only bar. */}
+          <Suspense fallback={<NavBar user={null} topics={[]} />}>
+            <Nav />
+          </Suspense>
+          {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
+              the reading-width container, `(marketing)` stays full-bleed. */}
+          {children}
+        </ActiveTopicProvider>
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>
     </html>
