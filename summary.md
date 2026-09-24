@@ -63,15 +63,21 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
                                                                                   └─▶ /tutor (Socratic)
 ```
 
-1. **Auth** — `POST /api/auth/signup|login` sets an httpOnly `session` cookie.
+1. **Auth** — the login page submits to Server Actions (`loginAction` /
+   `signupAction` in `lib/auth/actions.ts`) that set the httpOnly `session`
+   cookie and `redirect()` in one round trip; the cookie write re-renders the
+   root layout, so the Nav shows the identity on arrival. `POST
+   /api/auth/signup|login|logout` remain as JSON equivalents for scripts/curl.
 2. **Onboarding clarity** — `POST /api/onboarding/clarity {description}` repeatedly.
    `clarityAgent` judges clarity; returns a follow-up question or `done:true` with
    a synthesized `refinedTopic`+`domain`. Loop stops on `clearEnough` OR cycle ≥ 4
    (best-effort proceed). State lives on the `onboarding` doc (authoritative).
-   **Resumable**: `GET /api/onboarding` returns the in-progress exchanges; the
-   onboarding page reloads them on mount (unless `?new=1`), so leaving mid-clarify
+   **Resumable**: the onboarding page reads the in-progress exchanges on the
+   server (`getResumableOnboarding`, unless `?new=1`), so leaving mid-clarify
    resumes the chat instead of restarting.
-3. **Assessment (batch quiz)** — `POST /api/assessment/start` generates a whole
+3. **Assessment (batch quiz)** — the page renders a resumable or completed quiz
+   server-side (`readAssessmentState`); only a fresh one needs
+   `POST /api/assessment/start`, which generates a whole
    quiz (8 MCQs across difficulty bands, ONE `quizGenAgent` call) and returns the
    **answer-stripped** questions; it's resumable and reports a completed one
    instead of restarting. `POST /api/assessment/submit {assessmentId, answers[]}`
@@ -86,13 +92,18 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    assessment result, then `buildCurriculumDoc` assigns ids/order, maps prereq
    titles→ids, and **seeds lesson mastery** from assessment (topics ≥0.8 →
    pre-`mastered`/skipped). `adaptCurriculum` normalizes statuses/ordering.
-   `GET /api/curriculum` returns the current path.
-5. **Lessons (generated in the BACKGROUND)** — `GET /api/lesson/[id]` is
-   non-blocking: on first open it inserts a `generating` placeholder `lessons`
-   doc (the unique index dedups concurrent opens) and returns `{status:"generating"}`;
+   The path is read server-side by the dashboard (`getDashboard`).
+5. **Lessons (generated in the BACKGROUND)** — the learn page renders a written
+   lesson straight from the server (`readLessonView`, a PURE read). An unwritten
+   one renders the "writing…" notice plus `LessonPoller`, whose first
+   `GET /api/lesson/[id]` enqueues: it inserts a `generating` placeholder
+   `lessons` doc (the unique index dedups concurrent opens, `ensureLessonQueued`);
    the **worker** (`lib/jobs/lessonWorker.ts`, started by `instrumentation.ts`)
    claims it atomically, runs `lessonAgent`, and writes the blocks +
-   `genStatus:"ready"`. The lesson page **polls** until ready. Leaving the
+   `genStatus:"ready"`. The poller then calls `router.refresh()` and the page
+   re-renders with the content. **Rendering must never enqueue**: pages run on
+   link prefetch, so the dashboard's lesson links would otherwise start an LLM
+   job for every visible lesson. Leaving the
    page doesn't stop generation, reopening doesn't double-generate, a server
    restart re-claims stale jobs, and there's a concurrency cap (3). `POST .../practice`
    grades an inline question (MCQ by key, short-answer by `answerGradeAgent`),
@@ -125,13 +136,15 @@ timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
    respecting the prereq DAG (for _ordering_), bump `version`. **Module gating** is
    a sliding window (`gateModuleStatuses`, `OPEN_MODULE_WINDOW = 2`): the next 2
    _incomplete_ modules are accessible plus all completed ones — NOT one-at-a-time.
-   Applied at write AND at read (`GET /api/curriculum`, `GET /api/progress`) so
-   existing curricula get the rule without a migration. `GET /api/progress` is the
+   Applied at write AND at read (`getDashboard`) so existing curricula get the
+   rule without a migration. `getDashboard` (`lib/data/progress.ts`) is the
    dashboard aggregate (mastery rollups, time, recommended-next).
 7. **Tutor (multi-conversation)** — each topic has MANY threads. `POST /api/tutor
 {message, curriculumId?, conversationId?}` starts a new thread (no id) or
-   appends to one; `GET /api/tutor?conversationId=` loads a thread;
-   `GET /api/tutor/conversations?curriculumId=` lists them. A conversation's
+   appends to one. The page server-renders the thread list and the newest
+   transcript (`lib/data/tutor.ts`); switching threads calls
+   `loadConversationAction` (a Server Action in `app/(app)/tutor/actions.ts`),
+   and the rail re-sorts locally after a send. A conversation's
    identity is its `_id`; `lessonRef` is only a context tag. (The old per-scope
    UNIQUE chats index was replaced; if upgrading an existing DB, drop that index
    manually — Mongoose won't.) **Grounding**: relevant topic
@@ -148,7 +161,8 @@ timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
 ## 4. Code map
 
 ```
-proxy.ts                 Cheap auth gate for /api/* (401 if no cookie). NOT the real check.
+proxy.ts                 Cheap cookie-presence gate: 401 for /api/*, /login redirect for signed-in
+                            pages. NOT the real check (it also runs on prefetches — no DB).
 lib/
   env.ts                 Lazy, validated env getters (throws if missing).
   http.ts                ApiError + handler() wrapper + readJson(zodSchema) + json helpers.
@@ -161,6 +175,10 @@ lib/
     password.ts          bcrypt hash/verify.
     session.ts           createSession/readSession/destroySession (jose JWT + sessions coll).
     guards.ts            ⭐ requireUser() — the AUTHORITATIVE auth check, called in every protected route.
+    current.ts           ⭐ getCurrentUser() (React cache(): one session+user lookup per request, shared by
+                            Nav + page) and requireUserOrRedirect() for pages.
+    credentials.ts       authenticate()/register(), shared by the auth actions and /api/auth/* routes.
+    actions.ts           loginAction / signupAction / logoutAction (Server Actions; set cookie + redirect).
   ai/
     provider.ts          OpenAIProvider(useResponses:false) + Runner + setTracingDisabled(true).
     runAgent.ts          ⭐ runAgent(agent, input): runs the agent — its zod outputType makes the SDK
@@ -180,13 +198,20 @@ lib/
     curriculumView.ts    publicCurriculum projection (ObjectId→string).
     curriculumLocate.ts  locateLesson + publicLessonBlock (ships the MCQ key+explanation for
                             instant client grading; hides everything for short answers).
+  data/                  ⭐ Server-only data access layer (`import "server-only"`). What pages render from:
+    topics.ts, progress.ts (getDashboard), lesson.ts (readLessonView / ensureLessonQueued),
+    tutor.ts, onboarding.ts, assessment.ts. userId args are HEX STRINGS (see §6).
+    types.ts             JSON-plain DTOs (ids as strings, dates as ISO) — safe to pass to client islands.
   jobs/lessonWorker.ts   ⭐ Background lesson-gen worker (atomic claim, concurrency cap, reaper).
-  client/api.ts          Browser fetch helper (throws ApiClientError with status).
+  client/api.ts          Browser fetch helper for the remaining POSTs + the lesson poller.
 instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).
-app/api/                 18 route handlers (see README table).
+app/api/                 Route handlers: mutations + the lesson poller GET (see README table).
 app/(app)/               Signed-in pages: login, onboarding, assessment, curriculum,
-                         learn/[lessonId], dashboard, topics, tutor, account. Its layout
-                         holds the max-w-4xl reading container.
+                         learn/[lessonId], dashboard, topics, tutor, account. Each page.tsx is a
+                         Server Component (auth + lib/data reads); interactivity lives in
+                         sibling client islands (LoginForm, PracticeBlock, LessonPoller,
+                         TutorChat, OnboardingChat, AssessmentClient…). Its layout holds the
+                         max-w-4xl reading container.
 app/(marketing)/         The landing page (URL stays `/` — route groups aren't in the path).
                          Its layout imposes no width, so the page runs full-bleed.
   _components/           Landing-only UI; `_` keeps the folder non-routable.
@@ -195,7 +220,9 @@ app/(marketing)/         The landing page (URL stays `/` — route groups aren't
     AdaptivePathDemo.tsx The animated path: rows are absolutely positioned and moved by
                             translateY, so a reorder animates. Stages mirror real
                             adapt.ts/mastery.ts transitions — keep them honest.
-components/              Nav.tsx + ui.tsx (Button/Card/Badge/Spinner/ProgressBar/ErrorText).
+components/              Nav.tsx (server: reads session + topics) → NavBar.tsx (markup) with the
+                         TopicSwitcher / AccountMenu client islands; Markdown.tsx (no directive —
+                         renders on server or client); shadcn ui/*.
 test/                    Vitest: unit/ (pure domain/server/auth/http logic) + integration/
                          (live-LLM agent tests, self-skip without GEMINI_API_KEY).
 ```
@@ -228,10 +255,10 @@ connect (`autoIndex` on in dev).
 
 - A **topic = one curriculum** (+ its assessment/onboarding lineage). A user can
   own many; nothing is one-at-a-time.
-- `GET /api/topics` lists them (uses `topicListItem` + `summarizeCurriculum` in
-  `curriculumView.ts`). The UI hub is `app/topics/page.tsx`.
-- Topic-scoped reads (`GET /api/curriculum`, `GET /api/progress`, tutor POST/GET)
-  take an optional `curriculumId`; `resolveCurriculum(userId, curriculumId)` in
+- `listTopics` (`lib/data/topics.ts`) lists them (uses `topicListItem` +
+  `summarizeCurriculum` in `curriculumView.ts`). The UI hub is `app/(app)/topics/page.tsx`.
+- Topic-scoped reads (`getDashboard`, `listConversations`, tutor POST) take an
+  optional `curriculumId`; `resolveCurriculum(userId, curriculumId)` in
   `curriculumLocate.ts` selects it (default = most recent). Lessons are already
   global (resolved by unique `lessonRef`), and `progress/complete` already takes
   `curriculumId`.
@@ -239,15 +266,17 @@ connect (`autoIndex` on in dev).
   404s on miss — accepting a client-supplied id without the owner filter would let
   any user read another's topic. This is the #1 thing to preserve when adding
   topic-scoped endpoints.
-- **Frontend** always passes `?id=` on dashboard/tutor views; "New topic" links
+- **Frontend** always passes `?id=` on dashboard/tutor views (the server page
+  reads it from `searchParams`; the topic switcher changes it with
+  `router.push`, and the page's `<Suspense key={id}>` shows the skeleton); "New topic" links
   to `/onboarding?new=1`, which sends `restart:true` on the first clarity message
   so it starts fresh instead of resuming an abandoned funnel. Curriculum
   generation happens at the assessment-done step (targets the just-finished
   assessment, not "latest").
-- **Dashboard = the topic hub** (`app/dashboard/page.tsx`): stats + recommended-
+- **Dashboard = the topic hub** (`app/(app)/dashboard/`): stats + recommended-
   next + the navigable learning path (clickable lessons, gating respected). The
-  old separate "Path" page (`app/curriculum/page.tsx`) now just redirects to
-  `/dashboard?id=`. `GET /api/progress` returns per-module lessons for this.
+  old separate "Path" page (`curriculum/page.tsx`) is a server `redirect()` to
+  `/dashboard?id=`. `getDashboard` returns per-module lessons for this.
 
 ### Mongoose conventions (read before touching the data layer)
 
@@ -279,6 +308,37 @@ connect (`autoIndex` on in dev).
 - Middleware is **`proxy.ts`** at root (exports `proxy()` + `config.matcher`).
   Defaults to Node.js runtime — do **not** set a `runtime` config.
 - API = `app/.../route.ts` exporting `GET/POST/...` returning `Response`/`NextResponse`.
+- **Rendering model (server-first).** Pages are async Server Components: they
+  `await searchParams/params`, call `requireUserOrRedirect()` BEFORE any
+  `<Suspense>` (so it's a real 307), then read via `lib/data/*`. Rules that bit
+  or would bite:
+  - Anything crossing to a `"use client"` component must be JSON-plain — use the
+    `lib/data/types.ts` DTOs, never a `.lean()` doc (ObjectId/Date) or `UserDoc`
+    (has `passwordHash`). Functions can't cross either: client islands import
+    Server Actions directly (e.g. `AccountMenu` → `logoutAction`).
+  - `redirect()`/`notFound()` throw — never inside try/catch. On routes with a
+    `loading.tsx` the page is already inside a Suspense boundary, so a
+    page-level redirect/notFound streams (HTTP 200 + client redirect / not-found
+    UI) instead of a 307/404. The proxy gives the real 307 when there's no
+    cookie at all.
+  - Render must be side-effect free (link prefetch runs it). See §3.5.
+  - `cache()` keys on argument identity: two `ObjectId`s for the same user are
+    different keys, so cached DAL fns take the hex string.
+  - `import "server-only"` is compiled by Next but the npm package isn't
+    installed, so Vitest can't resolve it. Keep it to `lib/data/*`,
+    `lib/auth/current.ts`, `lib/auth/actions.ts` and tutor `actions.ts` — never in
+    a module `test/unit` imports (or add a Vitest alias stub first).
+  - The root-layout Nav does NOT re-render on client navigation. After a
+    mutation that changes what it shows (topics, mastery), call
+    `router.refresh()` (lesson complete, curriculum generate do). Auth actions
+    get this for free — a cookie write re-renders the tree.
+  - Switching `?id=` must be a router navigation (`router.push`), not
+    `window.history.pushState`: a Server Component doesn't re-render on a
+    shallow URL change.
+  - No `cacheComponents` / `"use cache"` yet (every route reads the session
+    cookie, so there's no static shell to win; caching would also need
+    `updateTag` wiring on every mutation). `mongoose`/`mongodb` are already in
+    Next's default `serverExternalPackages`.
 - React 19 lint rule `react-hooks/set-state-in-effect` flags any effect that calls
   a function containing `setState` — even after `await`. **Fix used**: fetch with a
   `.then()/.catch()/.finally()` promise chain + an `active` cleanup flag (see any
@@ -351,9 +411,11 @@ connect (`autoIndex` on in dev).
 
 ### Known limitations / next steps
 
-1. **Page-level auth**: `proxy.ts` only guards `/api/*`. Pages are public and rely
-   on client-side 401→`/login` redirects. Harden when redesigning the frontend
-   (extend the matcher or add a server check in a layout).
+1. **Auth redirect status on streamed routes**: pages check auth server-side
+   (`requireUserOrRedirect`) and the proxy redirects cookie-less page requests,
+   but a STALE cookie on a route with `loading.tsx` gets a streamed client-side
+   redirect (HTTP 200) rather than a 307 (see §6). Harmless for users; matters
+   only for tooling that checks status codes.
 2. **Test coverage gaps.** Unit tests cover `lib/domain/*`, `server/*`, `auth`, and
    `http`; live-LLM integration tests cover the agents. NOT yet covered: the
    `app/api/**` route handlers (e2e), the DB layer, `auth/session` (JWT), and the

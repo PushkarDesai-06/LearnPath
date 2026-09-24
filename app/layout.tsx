@@ -11,8 +11,9 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import "./globals.css";
+import { Suspense } from "react";
 import { Nav } from "@/components/Nav";
-import { SessionProvider } from "@/components/SessionProvider";
+import { NavBar } from "@/components/NavBar";
 import { Toaster } from "@/components/ui/sonner";
 
 // ── Default body + mono ──────────────────────────────────────────────────────
@@ -67,12 +68,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${fontVars} h-full antialiased`}>
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        <SessionProvider>
+        {/* The Nav reads the session cookie. Behind its own boundary so that
+            read doesn't hold the first streamed byte; the fallback is the
+            logo-only bar. */}
+        <Suspense fallback={<NavBar user={null} topics={[]} />}>
           <Nav />
-          {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
-              the reading-width container, `(marketing)` stays full-bleed. */}
-          {children}
-        </SessionProvider>
+        </Suspense>
+        {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
+            the reading-width container, `(marketing)` stays full-bleed. */}
+        {children}
         <Toaster richColors position="bottom-right" theme="dark" />
       </body>
     </html>

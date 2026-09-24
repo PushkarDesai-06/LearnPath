@@ -1,6 +1,6 @@
 import { PageLoader } from "@/components/ui/loading-ring";
 
-/** Route-level fallback — also the Suspense boundary `useSearchParams` needs. */
+/** Route-level fallback while the server resumes any in-progress onboarding. */
 export default function Loading() {
   return <PageLoader />;
 }

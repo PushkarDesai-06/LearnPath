@@ -1,6 +1,6 @@
-import { PageLoader } from "@/components/ui/loading-ring";
+import { TutorSkeleton } from "./TutorParts";
 
-/** Route-level fallback — also the Suspense boundary `useSearchParams` needs. */
+/** Route-level fallback for navigating into /tutor (incl. a topic switch). */
 export default function Loading() {
-  return <PageLoader />;
+  return <TutorSkeleton />;
 }

@@ -7,12 +7,14 @@
  * first of the list when the URL carries no id. On any other route no topic is
  * active, so the trigger reads "Select topic" and picking one opens its
  * dashboard.
+ *
+ * The list comes from the server (`Nav`); it refreshes whenever the tree does
+ * (`router.refresh()` after a mutation, or a hard load).
  */
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronsUpDown } from "lucide-react";
-import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -24,36 +26,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-interface Topic {
+export interface SwitcherTopic {
   id: string;
   title: string;
-  summary: { overallMastery: number };
+  /** 0..1 */
+  mastery: number;
 }
 
 // Pages that scope themselves to `?id=`; anywhere else a switch lands on the
 // topic's dashboard instead of appending an id the route would ignore.
 const TOPIC_SCOPED = ["/dashboard", "/tutor"];
 
-function TopicSwitcherInner() {
+function TopicSwitcherInner({ topics }: { topics: SwitcherTopic[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const topicId = useSearchParams().get("id");
-  // null until the list arrives — keeps the topbar from jumping on first paint.
-  const [topics, setTopics] = useState<Topic[] | null>(null);
 
-  const load = useCallback(
-    () =>
-      api<{ topics: Topic[] }>("/api/topics")
-        .then((res) => setTopics(res.topics))
-        .catch(() => setTopics([])),
-    [],
-  );
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (!topics || topics.length === 0) return null;
+  if (topics.length === 0) return null;
 
   // Only a topic-scoped route has an active topic. Elsewhere (/topics, a lesson,
   // the landing page) nothing is selected and the trigger stays a prompt.
@@ -66,19 +55,15 @@ function TopicSwitcherInner() {
         // which is the first entry of this list (sorted createdAt desc).
         topics[0];
 
+  const hrefFor = (id: string) =>
+    scoped ? `${pathname}?id=${id}` : `/dashboard?id=${id}`;
+
   function select(id: string) {
     if (active && id === active.id) return;
-    if (!scoped) {
-      router.push(`/dashboard?id=${id}`);
-      return;
-    }
-    // Same route, only `?id=` changes — and these pages read the id on the
-    // client and fetch their own data. `router.push` would still wait on the
-    // RSC payload before anything on screen moved, so the page looked frozen
-    // until the server answered. The native History API is wired into the
-    // router (it syncs `useSearchParams`), so this updates the URL on the click
-    // and the page can show its skeleton immediately.
-    window.history.pushState(null, "", `${pathname}?id=${id}`);
+    // These pages render on the server from `?id=`, so the switch must be a
+    // router navigation (a bare history.pushState wouldn't re-render them).
+    // The route's loading.tsx / keyed Suspense puts the skeleton up at once.
+    router.push(hrefFor(id), { scroll: false });
   }
 
   return (
@@ -88,8 +73,8 @@ function TopicSwitcherInner() {
       <Separator orientation="vertical" className="mx-1 h-4" />
       <DropdownMenu
         onOpenChange={(open) => {
-          // Refresh on open so a topic created earlier this session shows up.
-          if (open) void load();
+          // Warm the likely destinations while the learner reads the list.
+          if (open) for (const t of topics) router.prefetch(hrefFor(t.id));
         }}
       >
         <DropdownMenuTrigger asChild>
@@ -112,7 +97,7 @@ function TopicSwitcherInner() {
               <DropdownMenuRadioItem key={t.id} value={t.id}>
                 <span className="truncate">{t.title}</span>
                 <span className="text-muted-foreground ml-auto font-mono text-[10px] tabular-nums">
-                  {Math.round(t.summary.overallMastery * 100)}%
+                  {Math.round(t.mastery * 100)}%
                 </span>
               </DropdownMenuRadioItem>
             ))}
@@ -123,12 +108,12 @@ function TopicSwitcherInner() {
   );
 }
 
-export function TopicSwitcher() {
+export function TopicSwitcher({ topics }: { topics: SwitcherTopic[] }) {
   // `useSearchParams` opts its subtree into client rendering; the boundary keeps
-  // the rest of the topbar prerenderable.
+  // the rest of the topbar server-rendered.
   return (
     <Suspense fallback={null}>
-      <TopicSwitcherInner />
+      <TopicSwitcherInner topics={topics} />
     </Suspense>
   );
 }

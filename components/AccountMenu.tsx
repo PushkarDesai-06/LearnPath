@@ -5,9 +5,12 @@
  * email and the log-out action live behind it (and on /account).
  */
 
+import { useTransition } from "react";
 import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
+import { toast } from "sonner";
 import { initials } from "@/lib/format";
+import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -23,12 +26,19 @@ import {
 export function AccountMenu({
   email,
   displayName,
-  onLogout,
 }: {
   email: string;
   displayName?: string | null;
-  onLogout: () => void;
 }) {
+  const [pending, startTransition] = useTransition();
+
+  function logout() {
+    toast.success("Logged out");
+    // The action clears the cookie and redirects to /login in one round trip;
+    // the cookie write re-renders the root layout, so the Nav goes bare.
+    startTransition(() => logoutAction());
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -64,7 +74,11 @@ export function AccountMenu({
               Account
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onSelect={onLogout}>
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={pending}
+            onSelect={logout}
+          >
             <LogOut />
             Log out
           </DropdownMenuItem>

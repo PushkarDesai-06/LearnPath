@@ -1,37 +1,57 @@
 /**
- * Dashboard aggregate: module/mastery/time stats + recommended next steps,
- * derived from the current curriculum and the progressEvents log.
+ * Dashboard aggregate: module/mastery/time stats + recommended next step,
+ * derived from a topic's curriculum and the progressEvents log.
+ * Absorbs the former `GET /api/progress`.
  */
-import { requireUser } from "@/lib/auth/guards";
+import "server-only";
+import { ObjectId } from "mongodb";
 import { progressEventsCollection } from "@/lib/db/collections";
 import type { CurriculumLesson } from "@/lib/db/models";
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import { generatedLessonRefs } from "@/lib/server/lessonReady";
 import { summarizeCurriculum } from "@/lib/server/curriculumView";
 import { gateModuleStatuses } from "@/lib/domain/adapt";
-import { handler, json } from "@/lib/http";
+import type { DashboardData } from "@/lib/data/types";
 
-export const GET = handler(async (request) => {
-  const user = await requireUser();
-  const curriculumId = new URL(request.url).searchParams.get("curriculumId");
+type Pick = { moduleId: string; moduleTitle: string; lesson: CurriculumLesson };
 
-  const curriculum = await resolveCurriculum(user._id, curriculumId);
-  if (!curriculum) {
-    return json({ hasCurriculum: false });
-  }
+/**
+ * `curriculumId` selects a topic (owner-scoped — a foreign id resolves to
+ * "no curriculum"); omitting it falls back to the newest one.
+ */
+export async function getDashboard(
+  userId: string,
+  curriculumId?: string | null,
+): Promise<DashboardData> {
+  const uid = new ObjectId(userId);
+  const curriculum = await resolveCurriculum(uid, curriculumId);
+  if (!curriculum) return { hasCurriculum: false };
+
   // Apply the access window so module badges + recommended-next reflect the rule.
   curriculum.modules = gateModuleStatuses(curriculum.modules);
 
-  const reviewLessons = curriculum.modules.flatMap((m) =>
+  const reviewLessons: Pick[] = curriculum.modules.flatMap((m) =>
     m.lessons
       .filter((l) => l.status === "needs_review")
       .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),
   );
 
-  // Which lessons already have written content. Sent down with each lesson so
-  // opening one can show the right wait state immediately, instead of the learn
-  // page having to ask the API first.
-  const generated = await generatedLessonRefs(user._id, curriculum._id);
+  // The readiness aggregation and the time aggregation are independent.
+  const events = await progressEventsCollection();
+  const [generated, timeAgg] = await Promise.all([
+    generatedLessonRefs(uid, curriculum._id),
+    events.aggregate<{ _id: null; total: number }>([
+      {
+        $match: {
+          userId: uid,
+          curriculumId: curriculum._id,
+          timeSpentMs: { $exists: true },
+        },
+      },
+      { $group: { _id: null, total: { $sum: "$timeSpentMs" } } },
+    ]),
+  ]);
+  const totalTimeMs = timeAgg[0]?.total ?? 0;
 
   const modules = curriculum.modules.map((m) => {
     const done = m.lessons.filter((l) => l.status === "mastered").length;
@@ -47,7 +67,6 @@ export const GET = handler(async (request) => {
       lessonsTotal: m.lessons.length,
       lessonsMastered: done,
       mastery: Number(avg.toFixed(3)),
-      // Lessons so the dashboard can render the navigable path (open lessons).
       lessons: [...m.lessons]
         .sort((a, b) => a.order - b.order)
         .map((l) => ({
@@ -62,32 +81,10 @@ export const GET = handler(async (request) => {
     };
   });
 
-  // Total time spent from the event log.
-  const events = await progressEventsCollection();
-  const timeAgg = await events.aggregate<{ _id: null; total: number }>([
-    {
-      $match: {
-        userId: user._id,
-        curriculumId: curriculum._id,
-        timeSpentMs: { $exists: true },
-      },
-    },
-    { $group: { _id: null, total: { $sum: "$timeSpentMs" } } },
-  ]);
-  const totalTimeMs = timeAgg[0]?.total ?? 0;
-
   // Recommended next: pending reviews first, else weakest non-done lesson in an
   // unlocked, incomplete module.
-  const pickWeakest = (): {
-    moduleId: string;
-    moduleTitle: string;
-    lesson: CurriculumLesson;
-  } | null => {
-    let best: {
-      moduleId: string;
-      moduleTitle: string;
-      lesson: CurriculumLesson;
-    } | null = null;
+  const pickWeakest = (): Pick | null => {
+    let best: Pick | null = null;
     for (const m of curriculum.modules) {
       if (m.status === "locked" || m.status === "completed") continue;
       for (const l of m.lessons) {
@@ -99,10 +96,9 @@ export const GET = handler(async (request) => {
     }
     return best;
   };
-
   const recommendation = reviewLessons[0] ?? pickWeakest();
 
-  return json({
+  return {
     hasCurriculum: true,
     curriculumId: curriculum._id.toHexString(),
     title: curriculum.title,
@@ -123,5 +119,5 @@ export const GET = handler(async (request) => {
           masteryScore: Number(recommendation.lesson.masteryScore.toFixed(3)),
         }
       : null,
-  });
-});
+  };
+}

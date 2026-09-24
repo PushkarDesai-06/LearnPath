@@ -1,10 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { BookOpen, Plus, ArrowRight } from "lucide-react";
-import { api, ApiClientError } from "@/lib/client/api";
+import { requireUserOrRedirect } from "@/lib/auth/current";
+import { listInProgressFunnels, listTopics } from "@/lib/data/topics";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,7 +11,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TopicsSkeleton } from "./TopicsSkeleton";
 import {
   Empty,
   EmptyContent,
@@ -24,49 +20,13 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-interface Topic {
-  id: string;
-  title: string;
-  domain: string;
-  summary: {
-    modulesTotal: number;
-    modulesCompleted: number;
-    lessonsTotal: number;
-    lessonsMastered: number;
-    overallMastery: number;
-  };
-}
-interface InProgress {
-  onboardingId: string;
-  topic: string;
-  status: string;
-  next: "onboarding" | "assessment";
-}
-
-export default function TopicsPage() {
-  const router = useRouter();
-  const [topics, setTopics] = useState<Topic[] | null>(null);
-  const [inProgress, setInProgress] = useState<InProgress[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    api<{ topics: Topic[]; inProgress: InProgress[] }>("/api/topics")
-      .then((res) => {
-        if (!active) return;
-        setTopics(res.topics);
-        setInProgress(res.inProgress ?? []);
-      })
-      .catch((err) => {
-        if (active && err instanceof ApiClientError && err.status === 401)
-          router.push("/login");
-        else if (active) setTopics([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [router]);
-
-  if (!topics) return <TopicsSkeleton />;
+export default async function TopicsPage() {
+  const user = await requireUserOrRedirect();
+  const userId = user._id.toHexString();
+  const [topics, inProgress] = await Promise.all([
+    listTopics(userId),
+    listInProgressFunnels(userId),
+  ]);
 
   return (
     <div className="flex flex-col gap-10">
@@ -103,16 +63,15 @@ export default function TopicsPage() {
                         : "Assessment unfinished"}
                     </p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      router.push(
-                        p.next === "onboarding" ? "/onboarding" : "/assessment",
-                      )
-                    }
-                  >
-                    Continue
-                    <ArrowRight data-icon="inline-end" />
+                  <Button variant="secondary" asChild>
+                    <Link
+                      href={
+                        p.next === "onboarding" ? "/onboarding" : "/assessment"
+                      }
+                    >
+                      Continue
+                      <ArrowRight data-icon="inline-end" />
+                    </Link>
                   </Button>
                 </CardContent>
               </Card>

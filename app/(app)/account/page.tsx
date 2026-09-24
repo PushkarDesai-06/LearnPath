@@ -1,11 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowRight, LogOut, Plus } from "lucide-react";
-import { api, ApiClientError } from "@/lib/client/api";
-import { useSession } from "@/components/SessionProvider";
+import { ArrowRight, Plus } from "lucide-react";
+import { requireUserOrRedirect } from "@/lib/auth/current";
+import { listTopics } from "@/lib/data/topics";
 import { initials } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,53 +13,24 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { AccountSkeleton } from "./AccountSkeleton";
+import { LogoutButton } from "@/components/LogoutButton";
 
-interface Topic {
-  id: string;
-  title: string;
-  summary: {
-    modulesTotal: number;
-    modulesCompleted: number;
-    lessonsTotal: number;
-    lessonsMastered: number;
-    overallMastery: number;
-  };
-}
+// Rendered on the server, so pin locale and zone: the output must not depend
+// on where the server happens to run.
+const MEMBER_SINCE = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "long",
-    year: "numeric",
-  });
-}
+export default async function AccountPage() {
+  const user = await requireUserOrRedirect();
+  // Topics double as the account's learning rollup, so no extra query.
+  const topics = await listTopics(user._id.toHexString());
+  const { email } = user;
+  const displayName = user.displayName ?? null;
+  const createdAt = user.createdAt;
 
-export default function AccountPage() {
-  const router = useRouter();
-  const { me, signOut } = useSession();
-  // Topics double as the account's learning rollup, so no extra endpoint.
-  const [topics, setTopics] = useState<Topic[] | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    api<{ topics: Topic[] }>("/api/topics")
-      .then((res) => active && setTopics(res.topics))
-      .catch((err) => {
-        if (!active) return;
-        if (err instanceof ApiClientError && err.status === 401)
-          router.push("/login");
-        else setTopics([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [router]);
-
-  // The session resolving to null means signed out — /api/topics 401s and the
-  // effect above redirects, so just hold the skeleton until it does.
-  if (!me || !topics) return <AccountSkeleton />;
-
-  const { email, displayName, createdAt } = me;
   const totals = topics.reduce(
     (acc, t) => ({
       lessonsMastered: acc.lessonsMastered + t.summary.lessonsMastered,
@@ -129,7 +96,14 @@ export default function AccountPage() {
         <CardContent className="flex flex-col gap-4">
           <Detail label="Email" value={email} mono />
           <Detail label="Display name" value={displayName || "Not set"} />
-          <Detail label="Member since" value={fmtDate(createdAt)} />
+          <div className="flex flex-col gap-0.5">
+            <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
+              Member since
+            </p>
+            <time dateTime={createdAt.toISOString()} className="truncate text-sm">
+              {MEMBER_SINCE.format(createdAt)}
+            </time>
+          </div>
         </CardContent>
       </Card>
 
@@ -171,10 +145,7 @@ export default function AccountPage() {
           </CardDescription>
         </CardHeader>
         <CardFooter>
-          <Button variant="destructive" onClick={signOut}>
-            <LogOut data-icon="inline-start" />
-            Log out
-          </Button>
+          <LogoutButton />
         </CardFooter>
       </Card>
     </div>

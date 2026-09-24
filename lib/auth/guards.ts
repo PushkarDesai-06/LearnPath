@@ -1,31 +1,28 @@
 /**
  * Authentication guard for route handlers. This is the AUTHORITATIVE check —
  * proxy.ts is only a cheap first gate, so every protected endpoint calls
- * requireUser() to do a real session + user lookup.
+ * requireUser() to do a real session + user lookup. Pages use
+ * `requireUserOrRedirect()` from lib/auth/current.ts instead; both share the
+ * same per-request `getCurrentUser()`.
  */
-import { readSession } from "@/lib/auth/session";
-import { usersCollection } from "@/lib/db/collections";
+import { getCurrentUser } from "@/lib/auth/current";
 import type { UserDoc } from "@/lib/db/models";
+import type { SessionUser } from "@/lib/auth/types";
 import { unauthorized } from "@/lib/http";
 
 /**
  * Returns the authenticated user document or throws ApiError(401).
  */
 export async function requireUser(): Promise<UserDoc> {
-  const session = await readSession();
-  if (!session) throw unauthorized();
-
-  const users = await usersCollection();
-  const user = await users.findOne({ _id: session.userId }).lean();
+  const user = await getCurrentUser();
   if (!user) throw unauthorized();
-
   return user;
 }
 
 /**
  * A safe public projection of a user (never leaks passwordHash).
  */
-export function publicUser(user: UserDoc) {
+export function publicUser(user: UserDoc): SessionUser {
   return {
     id: user._id.toHexString(),
     email: user.email,

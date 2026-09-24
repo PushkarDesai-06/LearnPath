@@ -4,6 +4,7 @@
  * A conversation's identity is its `_id` (conversationId). POST without a
  * conversationId starts a new thread; with one, it appends. `lessonRef` is just
  * a context tag for where a thread was started. History persists per thread.
+ * Reading threads happens server-side (`lib/data/tutor.ts`), not via GET.
  */
 import { z } from "zod";
 import { ObjectId } from "mongodb";
@@ -27,27 +28,6 @@ function deriveTitle(message: string): string {
   const t = message.trim().replace(/\s+/g, " ");
   return t.length > 48 ? t.slice(0, 48) + "…" : t;
 }
-
-/** GET ?conversationId= — load one conversation's messages. */
-export const GET = handler(async (request) => {
-  const user = await requireUser();
-  const conversationId = new URL(request.url).searchParams.get("conversationId");
-  if (!conversationId || !ObjectId.isValid(conversationId)) {
-    throw badRequest("conversationId required");
-  }
-
-  const chats = await chatsCollection();
-  const chat = await chats
-    .findOne({ _id: new ObjectId(conversationId), userId: user._id })
-    .lean();
-  if (!chat) throw notFound("Conversation not found");
-
-  return json({
-    conversationId: chat._id.toHexString(),
-    title: chat.title ?? "Conversation",
-    messages: chat.messages.map((m) => ({ role: m.role, content: m.content })),
-  });
-});
 
 /** POST — send a message to a thread (new if no conversationId). */
 export const POST = handler(async (request) => {

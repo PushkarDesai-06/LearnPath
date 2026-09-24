@@ -1,8 +1,8 @@
 /**
- * Start, resume, or report the learner's assessment quiz for their current
- * clarified topic. The quiz is generated once and persisted, so it is fully
- * resumable — leaving and coming back returns the same questions (it doesn't
- * "disappear"). A completed-but-not-yet-generated assessment returns its result.
+ * Start or resume the learner's assessment quiz for their current clarified
+ * topic. The /assessment page renders resume/result states server-side via
+ * `readAssessmentState`; the client only POSTs here when a FRESH quiz must be
+ * generated (an LLM call), though every state is still reported for safety.
  */
 import { ObjectId } from "mongodb";
 import { requireUser } from "@/lib/auth/guards";
@@ -12,56 +12,41 @@ import {
 } from "@/lib/db/collections";
 import { DIFFICULTY_LEVELS, type AssessmentDoc } from "@/lib/db/models";
 import { ROUND1_LEVELS } from "@/lib/domain/assessment";
-import {
-  generateQuizRound,
-  publicQuestion,
-  reviewItem,
-} from "@/lib/server/assessmentFlow";
+import { generateQuizRound, publicQuestion } from "@/lib/server/assessmentFlow";
+import { assessmentStateOf, loadAssessmentContext } from "@/lib/data/assessment";
 import { badRequest, handler, json } from "@/lib/http";
 
 export const POST = handler(async () => {
   const user = await requireUser();
 
-  const onboarding = await onboardingCollection();
-  const ob = await onboarding
-    .findOne({ userId: user._id, status: { $in: ["ready", "assessing"] } })
-    .sort({ updatedAt: -1 })
-    .lean();
-  if (!ob) {
+  const ctx = await loadAssessmentContext(user._id);
+  const state = assessmentStateOf(ctx);
+  const ob = ctx.onboarding;
+  if (state.kind === "no_onboarding" || !ob) {
     throw badRequest(
       "Finish onboarding (clarify your topic) before starting the assessment",
     );
   }
-
-  const assessments = await assessmentsCollection();
-  const existing = await assessments
-    .findOne({ userId: user._id, onboardingId: ob._id })
-    .sort({ createdAt: -1 })
-    .lean();
-
-  // Already graded → return the result + review (don't start a new quiz).
-  if (existing && existing.state === "complete" && existing.result) {
+  if (state.kind === "complete") {
     return json({
-      assessmentId: existing._id.toHexString(),
+      assessmentId: state.assessmentId,
       complete: true,
-      score: existing.result.score,
-      result: existing.result,
-      review: existing.questions
-        .filter((q) => q.answer !== undefined)
-        .map(reviewItem),
+      score: state.score,
+      result: { estimatedLevel: state.estimatedLevel },
+      review: state.review,
     });
   }
-
-  // Resume an in-progress quiz.
-  if (existing && existing.state === "in_progress") {
-    const pending = existing.questions.filter((q) => q.answer === undefined);
+  if (state.kind === "in_progress") {
     return json({
-      assessmentId: existing._id.toHexString(),
+      assessmentId: state.assessmentId,
       complete: false,
-      questions: pending.map(publicQuestion),
+      questions: state.questions,
       round: 1,
     });
   }
+
+  const onboarding = await onboardingCollection();
+  const assessments = await assessmentsCollection();
 
   // Fresh quiz.
   const now = new Date();

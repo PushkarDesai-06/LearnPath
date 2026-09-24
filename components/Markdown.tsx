@@ -1,5 +1,3 @@
-"use client";
-
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -9,6 +7,10 @@ import { cn } from "@/lib/utils";
  * Styled with the Tailwind typography plugin + a few theme-aligned overrides so
  * it inherits the shadcn neutral palette and dark mode. Raw HTML in the source
  * is NOT rendered (react-markdown escapes it), safe for model output.
+ *
+ * No "use client": it has no state or effects, so it renders on the server
+ * inside Server Components (lesson prose ships as HTML) and on the client when
+ * imported by a Client Component (practice explanations, tutor replies).
  */
 export function Markdown({
   children,

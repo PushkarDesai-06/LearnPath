@@ -1,19 +1,11 @@
-"use client";
-
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageLoader } from "@/components/ui/loading-ring";
-import { useSession } from "@/components/SessionProvider";
+import { getCurrentUser } from "@/lib/auth/current";
 import { Reveal } from "./_components/Reveal";
 import { AdaptivePathDemo } from "./_components/AdaptivePathDemo";
-
-// WebGL background — client-only. three.js can't run during SSR, and this
-// keeps the ~three.js chunk out of the initial bundle until the page mounts.
-const Dither = dynamic(() => import("@/components/Dither"), { ssr: false });
+import { DitherBackground } from "./_components/DitherBackground";
 
 /** Shared section heading: mono index, display title, optional standfirst. */
 function SectionHead({
@@ -76,41 +68,14 @@ const TUTOR_THREAD = [
   },
 ] as const;
 
-export default function Home() {
-  const router = useRouter();
-  const { me } = useSession();
-
-  useEffect(() => {
-    if (me) router.replace("/topics");
-  }, [me, router]);
-
-  // `undefined` is the session still resolving; a signed-in learner gets the
-  // redirect above, so only the signed-out marketing page falls through.
-  if (me === undefined || me) return <PageLoader />;
+export default async function Home() {
+  // Signed-in learners go straight to their studies; the redirect happens on
+  // the server, before any landing markup (or the WebGL bundle) is sent.
+  if (await getCurrentUser()) redirect("/topics");
 
   return (
     <>
-      {/* Full-bleed animated background — fixed behind all content. Cool-slate
-          waves sit inside the ~200° theme; the gradient darkens downward so
-          copy stays legible and the field blends into the page background.
-          Mouse interaction is off since it sits behind content. */}
-      <div className="pointer-events-none fixed inset-0 -z-10">
-        <Dither
-          waveColor={[0.3, 0.4, 0.46]}
-          waveSpeed={0.03}
-          waveFrequency={3}
-          waveAmplitude={0.3}
-          colorNum={4}
-          pixelSize={2}
-          enableMouseInteraction={false}
-        />
-        {/* Two overlays. The vertical one tames the bright top of the field so
-            the headline keeps its contrast, and stops at /92 rather than solid
-            so the lower sections still sit on a living surface instead of flat
-            black. The radial one vignettes the corners inward. */}
-        <div className="from-background/55 via-background/78 to-background/92 absolute inset-0 bg-linear-to-b" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_0%,transparent_35%,var(--background)_100%)] opacity-70" />
-      </div>
+      <DitherBackground />
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="mx-auto w-full max-w-4xl px-4 pt-16 pb-20 sm:px-6 sm:pt-28 sm:pb-28">
@@ -155,13 +120,11 @@ export default function Home() {
           </Reveal>
           <Reveal delay={240}>
             <div className="flex flex-wrap items-center gap-3">
-              <Button
-                size="lg"
-                className="h-11 px-5 text-sm"
-                onClick={() => router.push("/login")}
-              >
-                Get started
-                <ArrowRight data-icon="inline-end" />
+              <Button size="lg" className="h-11 px-5 text-sm" asChild>
+                <Link href="/login">
+                  Get started
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
               </Button>
               <Button
                 size="lg"
@@ -360,13 +323,11 @@ export default function Home() {
               Describe a topic and take the quiz — the first path is generated
               from there.
             </p>
-            <Button
-              size="lg"
-              className="h-11 px-5 text-sm"
-              onClick={() => router.push("/login")}
-            >
-              Get started
-              <ArrowRight data-icon="inline-end" />
+            <Button size="lg" className="h-11 px-5 text-sm" asChild>
+              <Link href="/login">
+                Get started
+                <ArrowRight data-icon="inline-end" />
+              </Link>
             </Button>
           </Reveal>
         </div>

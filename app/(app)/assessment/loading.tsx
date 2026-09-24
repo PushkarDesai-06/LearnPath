@@ -1,6 +1,6 @@
 import { PageLoader } from "@/components/ui/loading-ring";
 
-/** Route-level fallback — also the Suspense boundary `useSearchParams` needs. */
+/** Route-level fallback while the server reads the quiz state. */
 export default function Loading() {
   return <PageLoader />;
 }

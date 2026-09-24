@@ -35,15 +35,20 @@ endpoint.
 lib/
   env.ts              validated env access
   db/                 Mongoose connection, schemas/models (collections.ts), TS interfaces (models.ts)
-  auth/               bcrypt passwords, jose JWT + revocable sessions, requireUser()
+  auth/               bcrypt passwords, jose JWT + revocable sessions, requireUser(),
+                      getCurrentUser()/requireUserOrRedirect() for pages, auth Server Actions
+  data/               server-only data access layer: the reads pages render from
+                      (topics, dashboard, lesson, tutor, onboarding, assessment)
   ai/                 Agents SDK → provider, runAgent (SDK outputType + retry), schemas, agents/
   domain/             pure logic: adaptive assessment search, EWMA mastery, adaptation
   server/             route helpers (assessment flow, curriculum build/view/locate, grading)
   client/             browser fetch helper
-app/api/              route handlers (the backend API)
-app/                  client UI — shadcn/ui (components/ui/*), Tailwind v4
+app/api/              route handlers: mutations, plus the lesson poller's GET
+app/                  UI — pages are Server Components that read via lib/data;
+                      interactive parts are small client islands. shadcn/ui, Tailwind v4
 components/ui/        shadcn components (managed via `npx shadcn@latest add`)
-proxy.ts              cheap auth gate for /api/* (requireUser is the real check)
+proxy.ts              cheap cookie-presence gate: 401 for /api/*, /login redirect for
+                      signed-in pages (requireUser / requireUserOrRedirect are the real check)
 ```
 
 ### Data model (MongoDB)
@@ -69,26 +74,28 @@ proxy.ts              cheap auth gate for /api/* (requireUser is the real check)
 All endpoints return JSON. Auth is a session cookie; protected routes call
 `requireUser()`. Test with `curl -c jar -b jar`.
 
+Pages don't call these for their data: they are Server Components that read
+through `lib/data/*` during render. What's left here is the mutation surface,
+the lesson poller's GET, and JSON auth for scripts (the app itself logs in via
+Server Actions in `lib/auth/actions.ts`).
+
 A learner can have **multiple topics** at once (each topic = one curriculum).
 Topic-scoped reads accept an optional `?curriculumId=` (or `curriculumId` in the
 body) and default to the most recent topic when omitted. Every such lookup is
 scoped to the owner (`{ _id, userId }`) — passing another user's id returns 404.
 
-| Method     | Path                                                             | Purpose                                                                           |
-| ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| POST       | `/api/auth/signup` `/login` `/logout`                            | email + password auth                                                             |
-| GET        | `/api/me`                                                        | current user + onboarding status                                                  |
-| GET        | `/api/topics`                                                    | list topics (curricula) + progress, and in-progress funnels                       |
-| POST       | `/api/onboarding/clarity`                                        | clarity loop (repeat until `done`; `restart:true` = new topic)                    |
-| POST       | `/api/assessment/start`                                          | begin/resume the quiz, or report a completed one (resumable)                      |
-| POST       | `/api/assessment/submit`                                         | grade the whole quiz at once → score + review + optional refinement round         |
-| POST       | `/api/curriculum/generate` · GET `/api/curriculum?curriculumId=` | generate / fetch a topic's path                                                   |
-| GET        | `/api/lesson/[id]`                                               | lazy-generate + fetch lesson content (MCQ keys included; short-answer keys not)   |
-| POST       | `/api/lesson/[id]/practice`                                      | grade inline practice → mastery                                                   |
-| POST       | `/api/progress/complete`                                         | finalize lesson + run adaptation                                                  |
-| GET        | `/api/progress?curriculumId=`                                    | a topic's dashboard aggregate + recommended next                                  |
-| GET        | `/api/tutor/conversations?curriculumId=`                         | list a topic's tutor threads                                                      |
-| POST · GET | `/api/tutor`                                                     | Socratic tutor — POST starts/continues a thread (`conversationId`), GET loads one |
+| Method     | Path                                        | Purpose                                                                        |
+| ---------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
+| POST       | `/api/auth/signup` `/login` `/logout`       | email + password auth (JSON, for scripts; the UI uses Server Actions)          |
+| POST       | `/api/onboarding/clarity`                   | clarity loop (repeat until `done`; `restart:true` = new topic)                 |
+| POST       | `/api/assessment/start`                     | generate a fresh quiz, or report the resumable/completed one                   |
+| POST       | `/api/assessment/submit`                    | grade the whole quiz at once → score + review + optional refinement round      |
+| POST       | `/api/curriculum/generate`                  | generate a topic's path from the finished assessment                           |
+| GET        | `/api/lesson/[id]`                          | lesson content, enqueueing generation if unwritten (the learn page's poller)   |
+| POST       | `/api/lesson/[id]/practice`                 | grade inline practice → mastery                                                |
+| POST       | `/api/progress/complete`                    | finalize lesson + run adaptation                                               |
+| POST       | `/api/tutor`                                | Socratic tutor — starts a thread, or continues one with `conversationId`       |
+| GET        | `/api/health`                               | ops check (public)                                                             |
 
 ## Theming
 
