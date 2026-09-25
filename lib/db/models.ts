@@ -242,6 +242,9 @@ export interface LessonDoc {
   genStatus: LessonGenStatus;
   genError?: string;
   claimedAt?: Date | null; // worker claim timestamp (for the stale-claim reaper)
+  claimToken?: string | null;
+  generationAttempts?: number;
+  failedAt?: Date | null;
 }
 
 // ---------------------------------------------------------------------------

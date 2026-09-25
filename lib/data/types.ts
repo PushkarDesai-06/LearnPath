@@ -109,6 +109,7 @@ export interface LessonDTO {
 
 export type LessonView =
   | { status: "ready"; lesson: LessonDTO }
+  | { status: "failed"; curriculumId: string; message: string; canRetry: boolean; retryAfterMs: number }
   | { status: "generating"; curriculumId: string };
 
 // ── Tutor ───────────────────────────────────────────────────────────────────

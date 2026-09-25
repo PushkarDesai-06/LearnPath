@@ -1,10 +1,16 @@
 import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { curriculaCollection, progressEventsCollection } from "@/lib/db/collections";
+import { curriculaCollection, lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
 import { recordPractice } from "@/lib/server/practiceProgress";
 import { completeLesson } from "@/lib/server/completeLesson";
 import { curriculumFixture } from "../helpers/curriculum";
+import { ensureLessonQueued } from "@/lib/data/lesson";
+import { claimNext, generate } from "@/lib/jobs/lessonWorker";
+
+const ai = vi.hoisted(() => ({ lesson: vi.fn() }));
+vi.mock("@/lib/ai/agents/lesson", () => ({ runLessonAgent: ai.lesson }));
+vi.mock("@/lib/ai/provider", () => ({ modelName: () => "test" }));
 
 // Explicit opt-in; never load .env.local or connect to the application's DB.
 const uri = process.env.RELIABILITY_TEST_DB_URI;
@@ -16,6 +22,8 @@ describe.skipIf(!uri)("progress writes against MongoDB", () => {
     await curricula.init();
     const events = await progressEventsCollection();
     await events.init();
+    const lessons = await lessonsCollection();
+    await lessons.init();
   }, 15000);
 
   afterAll(async () => {
@@ -56,5 +64,49 @@ describe.skipIf(!uri)("progress writes against MongoDB", () => {
     expect(saved!.modules[0].lessons[0].practiceAttempts).toHaveLength(3);
     const events = await progressEventsCollection();
     expect(await events.countDocuments({ curriculumId: doc._id, type: "lesson_completed" })).toBe(1);
+  });
+
+  it("leaves failed generation stopped until an explicit, bounded retry", async () => {
+    const curricula = await curriculaCollection();
+    const doc = curriculumFixture();
+    // Lesson references are globally unique in real generated curricula.
+    doc.modules[0].lessons[0].id = randomUUID();
+    const ref = doc.modules[0].lessons[0].id;
+    await curricula.create(doc);
+    await ensureLessonQueued(doc.userId, ref);
+    const claim = await claimNext();
+    expect(claim!.generationAttempts).toBe(1);
+    ai.lesson.mockRejectedValueOnce(new Error("provider unavailable"));
+    await generate(claim!);
+    expect(await ensureLessonQueued(doc.userId, ref)).toMatchObject({ status: "failed", canRetry: true });
+    expect(await claimNext()).toBeNull();
+    await expect(ensureLessonQueued(doc.userId, ref, true)).rejects.toMatchObject({ status: 409 });
+    const lessons = await lessonsCollection();
+    await lessons.updateOne({ _id: claim!._id }, { $set: { failedAt: new Date(Date.now() - 60_000) } });
+    await Promise.all([ensureLessonQueued(doc.userId, ref, true), ensureLessonQueued(doc.userId, ref, true)]);
+    const retry = await claimNext();
+    expect(retry!.generationAttempts).toBe(2);
+    expect(await claimNext()).toBeNull();
+    await lessons.updateOne({ _id: claim!._id }, { $set: { genStatus: "failed", generationAttempts: 3 } });
+    await expect(ensureLessonQueued(doc.userId, ref, true)).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("rejects results from an expired worker claim", async () => {
+    const curricula = await curriculaCollection();
+    const doc = curriculumFixture();
+    doc.modules[0].lessons[0].id = randomUUID();
+    await curricula.create(doc);
+    await ensureLessonQueued(doc.userId, doc.modules[0].lessons[0].id);
+    const old = await claimNext();
+    const lessons = await lessonsCollection();
+    await lessons.updateOne({ _id: old!._id }, { $set: { claimedAt: new Date(Date.now() - 360_000) } });
+    const current = await claimNext();
+    expect(current!.claimToken).not.toBe(old!.claimToken);
+    ai.lesson.mockResolvedValueOnce({ blocks: [{ kind: "text", markdown: "Stale output" }] });
+    await generate(old!);
+    const saved = await lessons.findById(old!._id).lean();
+    expect(saved!.blocks).toEqual([]);
+    expect(saved!.claimToken).toBe(current!.claimToken);
+    await lessons.updateOne({ _id: old!._id }, { $set: { genStatus: "failed" } });
   });
 });

@@ -11,6 +11,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": rootDir,
+      "server-only": `${rootDir}/test/helpers/server-only.ts`,
     },
   },
   test: {

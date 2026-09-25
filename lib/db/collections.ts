@@ -223,6 +223,9 @@ const lessonSchema = new Schema<LessonDoc>({
   genStatus: { type: String, default: "ready" },
   genError: { type: String },
   claimedAt: { type: Date, default: null },
+  claimToken: { type: String, default: null },
+  generationAttempts: { type: Number, default: 0 },
+  failedAt: { type: Date, default: null },
 });
 lessonSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
 // Worker scans for lessons awaiting generation.

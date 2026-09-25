@@ -8,8 +8,8 @@
  * docs atomically, runs the lesson agent, and writes the result.
  *
  * Properties:
- *  - Dedup: only one `generating` doc per lesson, so only one generation runs.
- *  - Concurrency cap: at most CONCURRENCY generations at once.
+ *  - Dedup: one job per lesson; only the current worker claim may save results.
+ *  - Concurrency cap: at most CONCURRENCY generations per process.
  *  - Reaper: a doc claimed but never finished (server died mid-run) is re-claimed
  *    once its `claimedAt` goes stale, so work survives restarts.
  */
@@ -26,6 +26,7 @@ import { locateLesson } from "@/lib/server/curriculumLocate";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
+import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -63,23 +64,31 @@ export function startLessonWorker(): void {
 }
 
 /** Atomically claim the oldest unclaimed (or stale-claimed) generating lesson. */
-async function claimNext(): Promise<LessonDoc | null> {
+export async function claimNext(): Promise<LessonDoc | null> {
   const lessons = await lessonsCollection();
   const staleBefore = new Date(Date.now() - STALE_MS);
+  await lessons.updateMany(
+    { genStatus: "generating", generationAttempts: { $gte: MAX_LESSON_ATTEMPTS },
+      $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }] },
+    { $set: { genStatus: "failed", genError: "Generation timed out", failedAt: new Date(), claimedAt: null, claimToken: null } },
+  );
   const doc = await lessons
     .findOneAndUpdate(
       {
         genStatus: "generating",
-        $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }],
+        $and: [
+          { $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }] },
+          { $or: [{ generationAttempts: { $lt: MAX_LESSON_ATTEMPTS } }, { generationAttempts: { $exists: false } }] },
+        ],
       },
-      { $set: { claimedAt: new Date() } },
+      { $set: { claimedAt: new Date(), claimToken: randomUUID() }, $inc: { generationAttempts: 1 } },
       { sort: { generatedAt: 1 }, returnDocument: "after" },
     )
     .lean();
   return (doc as LessonDoc | null) ?? null;
 }
 
-async function generate(doc: LessonDoc): Promise<void> {
+export async function generate(doc: LessonDoc): Promise<void> {
   const lessons = await lessonsCollection();
   try {
     const located = await locateLesson(doc.userId, doc.lessonRef);
@@ -109,8 +118,8 @@ async function generate(doc: LessonDoc): Promise<void> {
         : clean;
     });
 
-    await lessons.updateOne(
-      { _id: doc._id },
+    const saved = await lessons.updateOne(
+      { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
       {
         $set: {
           blocks,
@@ -119,9 +128,12 @@ async function generate(doc: LessonDoc): Promise<void> {
           model: modelName(),
           generatedAt: new Date(),
           claimedAt: null,
+          claimToken: null,
+          failedAt: null,
         },
       },
     );
+    if (!saved.matchedCount) return; // another worker now owns the stale claim
 
     // Side effects (same as the old synchronous route): mark generated, flip
     // available -> in_progress, log the start event.
@@ -149,8 +161,8 @@ async function generate(doc: LessonDoc): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[worker] lesson generation failed:", doc.lessonRef, message);
     await lessons.updateOne(
-      { _id: doc._id },
-      { $set: { genStatus: "failed", genError: message, claimedAt: null } },
+      { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
+      { $set: { genStatus: "failed", genError: message, failedAt: new Date(), claimedAt: null, claimToken: null } },
     );
   }
 }
