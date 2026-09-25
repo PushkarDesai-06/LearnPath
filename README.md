@@ -143,6 +143,10 @@ version. Module access is a sliding window — the next two incomplete modules p
 already completed — applied at both write and read, so existing curricula pick up the rule
 without a migration.
 
+Direct lesson URLs render a locked state outside that window. Generation, retries,
+practice, and completion enforce the same rule on the server; practice and completion
+recheck it when retrying a concurrent progress update.
+
 ### Lesson generation is a job, not a request
 
 Authoring a lesson takes tens of seconds. Blocking a request on it would be a bad page and
@@ -302,8 +306,14 @@ most recent topic.
 
 ## Testing
 
+Database regressions run separately from the live-LLM tests. Point
+`RELIABILITY_TEST_DB_URI` at a disposable MongoDB server, then run
+`npm run test:database`. The suite creates and removes its own randomly named
+test database; it never loads `.env.local` or calls an AI provider. It covers
+concurrent progress writes, generation claims, retry limits, and module access.
+
 ```bash
-npm test                   # 84 unit tests, fast and deterministic
+npm test                   # unit tests, fast and deterministic
 npm run test:integration   # live-LLM agent tests (slow; self-skips without GEMINI_API_KEY)
 npm run test:all           # both
 ```

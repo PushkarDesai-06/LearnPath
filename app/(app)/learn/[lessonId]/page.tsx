@@ -11,6 +11,7 @@ import { ActiveTopicMarker } from "@/components/ActiveTopic";
 import { PracticeBlock } from "./PracticeBlock";
 import { LessonFooter } from "./LessonFooter";
 import { LessonPoller } from "./LessonPoller";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const BLOCK_LABELS: Record<string, string> = {
   analogy: "Analogy",
@@ -118,7 +119,17 @@ export default async function LessonPage({
   return (
     <>
       <ActiveTopicMarker curriculumId={curriculumId} />
-      {view.status === "ready" ? (
+      {view.status === "locked" ? (
+        <div className="mx-auto flex max-w-md flex-col items-start gap-4 py-12">
+          <Alert>
+            <AlertTitle>This module is locked</AlertTitle>
+            <AlertDescription>Complete earlier modules on your path to unlock this lesson.</AlertDescription>
+          </Alert>
+          <Button asChild variant="secondary">
+            <Link href={`/dashboard?id=${curriculumId}`}>Back to path</Link>
+          </Button>
+        </div>
+      ) : view.status === "ready" ? (
         <LessonArticle lesson={view.lesson} />
       ) : (
         <LessonPoller lessonId={lessonId}>

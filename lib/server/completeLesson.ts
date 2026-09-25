@@ -2,7 +2,7 @@ import type { ObjectId } from "mongodb";
 import { progressEventsCollection } from "@/lib/db/collections";
 import { adaptCurriculum } from "@/lib/domain/adapt";
 import { lessonStatusFor, updateMastery } from "@/lib/domain/mastery";
-import { notFound } from "@/lib/http";
+import { requireLessonAccess } from "@/lib/server/lessonAccess";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { progressEventId } from "@/lib/server/practiceProgress";
 
@@ -17,8 +17,7 @@ export async function completeLesson(params: {
   // Compatibility with attempts made before per-question receipts were stored.
   const legacyPractice = await events.exists({ userId, curriculumId, lessonRef, type: "practice_answered" });
   const result = await mutateCurriculum(userId, curriculumId, (doc) => {
-    const lesson = doc.modules.flatMap((m) => m.lessons).find((l) => l.id === lessonRef);
-    if (!lesson) throw notFound("Lesson not found in curriculum");
+    const lesson = requireLessonAccess(doc, lessonRef);
     const firstCompletion = !lesson.completion;
     if (firstCompletion) {
       if (!legacyPractice && !lesson.practiceAttempts?.length) {

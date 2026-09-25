@@ -30,7 +30,7 @@ export async function getDashboard(
   // Apply the access window so module badges + recommended-next reflect the rule.
   curriculum.modules = gateModuleStatuses(curriculum.modules);
 
-  const reviewLessons: Pick[] = curriculum.modules.flatMap((m) =>
+  const reviewLessons: Pick[] = curriculum.modules.filter((m) => m.status !== "locked").flatMap((m) =>
     m.lessons
       .filter((l) => l.status === "needs_review")
       .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),

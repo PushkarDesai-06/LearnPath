@@ -4,6 +4,7 @@
  */
 import { ObjectId } from "mongodb";
 import { curriculaCollection } from "@/lib/db/collections";
+import { findLessonAccess } from "@/lib/server/lessonAccess";
 import type {
   CurriculumDoc,
   CurriculumLesson,
@@ -50,11 +51,8 @@ export async function locateLesson(
     .lean();
   if (!curriculum) return null;
 
-  for (const mod of curriculum.modules) {
-    const lesson = mod.lessons.find((l) => l.id === lessonRef);
-    if (lesson) return { curriculum, module: mod, lesson };
-  }
-  return null;
+  const located = findLessonAccess(curriculum, lessonRef);
+  return located ? { curriculum, ...located } : null;
 }
 
 /**

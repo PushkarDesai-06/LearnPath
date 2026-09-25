@@ -43,6 +43,7 @@ export function LessonPoller({
         .then((res) => {
           if (!active) return;
           if (res.status === "ready") router.refresh();
+          else if (res.status === "locked") router.refresh();
           else if (res.status === "failed") {
             setError(res.message);
             setFailed(true);
@@ -58,6 +59,10 @@ export function LessonPoller({
           if (!active) return;
           if (err instanceof ApiClientError && err.status === 401) {
             router.push("/login");
+            return;
+          }
+          if (err instanceof ApiClientError && err.status === 403) {
+            router.refresh();
             return;
           }
           setError(err instanceof Error ? err.message : "Failed to load lesson");

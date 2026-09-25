@@ -19,6 +19,7 @@ import { isLessonReady } from "@/lib/server/lessonReady";
 import type { LessonBlockDTO, LessonView } from "@/lib/data/types";
 import { lessonRetryState } from "@/lib/jobs/lessonPolicy";
 import { conflict } from "@/lib/http";
+import { requireLessonAccess } from "@/lib/server/lessonAccess";
 
 function failedView(doc: LessonDoc): LessonView {
   return { status: "failed", curriculumId: doc.curriculumId.toHexString(),
@@ -57,6 +58,9 @@ export async function readLessonView(
   const uid = new ObjectId(userId);
   const located = await locateLesson(uid, lessonRef);
   if (!located) return null;
+  if (located.module.status === "locked") {
+    return { status: "locked", curriculumId: located.curriculum._id.toHexString() };
+  }
   const lessons = await lessonsCollection();
   const doc = await lessons.findOne(filterFor(uid, located, lessonRef)).lean();
   if (isLessonReady(doc)) return readyView(doc!, lessonRef, located);
@@ -81,6 +85,7 @@ export async function ensureLessonQueued(
   const located = await locateLesson(userId, lessonRef);
   if (!located) return null;
   const { curriculum, lesson } = located;
+  requireLessonAccess(curriculum, lessonRef);
   const lessons = await lessonsCollection();
   const filter = filterFor(userId, located, lessonRef);
   const generating: LessonView = {

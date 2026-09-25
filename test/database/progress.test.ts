@@ -5,10 +5,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { assessmentsCollection, curriculaCollection, lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
 import { recordPractice } from "@/lib/server/practiceProgress";
 import { completeLesson } from "@/lib/server/completeLesson";
-import { curriculumFixture } from "../helpers/curriculum";
-import { ensureLessonQueued } from "@/lib/data/lesson";
+import { curriculumFixture, lessonFixture } from "../helpers/curriculum";
+import { ensureLessonQueued, readLessonView } from "@/lib/data/lesson";
 import { claimNext, generate } from "@/lib/jobs/lessonWorker";
 import { generateCurriculum } from "@/lib/server/curriculumGeneration";
+import { getDashboard } from "@/lib/data/progress";
 import type { AssessmentDoc } from "@/lib/db/models";
 import type { CurriculumOutput } from "@/lib/ai/schemas";
 
@@ -193,5 +194,37 @@ describe.skipIf(!uri)("progress writes against MongoDB", () => {
     expect((await assessments.findById(selected._id).lean())!.curriculumClaimToken).toBe("replacement");
     const curricula = await curriculaCollection();
     expect(await curricula.countDocuments({ assessmentId: selected._id })).toBe(0);
+  });
+
+  it("blocks direct lesson reads, generation, grading, and completion outside the access window", async () => {
+    const curricula = await curriculaCollection();
+    const doc = curriculumFixture();
+    doc.modules = Array.from({ length: 3 }, (_, i) => ({
+      ...doc.modules[0], id: `m${i}`, order: i, lessons: [lessonFixture(randomUUID())],
+    }));
+    doc.modules[2].lessons[0].status = "needs_review";
+    await curricula.create(doc);
+    const ref = doc.modules[2].lessons[0].id;
+    const lessons = await lessonsCollection();
+    await lessons.create({ userId: doc.userId, curriculumId: doc._id, lessonRef: ref,
+      title: "Locked lesson", blocks: [{ kind: "text", markdown: "Secret until unlocked" }],
+      generatedAt: new Date(), model: "test", genStatus: "ready" });
+    expect(await readLessonView(doc.userId.toHexString(), ref)).toEqual({ status: "locked", curriculumId: doc._id.toHexString() });
+    await expect(ensureLessonQueued(doc.userId, ref)).rejects.toMatchObject({ status: 403 });
+    await expect(ensureLessonQueued(doc.userId, ref, true)).rejects.toMatchObject({ status: 403 });
+    await expect(recordPractice({ userId: doc.userId, curriculumId: doc._id, lessonId: ref,
+      questionId: "q1", correct: true, outcome: 1, countsTowardMastery: true })).rejects.toMatchObject({ status: 403 });
+    await expect(completeLesson({ userId: doc.userId, curriculumId: doc._id, lessonRef: ref })).rejects.toMatchObject({ status: 403 });
+    const events = await progressEventsCollection();
+    expect(await events.countDocuments({ curriculumId: doc._id })).toBe(0);
+    expect(await readLessonView(new ObjectId().toHexString(), ref)).toBeNull();
+    const dashboard = await getDashboard(doc.userId.toHexString(), doc._id.toHexString());
+    expect(dashboard.hasCurriculum && dashboard.recommendedNext?.lessonId).toBe(doc.modules[0].lessons[0].id);
+
+    await curricula.collection.updateOne({ _id: doc._id }, { $set: {
+      "modules.0.lessons.0.status": "mastered", "modules.0.lessons.0.masteryScore": 1,
+    }, $inc: { revision: 1 } });
+    expect((await readLessonView(doc.userId.toHexString(), ref))?.status).toBe("ready");
+    await expect(completeLesson({ userId: doc.userId, curriculumId: doc._id, lessonRef: ref })).resolves.toMatchObject({ lessonRef: ref });
   });
 });

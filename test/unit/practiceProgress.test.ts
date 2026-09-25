@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CurriculumDoc } from "@/lib/db/models";
-import { copyCurriculum, curriculumFixture } from "../helpers/curriculum";
+import { copyCurriculum, curriculumFixture, lessonFixture } from "../helpers/curriculum";
 
 const mocks = vi.hoisted(() => ({ findOne: vi.fn(), updateOne: vi.fn(), event: vi.fn(), exists: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({
@@ -76,6 +76,25 @@ describe("concurrent curriculum mutations", () => {
     });
     await submit();
     expect(stored.revision).toBe(1);
+  });
+
+  it("rechecks access when another answer moves the module window before saving", async () => {
+    stored.modules = Array.from({ length: 3 }, (_, i) => ({
+      ...stored.modules[0], id: `m${i}`, order: i, lessons: [lessonFixture(`l${i}`)],
+    }));
+    stored.modules[0].lessons[0].status = "mastered";
+    stored.modules[0].lessons[0].masteryScore = 1;
+    mocks.updateOne.mockImplementationOnce(async () => {
+      stored.modules[0].lessons[0].status = "needs_review";
+      stored.modules[0].lessons[0].masteryScore = 0.2;
+      stored.revision = 1;
+      return { matchedCount: 0 };
+    });
+    await expect(recordPractice({ userId: stored.userId, curriculumId: stored._id,
+      lessonId: "l2", questionId: "q1", correct: true, outcome: 1,
+      countsTowardMastery: true })).rejects.toMatchObject({ status: 403 });
+    expect(stored.modules[2].lessons[0].masteryScore).toBe(0);
+    expect(mocks.event).not.toHaveBeenCalled();
   });
 });
 

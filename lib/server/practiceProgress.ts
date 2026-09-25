@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { ObjectId } from "mongodb";
 import { progressEventsCollection } from "@/lib/db/collections";
 import { lessonStatusFor, updateMastery } from "@/lib/domain/mastery";
-import { notFound } from "@/lib/http";
+import { requireLessonAccess } from "@/lib/server/lessonAccess";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 
 /** Stable event identity makes retrying a partially saved request safe. */
@@ -21,8 +21,7 @@ export async function recordPractice(params: {
 }) {
   const { userId, curriculumId, lessonId, questionId } = params;
   const result = await mutateCurriculum(userId, curriculumId, (doc) => {
-    const lesson = doc.modules.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
-    if (!lesson) throw notFound("Lesson not found in curriculum");
+    const lesson = requireLessonAccess(doc, lessonId);
     let receipt = lesson.practiceAttempts?.find((a) => a.questionId === questionId);
     const counted = params.countsTowardMastery && !receipt;
     if (counted) {

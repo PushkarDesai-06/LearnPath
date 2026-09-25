@@ -14,6 +14,7 @@ import { recordPractice } from "@/lib/server/practiceProgress";
 import { gradeMcq, outcomeFromGrade } from "@/lib/domain/grade";
 import { locateLesson } from "@/lib/server/curriculumLocate";
 import { handler, json, notFound, readJson } from "@/lib/http";
+import { requireLessonAccess } from "@/lib/server/lessonAccess";
 
 const Body = z.object({
   questionId: z.string(),
@@ -30,10 +31,13 @@ export const POST = handler(
       request,
       Body,
     );
+    const located = await locateLesson(user._id, lessonId);
+    if (!located) throw notFound("Lesson not found in curriculum");
+    requireLessonAccess(located.curriculum, lessonId);
 
     const lessons = await lessonsCollection();
     const lessonDoc = await lessons
-      .findOne({ userId: user._id, lessonRef: lessonId })
+      .findOne({ userId: user._id, curriculumId: located.curriculum._id, lessonRef: lessonId })
       .lean();
     if (!lessonDoc) throw notFound("Lesson content not found — open the lesson first");
 
@@ -61,8 +65,6 @@ export const POST = handler(
     }
 
     // --- update mastery ---
-    const located = await locateLesson(user._id, lessonId);
-    if (!located) throw notFound("Lesson not found in curriculum");
     const progress = await recordPractice({
       userId: user._id,
       curriculumId: located.curriculum._id,
