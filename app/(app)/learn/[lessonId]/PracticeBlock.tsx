@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import type { LessonBlockDTO } from "@/lib/data/types";
 
 interface PracticeResult {
+  counted: boolean;
   correct: boolean;
   feedback: string | null;
   explanation: string | null;
@@ -69,7 +70,7 @@ export function PracticeBlock({
   const [result, setResult] = useState<Attempt | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   /** Set once the mastery-moving attempt has been made; reset does not clear it. */
-  const [spent, setSpent] = useState(false);
+  const [spent, setSpent] = useState(block.attempted ?? false);
 
   /** Send the attempt to the server: the authoritative re-grade + mastery update. */
   const record = (value: string, counts: boolean) =>
@@ -112,7 +113,9 @@ export function PracticeBlock({
       if (counted) {
         setSpent(true);
         setSaveFailed(false);
-        record(value, true).catch(() => setSaveFailed(true));
+        record(value, true)
+          .then((saved) => setResult((prev) => prev ? { ...prev, counted: saved.counted } : prev))
+          .catch(() => setSaveFailed(true));
       }
       return;
     }
@@ -120,7 +123,7 @@ export function PracticeBlock({
     setGrading(true);
     try {
       const res = await record(value, counted);
-      setResult({ ...res, counted });
+      setResult(res);
       if (counted) setSpent(true);
       announce(res.correct);
     } catch (err) {

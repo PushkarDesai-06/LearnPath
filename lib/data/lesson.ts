@@ -25,7 +25,12 @@ function readyView(doc: LessonDoc, lessonRef: string, located: LocatedLesson): L
       id: lessonRef,
       curriculumId: located.curriculum._id.toHexString(),
       title: doc.title,
-      blocks: doc.blocks.map(publicLessonBlock) as LessonBlockDTO[],
+      blocks: doc.blocks.map((block) => ({
+        ...publicLessonBlock(block),
+        ...(block.kind === "practice" ? {
+          attempted: !!located.lesson.practiceAttempts?.some((a) => a.questionId === block.questionId),
+        } : {}),
+      })) as LessonBlockDTO[],
     },
   };
 }

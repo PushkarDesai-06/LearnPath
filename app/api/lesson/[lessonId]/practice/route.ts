@@ -7,15 +7,10 @@
  * already seen the answer to. Only the first attempt is honest signal.
  */
 import { z } from "zod";
-import { ObjectId } from "mongodb";
 import { requireUser } from "@/lib/auth/guards";
-import {
-  curriculaCollection,
-  lessonsCollection,
-  progressEventsCollection,
-} from "@/lib/db/collections";
+import { lessonsCollection } from "@/lib/db/collections";
 import { runAnswerGradeAgent } from "@/lib/ai/agents/grading";
-import { lessonStatusFor, updateMastery } from "@/lib/domain/mastery";
+import { recordPractice } from "@/lib/server/practiceProgress";
 import { gradeMcq, outcomeFromGrade } from "@/lib/domain/grade";
 import { locateLesson } from "@/lib/server/curriculumLocate";
 import { handler, json, notFound, readJson } from "@/lib/http";
@@ -68,63 +63,22 @@ export const POST = handler(
     // --- update mastery ---
     const located = await locateLesson(user._id, lessonId);
     if (!located) throw notFound("Lesson not found in curriculum");
-    const { curriculum, lesson } = located;
-
-    // A replay reports the grade against the learner's UNCHANGED standing.
-    let newScore = lesson.masteryScore;
-    let newStatus = lesson.status;
-
-    if (countsTowardMastery) {
-      const outcome = outcomeFromGrade(correct, confidence);
-      newScore = updateMastery(lesson.masteryScore, outcome);
-      newStatus = lessonStatusFor(newScore, true);
-
-      const curricula = await curriculaCollection();
-      await curricula.collection.updateOne(
-        { _id: curriculum._id },
-        {
-          $set: {
-            "modules.$[].lessons.$[l].masteryScore": newScore,
-            "modules.$[].lessons.$[l].status": newStatus,
-            updatedAt: new Date(),
-          },
-        },
-        { arrayFilters: [{ "l.id": lessonId }] },
-      );
-
-      const events = await progressEventsCollection();
-      const now = new Date();
-      await events.create({
-        _id: new ObjectId(),
-        userId: user._id,
-        curriculumId: curriculum._id,
-        lessonRef: lessonId,
-        type: "practice_answered",
-        topics: lesson.topics,
-        correct,
-        score: newScore,
-        at: now,
-      });
-      if (newStatus === "needs_review") {
-        await events.create({
-          _id: new ObjectId(),
-          userId: user._id,
-          curriculumId: curriculum._id,
-          lessonRef: lessonId,
-          type: "review_triggered",
-          topics: lesson.topics,
-          at: now,
-        });
-      }
-    }
+    const progress = await recordPractice({
+      userId: user._id,
+      curriculumId: located.curriculum._id,
+      lessonId,
+      questionId,
+      correct,
+      outcome: outcomeFromGrade(correct, confidence),
+      countsTowardMastery,
+    });
 
     return json({
       correct,
       feedback,
       explanation: block.explanation ?? null,
-      masteryScore: Number(newScore.toFixed(3)),
-      status: newStatus,
-      counted: countsTowardMastery,
+      ...progress,
+      masteryScore: Number(progress.masteryScore.toFixed(3)),
     });
   },
 );

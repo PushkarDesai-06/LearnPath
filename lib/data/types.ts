@@ -87,6 +87,7 @@ export interface LessonBlockDTO {
   code?: string;
   caption?: string;
   questionId?: string;
+  attempted?: boolean;
   prompt?: string;
   type?: "mcq" | "short";
   choices?: string[] | null;

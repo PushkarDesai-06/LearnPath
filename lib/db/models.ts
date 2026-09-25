@@ -157,6 +157,15 @@ export interface CurriculumLesson {
   contentGenerated: boolean;
   status: LessonStatus;
   masteryScore: number; // 0..1 EWMA
+  /** First counted attempts, stored atomically with the mastery they produced. */
+  practiceAttempts?: PracticeAttempt[];
+}
+
+export interface PracticeAttempt {
+  questionId: string;
+  correct: boolean;
+  score: number;
+  at: Date;
 }
 
 export interface CurriculumModule {
@@ -177,6 +186,8 @@ export interface CurriculumDoc {
   title: string;
   modules: CurriculumModule[];
   version: number;
+  /** Write revision, separate from the user-visible adaptation version. */
+  revision?: number;
   createdAt: Date;
   updatedAt: Date;
 }

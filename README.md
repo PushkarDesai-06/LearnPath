@@ -188,11 +188,12 @@ jobs whose worker died mid-flight (claims older than five minutes are reaped).
 
 `rubric` is never sent to the client for any block kind.
 
-**Retakes don't inflate mastery.** Any question can be reset and retried — the replay is
-still graded, but the answer has been on screen since the first attempt, so the client marks
-it `countsTowardMastery: false` and the route skips both the mastery write and the progress
-event. Preserve that flag if you add another practice surface; without it, "try again" is a
-one-click mastery inflator.
+**Retakes don't inflate mastery.** First counted attempts are stored with the
+lesson's mastery in one atomic curriculum update. Reloading, concurrent POSTs,
+and retrying a failed save cannot count the same question twice. The client can
+request practice-only grading with `countsTowardMastery: false`; the server's
+persisted receipt decides whether a counted attempt is still available. Progress
+events use stable IDs so retrying also repairs interrupted event logging.
 
 ### Tutor grounding
 

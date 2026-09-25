@@ -85,6 +85,15 @@ const curriculumLessonSchema = new Schema(
     contentGenerated: { type: Boolean, default: false },
     status: { type: String, required: true },
     masteryScore: { type: Number, default: 0 },
+    practiceAttempts: {
+      type: [new Schema({
+        questionId: { type: String, required: true },
+        correct: { type: Boolean, required: true },
+        score: { type: Number, required: true },
+        at: { type: Date, required: true },
+      }, subOpts)],
+      default: undefined,
+    },
   },
   subOpts,
 );
@@ -191,6 +200,7 @@ const curriculumSchema = new Schema<CurriculumDoc>({
   title: { type: String, required: true },
   modules: { type: [curriculumModuleSchema], default: [] },
   version: { type: Number, default: 1 },
+  revision: { type: Number, default: 0 },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
