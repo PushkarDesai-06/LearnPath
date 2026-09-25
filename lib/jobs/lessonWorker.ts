@@ -25,6 +25,7 @@ import { modelName } from "@/lib/ai/provider";
 import { locateLesson } from "@/lib/server/curriculumLocate";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
+import { createJobPump } from "@/lib/jobs/pump";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -45,7 +46,12 @@ function stripNullFields(block: Record<string, unknown>): LessonBlock {
 }
 
 let started = false;
-let active = 0;
+const tick = createJobPump({
+  concurrency: CONCURRENCY,
+  claim: claimNext,
+  run: generate,
+  onError: (error) => console.error("[worker] job error:", error),
+});
 
 export function startLessonWorker(): void {
   if (started) return;
@@ -54,21 +60,6 @@ export function startLessonWorker(): void {
   setInterval(() => {
     void tick();
   }, POLL_MS);
-}
-
-async function tick(): Promise<void> {
-  try {
-    while (active < CONCURRENCY) {
-      const lesson = await claimNext();
-      if (!lesson) break;
-      active += 1;
-      void generate(lesson).finally(() => {
-        active -= 1;
-      });
-    }
-  } catch (err) {
-    console.error("[worker] tick error:", err);
-  }
 }
 
 /** Atomically claim the oldest unclaimed (or stale-claimed) generating lesson. */
