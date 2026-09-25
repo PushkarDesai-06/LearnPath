@@ -1,19 +1,36 @@
 import { randomUUID } from "node:crypto";
+import { ObjectId } from "mongodb";
 import mongoose from "mongoose";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { curriculaCollection, lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
+import { assessmentsCollection, curriculaCollection, lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
 import { recordPractice } from "@/lib/server/practiceProgress";
 import { completeLesson } from "@/lib/server/completeLesson";
 import { curriculumFixture } from "../helpers/curriculum";
 import { ensureLessonQueued } from "@/lib/data/lesson";
 import { claimNext, generate } from "@/lib/jobs/lessonWorker";
+import { generateCurriculum } from "@/lib/server/curriculumGeneration";
+import type { AssessmentDoc } from "@/lib/db/models";
+import type { CurriculumOutput } from "@/lib/ai/schemas";
 
-const ai = vi.hoisted(() => ({ lesson: vi.fn() }));
+const ai = vi.hoisted(() => ({ lesson: vi.fn(), curriculum: vi.fn() }));
 vi.mock("@/lib/ai/agents/lesson", () => ({ runLessonAgent: ai.lesson }));
+vi.mock("@/lib/ai/agents/curriculum", () => ({ runCurriculumAgent: ai.curriculum }));
 vi.mock("@/lib/ai/provider", () => ({ modelName: () => "test" }));
 
 // Explicit opt-in; never load .env.local or connect to the application's DB.
 const uri = process.env.RELIABILITY_TEST_DB_URI;
+const authored: CurriculumOutput = { title: "Selected topic", modules: [{
+  title: "Basics", summary: "Foundations", prerequisites: [], lessons: [{
+    title: "Start here", objectives: ["Understand basics"], estMinutes: 10,
+    difficultyLevel: "beginner", topics: ["basics"],
+  }],
+}] };
+function assessmentFixture(): AssessmentDoc {
+  return { _id: new ObjectId(), userId: new ObjectId(), onboardingId: new ObjectId(),
+    domain: "Programming", refinedTopic: "Selected topic", state: "complete", levels: [],
+    rounds: 1, questions: [], result: { estimatedLevel: "beginner", score: 0.5,
+      perTopicMastery: [], strengths: [], gaps: [] }, createdAt: new Date(), updatedAt: new Date() };
+}
 describe.skipIf(!uri)("progress writes against MongoDB", () => {
   beforeAll(async () => {
     vi.stubEnv("MONGODB_URI", uri!);
@@ -108,5 +125,73 @@ describe.skipIf(!uri)("progress writes against MongoDB", () => {
     expect(saved!.blocks).toEqual([]);
     expect(saved!.claimToken).toBe(current!.claimToken);
     await lessons.updateOne({ _id: old!._id }, { $set: { genStatus: "failed" } });
+  });
+
+  it("generates the selected assessment once even when another tab requests it", async () => {
+    ai.curriculum.mockReset();
+    const assessments = await assessmentsCollection();
+    const selected = assessmentFixture();
+    const newer = { ...assessmentFixture(), userId: selected.userId, refinedTopic: "Wrong topic", updatedAt: new Date(Date.now() + 1000) };
+    await assessments.create([selected, newer]);
+    let resolve!: (output: CurriculumOutput) => void;
+    ai.curriculum.mockReturnValueOnce(new Promise<CurriculumOutput>((done) => { resolve = done; }));
+    const first = generateCurriculum(selected.userId, selected._id);
+    await vi.waitFor(() => expect(ai.curriculum).toHaveBeenCalledTimes(1));
+    await expect(generateCurriculum(selected.userId, selected._id)).rejects.toMatchObject({ status: 409 });
+    resolve(authored);
+    const result = await first;
+    expect(result.curriculum.assessmentId).toEqual(selected._id);
+    expect(result.curriculum._id).toEqual(selected._id);
+    expect(ai.curriculum.mock.calls[0][0].refinedTopic).toBe("Selected topic");
+    expect((await generateCurriculum(selected.userId, selected._id)).existed).toBe(true);
+    expect(ai.curriculum).toHaveBeenCalledTimes(1);
+    const curricula = await curriculaCollection();
+    expect(await curricula.countDocuments({ assessmentId: selected._id })).toBe(1);
+  });
+
+  it("releases failed generation claims and rejects foreign or unfinished assessments", async () => {
+    ai.curriculum.mockReset();
+    const assessments = await assessmentsCollection();
+    const selected = assessmentFixture();
+    await assessments.create(selected);
+    await expect(generateCurriculum(new ObjectId(), selected._id)).rejects.toMatchObject({ status: 404 });
+    ai.curriculum.mockRejectedValueOnce(new Error("provider down"));
+    await expect(generateCurriculum(selected.userId, selected._id)).rejects.toThrow("provider down");
+    expect((await assessments.findById(selected._id).lean())!.curriculumClaimToken).toBeNull();
+    ai.curriculum.mockResolvedValueOnce(authored);
+    expect((await generateCurriculum(selected.userId, selected._id)).existed).toBe(false);
+    const unfinished: AssessmentDoc = { ...assessmentFixture(), state: "in_progress" };
+    await assessments.create(unfinished);
+    await expect(generateCurriculum(unfinished.userId, unfinished._id)).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("returns a legacy curriculum with a random ID without generating another", async () => {
+    ai.curriculum.mockReset();
+    const selected = assessmentFixture();
+    const assessments = await assessmentsCollection();
+    await assessments.create(selected);
+    const legacy = { ...curriculumFixture(), userId: selected.userId, assessmentId: selected._id };
+    const curricula = await curriculaCollection();
+    await curricula.create(legacy);
+    expect((await generateCurriculum(selected.userId, selected._id)).curriculum._id).toEqual(legacy._id);
+    expect(ai.curriculum).not.toHaveBeenCalled();
+  });
+
+  it("does not publish output or release another request's replacement claim", async () => {
+    ai.curriculum.mockReset();
+    const selected = assessmentFixture();
+    const assessments = await assessmentsCollection();
+    await assessments.create(selected);
+    let resolve!: (output: CurriculumOutput) => void;
+    ai.curriculum.mockReturnValueOnce(new Promise<CurriculumOutput>((done) => { resolve = done; }));
+    const original = generateCurriculum(selected.userId, selected._id);
+    const rejected = expect(original).rejects.toMatchObject({ status: 409 });
+    await vi.waitFor(() => expect(ai.curriculum).toHaveBeenCalledTimes(1));
+    await assessments.updateOne({ _id: selected._id }, { $set: { curriculumClaimToken: "replacement" } });
+    resolve(authored);
+    await rejected;
+    expect((await assessments.findById(selected._id).lean())!.curriculumClaimToken).toBe("replacement");
+    const curricula = await curriculaCollection();
+    expect(await curricula.countDocuments({ assessmentId: selected._id })).toBe(0);
   });
 });

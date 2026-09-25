@@ -287,7 +287,7 @@ for scripts (the app itself signs in through Server Actions).
 | `POST` | `/api/onboarding/clarity` | Clarity loop — repeat until `done`; `restart:true` starts a new topic |
 | `POST` | `/api/assessment/start` | Generate a fresh diagnostic, or report the resumable/completed one |
 | `POST` | `/api/assessment/submit` | Grade the batch → score, level, review, optional refinement round |
-| `POST` | `/api/curriculum/generate` | Build the path from a finished assessment |
+| `POST` | `/api/curriculum/generate` | Build the path for the required `assessmentId`; concurrent requests are deduplicated |
 | `GET` | `/api/lesson/[id]` | Lesson content or generation/failure status; enqueues only unwritten lessons |
 | `POST` | `/api/lesson/[id]` | Explicit retry of a failed lesson, with cooldown and a three-attempt limit |
 | `POST` | `/api/lesson/[id]/practice` | Grade inline practice → mastery |

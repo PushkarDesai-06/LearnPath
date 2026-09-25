@@ -157,7 +157,7 @@ export function AssessmentClient({
     try {
       const res = await api<{ curriculum: { id: string } }>(
         "/api/curriculum/generate",
-        { method: "POST" },
+        { body: { assessmentId } },
       );
       toast.success("Your learning path is ready!", { id: t });
       // One transition: refresh so the Nav's topic list picks up the new

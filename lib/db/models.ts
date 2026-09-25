@@ -131,6 +131,8 @@ export interface AssessmentDoc {
   result?: AssessmentResult;
   createdAt: Date;
   updatedAt: Date;
+  curriculumClaimToken?: string | null;
+  curriculumClaimedAt?: Date | null;
 }
 
 // ---------------------------------------------------------------------------

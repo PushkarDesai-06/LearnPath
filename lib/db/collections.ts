@@ -195,6 +195,8 @@ const assessmentSchema = new Schema<AssessmentDoc>({
   rounds: { type: Number, default: 1 },
   questions: { type: [assessmentQuestionSchema], default: [] },
   result: { type: assessmentResultSchema, default: undefined },
+  curriculumClaimToken: { type: String, default: null },
+  curriculumClaimedAt: { type: Date, default: null },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
