@@ -16,7 +16,6 @@
 import { randomUUID } from "node:crypto";
 import {
   assessmentsCollection,
-  curriculaCollection,
   lessonsCollection,
   progressEventsCollection,
 } from "@/lib/db/collections";
@@ -24,6 +23,7 @@ import type { LessonBlock, LessonDoc } from "@/lib/db/models";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
 import { modelName } from "@/lib/ai/provider";
 import { locateLesson } from "@/lib/server/curriculumLocate";
+import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
 
 const CONCURRENCY = 3;
@@ -134,22 +134,13 @@ async function generate(doc: LessonDoc): Promise<void> {
 
     // Side effects (same as the old synchronous route): mark generated, flip
     // available -> in_progress, log the start event.
-    const curricula = await curriculaCollection();
-    await curricula.collection.updateOne(
-      { _id: curriculum._id },
-      {
-        $set: {
-          "modules.$[].lessons.$[l].contentGenerated": true,
-          updatedAt: new Date(),
-        },
-      },
-      { arrayFilters: [{ "l.id": doc.lessonRef }] },
-    );
-    await curricula.collection.updateOne(
-      { _id: curriculum._id },
-      { $set: { "modules.$[].lessons.$[l].status": "in_progress" } },
-      { arrayFilters: [{ "l.id": doc.lessonRef, "l.status": "available" }] },
-    );
+    await mutateCurriculum(doc.userId, curriculum._id, (current) => {
+      const target = current.modules.flatMap((m) => m.lessons).find((l) => l.id === doc.lessonRef);
+      if (!target) throw new Error("Lesson no longer exists in curriculum");
+      target.contentGenerated = true;
+      if (target.status === "available") target.status = "in_progress";
+      return { changed: true, value: undefined };
+    });
 
     const events = await progressEventsCollection();
     await events.create({

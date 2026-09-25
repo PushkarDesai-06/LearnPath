@@ -159,6 +159,7 @@ export interface CurriculumLesson {
   masteryScore: number; // 0..1 EWMA
   /** First counted attempts, stored atomically with the mastery they produced. */
   practiceAttempts?: PracticeAttempt[];
+  completion?: { at: Date; timeSpentMs?: number };
 }
 
 export interface PracticeAttempt {

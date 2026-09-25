@@ -94,6 +94,13 @@ const curriculumLessonSchema = new Schema(
       }, subOpts)],
       default: undefined,
     },
+    completion: {
+      type: new Schema({
+        at: { type: Date, required: true },
+        timeSpentMs: { type: Number },
+      }, subOpts),
+      default: undefined,
+    },
   },
   subOpts,
 );
