@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { AssessmentState, PublicQuestion, ReviewItem } from "@/lib/data/types";
 
 type Question = Pick<PublicQuestion, "id" | "prompt" | "choices" | "level">;
@@ -23,7 +24,7 @@ interface ResultData {
   recommendAnotherRound: boolean;
   nextQuestions: Question[];
 }
-type Phase = "loading" | "quiz" | "result";
+type Phase = "loading" | "quiz" | "result" | "error";
 
 // Sentinel answer for "I don't know" — never matches a choice, so it grades as
 // incorrect (which is the honest signal: the learner doesn't know it).
@@ -71,6 +72,8 @@ export function AssessmentClient({
   const [showAnswers, setShowAnswers] = useState(false);
   const [busy, setBusy] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [startError, setStartError] = useState("");
+  const [startAttempt, setStartAttempt] = useState(0);
 
   const needsQuiz = initial.kind === "fresh";
   useEffect(() => {
@@ -105,13 +108,15 @@ export function AssessmentClient({
         if (!active) return;
         if (err instanceof ApiClientError && err.status === 401)
           router.push("/login");
-        else
-          toast.error(err instanceof Error ? err.message : "Failed to start");
+        else {
+          setStartError(err instanceof Error ? err.message : "Could not prepare your quiz.");
+          setPhase("error");
+        }
       });
     return () => {
       active = false;
     };
-  }, [needsQuiz, router]);
+  }, [needsQuiz, router, startAttempt]);
 
   const allAnswered =
     questions.length > 0 && questions.every((q) => answers[q.id] !== undefined);
@@ -176,6 +181,23 @@ export function AssessmentClient({
 
   if (phase === "loading")
     return <PageLoader label="Preparing your quiz…" />;
+
+  if (phase === "error") {
+    return (
+      <div className="flex flex-col items-start gap-4">
+        <Alert variant="destructive">
+          <AlertDescription>{startError}</AlertDescription>
+        </Alert>
+        <Button onClick={() => {
+          setStartError("");
+          setPhase("loading");
+          setStartAttempt((attempt) => attempt + 1);
+        }}>
+          Retry preparing quiz
+        </Button>
+      </div>
+    );
+  }
 
   if (phase === "result" && result) {
     const correct = result.review.filter((r) => r.correct).length;
