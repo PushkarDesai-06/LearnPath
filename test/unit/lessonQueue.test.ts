@@ -3,10 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LessonDoc } from "@/lib/db/models";
 import { curriculumFixture } from "../helpers/curriculum";
 
-const mocks = vi.hoisted(() => ({ locate: vi.fn(), findOne: vi.fn(), updateOne: vi.fn(), create: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  locate: vi.fn(), findOne: vi.fn(), updateOne: vi.fn(), create: vi.fn(), variantRows: vi.fn(),
+}));
 vi.mock("@/lib/server/curriculumLocate", () => ({ locateLesson: mocks.locate, publicLessonBlock: (b: unknown) => b }));
 vi.mock("@/lib/db/collections", () => ({
   lessonsCollection: async () => ({ findOne: mocks.findOne, updateOne: mocks.updateOne, create: mocks.create }),
+  blockVariantsCollection: async () => ({
+    find: () => ({ sort: () => ({ lean: mocks.variantRows }) }),
+  }),
 }));
 import { ensureLessonQueued, readLessonView } from "@/lib/data/lesson";
 
@@ -64,5 +69,38 @@ describe("failed lesson generation", () => {
     delete doc.generationAttempts;
     await ensureLessonQueued(doc.userId, doc.lessonRef, true);
     expect(doc.generationAttempts).toBe(1);
+  });
+});
+
+describe("block variants on a ready lesson", () => {
+  beforeEach(() => {
+    doc.genStatus = "ready";
+    doc.blocks = [
+      { kind: "text", markdown: "Legacy prose" },
+      { kind: "code", blockId: "b-code", code: "x = 1" },
+      { kind: "practice", questionId: "q1", type: "mcq", prompt: "?", choices: ["a", "b"], correctKey: "0" },
+    ];
+    mocks.variantRows.mockResolvedValue([
+      { blockKey: "i0", style: "simpler", markdown: "Easier prose" },
+      { blockKey: "b-code", style: "walkthrough", markdown: "Line by line" },
+    ]);
+  });
+
+  it("gives eligible blocks a key and their written rewrites on the page read", async () => {
+    const view = await readLessonView(doc.userId.toHexString(), doc.lessonRef);
+    if (view?.status !== "ready") throw new Error("expected a ready lesson");
+    const [text, code, practice] = view.lesson.blocks;
+    expect(text).toMatchObject({ blockKey: "i0", variants: [{ style: "simpler", markdown: "Easier prose" }] });
+    expect(code).toMatchObject({ blockKey: "b-code", variants: [{ style: "walkthrough", markdown: "Line by line" }] });
+    expect(practice.blockKey).toBeUndefined();
+    expect(practice.variants).toBeUndefined();
+  });
+
+  it("leaves rewrites off the poller's response", async () => {
+    const view = await ensureLessonQueued(doc.userId, doc.lessonRef);
+    if (view?.status !== "ready") throw new Error("expected a ready lesson");
+    expect(view.lesson.blocks[0]).toMatchObject({ blockKey: "i0" });
+    expect(view.lesson.blocks[0].variants).toBeUndefined();
+    expect(mocks.variantRows).not.toHaveBeenCalled();
   });
 });

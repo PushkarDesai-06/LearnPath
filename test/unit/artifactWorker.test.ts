@@ -97,16 +97,19 @@ describe("claimNextArtifact", () => {
 });
 
 describe("helpers", () => {
-  it("assignBlockIds keeps a single interactive block and ids every practice", () => {
+  it("assignBlockIds keeps a single interactive block and ids every block", () => {
     const out = assignBlockIds([
       { kind: "interactive", spec: "a" },
       { kind: "practice", prompt: "?" },
       { kind: "interactive", spec: "b" },
+      { kind: "text", markdown: "prose" },
     ]);
-    expect(out).toHaveLength(2);
+    expect(out).toHaveLength(3);
     expect(out[0]).toMatchObject({ kind: "interactive", spec: "a", artifactStatus: "pending" });
     expect(out[0].blockId).toBeTruthy();
     expect(out[1].questionId).toBeTruthy();
+    expect(out[2].blockId).toBeTruthy(); // what block variants are keyed by
+    expect(new Set([out[0].blockId, out[2].blockId]).size).toBe(2);
   });
 
   it("precedingText finds the nearest earlier prose block", () => {

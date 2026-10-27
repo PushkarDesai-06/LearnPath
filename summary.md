@@ -144,7 +144,27 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    origin even when opened directly — model JS can't read cookies, call the API,
    or navigate the app. The validator is a quality gate; the CSP is the boundary.
    Learner strengths, gaps and per-topic mastery (`lib/jobs/learnerContext.ts`)
-   now reach both the lesson and artifact prompts.
+   now reach the lesson, artifact and variant prompts.
+
+   **Explain it differently (block variants)**: text, analogy, example and code
+   blocks get a `BlockVariants` island with an "Explain differently" menu. Styles
+   per kind and all limits live in `lib/domain/variants.ts` (prose: simpler /
+   analogy / example; code: walkthrough / simpler; 30 new rewrites per user per
+   rolling 24h; 3 attempts per block+style; a claim is stale after 3 min).
+   `POST /api/lesson/[id]/blocks/[blockKey]/variants {style}` runs
+   `lib/server/blockVariant.ts` INSIDE the request (one short reply, and only a
+   click starts it, so prefetch can't): same ownership and module-access checks as
+   the lesson, then a `generating` insert into `blockVariants` whose unique
+   (userId, curriculumId, lessonRef, blockKey, style) index is the dedup point.
+   Losers of that race get `{status:"generating"}` and the client re-POSTs. Saves
+   are fenced by `claimToken`; failed or abandoned records are taken over by the
+   next request. `variantAgent` has no `outputType` (plain markdown, like the
+   artifact agent) and is told not to answer the practice questions that follow
+   the block. **Block addressing:** new lessons give every non-practice block a
+   `blockId` (`assignBlockIds`); older lessons are addressed as `i<index>`, which is
+   safe because a ready lesson's block order never changes. Only the page read
+   (`readLessonView`) attaches `variants` to the DTO; the poller's GET doesn't.
+   Rewrites never touch mastery; success logs one `block_variant_requested` event.
 
    **Reset / Try again** — each question can be cleared and retaken. Replays are
    still graded (MCQ locally, short answer by the agent) but must NOT move
@@ -446,9 +466,10 @@ connect (`autoIndex` on in dev).
    tutor agent (needs a DB-seeded topic). Route/e2e tests against a seeded Mongo are
    the next target.
 3. **Tutor chat** is request/response (no streaming). Consider streaming for UX.
-4. **Lesson regeneration**: lessons are generated once and cached; there's no
-   "regenerate a simpler version for review" path yet (mentioned in the original
-   plan as a future nicety).
+4. **Lesson regeneration**: lessons are generated once and cached. Learners can
+   have single blocks rewritten (block variants, see §5), but there is still no
+   whole-lesson rewrite, no "another question like this" for practice blocks, and
+   only one rewrite per block and style (no "try another").
 5. **Clarity-prompt latency under strict `outputType`** (see §7): a prompt that
    elicits prose reasoning can make constrained decoding very slow on this provider.
    Keep agent prompts field-oriented and watch per-agent latency when editing prompts.

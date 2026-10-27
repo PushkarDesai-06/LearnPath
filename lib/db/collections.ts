@@ -16,6 +16,7 @@ import mongoose, { Schema, type Model } from "mongoose";
 import { connectMongoose } from "@/lib/db/client";
 import type {
   AssessmentDoc,
+  BlockVariantDoc,
   ChatDoc,
   CurriculumDoc,
   LessonDoc,
@@ -272,6 +273,38 @@ const chatSchema = new Schema<ChatDoc>({
 // from any existing DB (Mongoose won't drop it). See scripts/drop-chat-unique.js.
 chatSchema.index({ userId: 1, curriculumId: 1, updatedAt: -1 });
 
+const blockVariantSchema = new Schema<BlockVariantDoc>({
+  userId: { type: Schema.Types.ObjectId, required: true },
+  curriculumId: { type: Schema.Types.ObjectId, required: true },
+  lessonRef: { type: String, required: true },
+  blockKey: { type: String, required: true },
+  style: {
+    type: String,
+    enum: ["simpler", "analogy", "example", "walkthrough"],
+    required: true,
+  },
+  status: {
+    type: String,
+    enum: ["generating", "ready", "failed"],
+    required: true,
+  },
+  markdown: { type: String },
+  error: { type: String },
+  claimToken: { type: String, default: null },
+  claimedAt: { type: Date, default: null },
+  attempts: { type: Number, default: 0 },
+  model: { type: String },
+  createdAt: { type: Date, required: true },
+  updatedAt: { type: Date, required: true },
+});
+// One record per (block, style): the insert that wins this index runs the agent.
+blockVariantSchema.index(
+  { userId: 1, curriculumId: 1, lessonRef: 1, blockKey: 1, style: 1 },
+  { unique: true },
+);
+// Daily quota: variants a learner started in the last 24 hours.
+blockVariantSchema.index({ userId: 1, createdAt: -1 });
+
 // --- model registration (HMR-safe) ----------------------------------------
 // `mongoose.models.X || mongoose.model(...)` avoids OverwriteModelError when
 // Next dev re-imports this module on hot reload. The collection name is pinned
@@ -314,6 +347,11 @@ const ProgressEvent = model<ProgressEventDoc>(
   "progressEvents",
 );
 const Chat = model<ChatDoc>("Chat", chatSchema, "chats");
+const BlockVariant = model<BlockVariantDoc>(
+  "BlockVariant",
+  blockVariantSchema,
+  "blockVariants",
+);
 
 // --- accessors (ensure connection, return the model) -----------------------
 
@@ -330,3 +368,4 @@ export const curriculaCollection = () => ready(Curriculum);
 export const lessonsCollection = () => ready(Lesson);
 export const progressEventsCollection = () => ready(ProgressEvent);
 export const chatsCollection = () => ready(Chat);
+export const blockVariantsCollection = () => ready(BlockVariant);

@@ -100,7 +100,8 @@ lib/server/    Composition: AI output → domain rules → DB shape.
                  assessmentFlow · curriculumBuild · curriculumLocate · curriculumView
 lib/data/      server-only reads that pages render from. Returns JSON-plain DTOs.
 lib/ai/        Agents SDK: provider, runAgent (strict outputType + one corrective retry),
-                 zod schemas, six agents (clarity, quizGen, grading, curriculum, lesson, tutor)
+                 zod schemas, eight agents (clarity, quizGen, grading, curriculum, lesson,
+                 artifact, variant, tutor)
 lib/db/        Mongoose connection (cached on globalThis, HMR-safe), schemas, TS interfaces
 lib/auth/      bcrypt + jose JWT + server-revocable sessions; requireUser() is the real check
 lib/jobs/      Background lesson worker (atomic claim, concurrency cap, stale reaper)
@@ -185,6 +186,17 @@ lesson is readable immediately; the block shows a placeholder until its demo is 
 disappears if building it fails. Demos run in a CSP-sandboxed, opaque-origin iframe with no
 network or storage access.
 
+**Explain it differently.** Text, analogy, example and code blocks carry an "Explain
+differently" menu (simpler, another analogy, worked example; code gets a line-by-line
+walkthrough). A rewrite covers one block, so practice ids and mastery credit are never
+disturbed, and it runs inside the learner's POST rather than as a job: the reply is one
+short markdown block, and only a click can start it. Rewrites live in their own
+`blockVariants` collection, where a unique (user, topic, lesson, block, style) index
+makes the first insert the only writer, a claim token fences late saves, and a failed or
+abandoned record is taken over until three attempts are used. Learners get 30 new
+rewrites per rolling 24 hours. A rewrite never moves mastery; it only logs a
+`block_variant_requested` event.
+
 ### Practice grading, split by question type
 
 - **Multiple choice** ships its `correctKey` and `explanation` with the lesson, so the
@@ -228,6 +240,7 @@ injection.
 | `lessons` | generated content blocks (flat tagged shape; `kind` selects fields) |
 | `progressEvents` | append-only log — powers dashboard time and history |
 | `chats` | one tutor thread each; many per topic |
+| `blockVariants` | "explain differently" rewrites, one per (lesson block, style) |
 
 A learner can study **several topics at once** — one topic is one curriculum, and nothing is
 one-at-a-time. Topic-scoped reads accept an optional `curriculumId` and default to the most
@@ -302,6 +315,7 @@ for scripts (the app itself signs in through Server Actions).
 | `POST` | `/api/lesson/[id]` | Explicit retry of a failed lesson, with cooldown and a three-attempt limit |
 | `POST` | `/api/lesson/[id]/practice` | Grade inline practice → mastery |
 | `GET` | `/api/lesson/[id]/artifact/[blockId]` | An interactive block's demo as a standalone HTML document, served with a `sandbox allow-scripts` CSP for the lesson page's iframe |
+| `POST` | `/api/lesson/[id]/blocks/[blockKey]/variants` | Rewrite one block in a `style`; returns the rewrite, or `generating` while another request writes it. 429 past the daily limit |
 | `POST` | `/api/progress/complete` | Finalize a lesson and run adaptation |
 | `POST` | `/api/tutor` | Socratic tutor — new thread, or continue with `conversationId` |
 | `GET` | `/api/health` | Ops check (public) |

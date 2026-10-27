@@ -5,6 +5,7 @@
  * Component: ids are hex strings, dates are ISO strings, no ObjectIds. Client
  * islands `import type` from this file; it has no runtime code.
  */
+import type { VariantStyle } from "@/lib/db/models";
 
 export interface CurriculumSummary {
   modulesTotal: number;
@@ -101,7 +102,23 @@ export interface LessonBlockDTO {
   /** Interactive only — the HTML itself is served by the artifact route. */
   blockId?: string;
   artifactStatus?: "pending" | "ready" | "failed";
+  /**
+   * Blocks that can be explained differently (see lib/domain/variants): the
+   * address the variants route takes, and the rewrites already written. Only
+   * the page read attaches `variants`; the poller's GET leaves it off.
+   */
+  blockKey?: string;
+  variants?: BlockVariantDTO[];
 }
+
+export interface BlockVariantDTO {
+  style: VariantStyle;
+  markdown: string;
+}
+
+export type BlockVariantResult =
+  | { status: "ready"; style: VariantStyle; markdown: string }
+  | { status: "generating"; style: VariantStyle };
 
 export interface LessonDTO {
   id: string;

@@ -8,7 +8,7 @@
  */
 import "server-only";
 import { ObjectId } from "mongodb";
-import { lessonsCollection } from "@/lib/db/collections";
+import { blockVariantsCollection, lessonsCollection } from "@/lib/db/collections";
 import type { LessonDoc } from "@/lib/db/models";
 import {
   locateLesson,
@@ -16,31 +16,73 @@ import {
   type LocatedLesson,
 } from "@/lib/server/curriculumLocate";
 import { isLessonReady } from "@/lib/server/lessonReady";
-import type { LessonBlockDTO, LessonView } from "@/lib/data/types";
+import type { BlockVariantDTO, LessonBlockDTO, LessonView } from "@/lib/data/types";
 import { lessonRetryState } from "@/lib/jobs/lessonPolicy";
 import { conflict } from "@/lib/http";
 import { requireLessonAccess } from "@/lib/server/lessonAccess";
+import { blockKey, stylesFor } from "@/lib/domain/variants";
 
 function failedView(doc: LessonDoc): LessonView {
   return { status: "failed", curriculumId: doc.curriculumId.toHexString(),
     message: "We couldn't prepare this lesson.", ...lessonRetryState(doc) };
 }
 
-function readyView(doc: LessonDoc, lessonRef: string, located: LocatedLesson): LessonView {
+/**
+ * `variants` maps a block key to its written rewrites. The page read passes
+ * them; the poller's GET doesn't (it only needs readiness and demo status), so
+ * those blocks go out with a `blockKey` but no `variants`.
+ */
+function readyView(
+  doc: LessonDoc,
+  lessonRef: string,
+  located: LocatedLesson,
+  variants?: Map<string, BlockVariantDTO[]>,
+): LessonView {
   return {
     status: "ready",
     lesson: {
       id: lessonRef,
       curriculumId: located.curriculum._id.toHexString(),
       title: doc.title,
-      blocks: doc.blocks.map((block) => ({
-        ...publicLessonBlock(block),
-        ...(block.kind === "practice" ? {
-          attempted: !!located.lesson.practiceAttempts?.some((a) => a.questionId === block.questionId),
-        } : {}),
-      })) as LessonBlockDTO[],
+      blocks: doc.blocks.map((block, index) => {
+        const key = blockKey(block, index);
+        return {
+          ...publicLessonBlock(block),
+          ...(block.kind === "practice" ? {
+            attempted: !!located.lesson.practiceAttempts?.some((a) => a.questionId === block.questionId),
+          } : {}),
+          ...(stylesFor(block.kind).length ? {
+            blockKey: key,
+            ...(variants ? { variants: variants.get(key) ?? [] } : {}),
+          } : {}),
+        };
+      }) as LessonBlockDTO[],
     },
   };
+}
+
+/** Written rewrites for one lesson, grouped by block key. */
+async function readyVariants(
+  userId: ObjectId,
+  located: LocatedLesson,
+  lessonRef: string,
+): Promise<Map<string, BlockVariantDTO[]>> {
+  const variants = await blockVariantsCollection();
+  const rows = await variants
+    .find(
+      { ...filterFor(userId, located, lessonRef), status: "ready" },
+      { blockKey: 1, style: 1, markdown: 1 },
+    )
+    .sort({ createdAt: 1 })
+    .lean();
+  const byBlock = new Map<string, BlockVariantDTO[]>();
+  for (const row of rows) {
+    if (!row.markdown) continue;
+    const list = byBlock.get(row.blockKey) ?? [];
+    list.push({ style: row.style, markdown: row.markdown });
+    byBlock.set(row.blockKey, list);
+  }
+  return byBlock;
 }
 
 function filterFor(userId: ObjectId, located: LocatedLesson, lessonRef: string) {
@@ -63,7 +105,9 @@ export async function readLessonView(
   }
   const lessons = await lessonsCollection();
   const doc = await lessons.findOne(filterFor(uid, located, lessonRef)).lean();
-  if (isLessonReady(doc)) return readyView(doc!, lessonRef, located);
+  if (isLessonReady(doc)) {
+    return readyView(doc!, lessonRef, located, await readyVariants(uid, located, lessonRef));
+  }
   if (doc?.genStatus === "failed") return failedView(doc);
   return {
     status: "generating",

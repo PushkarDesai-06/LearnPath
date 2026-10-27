@@ -228,8 +228,10 @@ export interface LessonBlock {
   correctKey?: string;
   rubric?: string;
   explanation?: string;
-  // interactive fields (artifact HTML is written later by the artifact worker):
+  // Stable address for every non-practice block written since block variants
+  // shipped (older lessons are addressed by position, see lib/domain/variants).
   blockId?: string;
+  // interactive fields (artifact HTML is written later by the artifact worker):
   spec?: string; // the lesson agent's brief for the artifact
   artifactStatus?: ArtifactStatus;
   artifactHtml?: string; // body fragment; wrapped by buildArtifactDocument
@@ -275,7 +277,8 @@ export type ProgressEventType =
   | "practice_answered"
   | "quiz_answered"
   | "review_triggered"
-  | "curriculum_reordered";
+  | "curriculum_reordered"
+  | "block_variant_requested";
 
 export interface ProgressEventDoc {
   _id: ObjectId;
@@ -312,6 +315,37 @@ export interface ChatDoc {
   lessonRef?: string | null; // context tag: lesson the thread was started from
   title: string;
   messages: ChatMessage[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// blockVariants ("explain it differently" rewrites of one lesson block)
+// ---------------------------------------------------------------------------
+
+export type VariantStyle = "simpler" | "analogy" | "example" | "walkthrough";
+export type VariantGenStatus = "generating" | "ready" | "failed";
+
+/**
+ * One rewrite of one block in one style. Identity is (userId, curriculumId,
+ * lessonRef, blockKey, style), enforced by a unique index, which is also the
+ * dedup point for concurrent requests. Kept out of the lesson doc because that
+ * doc is re-read by every lesson and demo poll.
+ */
+export interface BlockVariantDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  curriculumId: ObjectId;
+  lessonRef: string;
+  blockKey: string;
+  style: VariantStyle;
+  status: VariantGenStatus;
+  markdown?: string;
+  error?: string;
+  claimToken?: string | null;
+  claimedAt?: Date | null;
+  attempts: number;
+  model?: string;
   createdAt: Date;
   updatedAt: Date;
 }
