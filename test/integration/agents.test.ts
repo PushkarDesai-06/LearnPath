@@ -22,6 +22,7 @@ import { runAnswerGradeAgent } from "@/lib/ai/agents/grading";
 import { runCurriculumAgent } from "@/lib/ai/agents/curriculum";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
 import { runArtifactAgent } from "@/lib/ai/agents/artifact";
+import { runVariantAgent } from "@/lib/ai/agents/variant";
 import { extractArtifactHtml } from "@/lib/ai/artifactHtml";
 import {
   claritySchema,
@@ -169,5 +170,29 @@ describe.skipIf(!hasKey)("AI agents (live provider)", () => {
       expect(extractArtifactHtml("```html\n" + html + "\n```")).toMatchObject({ ok: true });
     },
     LESSON_TIMEOUT,
+  );
+
+  it(
+    "block variant rewrites one block as non-empty markdown",
+    async () => {
+      const markdown = await runVariantAgent({
+        lessonTitle: "Recursion basics",
+        objectives: ["Explain what a base case is"],
+        learnerLevel: "beginner",
+        topicMastery: [],
+        style: "simpler",
+        block: {
+          kind: "text",
+          markdown:
+            "A recursive function solves a problem by invoking itself on a strictly smaller " +
+            "instance until it reaches a base case, whose result is returned directly and then " +
+            "composed back up the call stack.",
+        },
+        upcomingPractice: ["What happens if a recursive function has no base case?"],
+      });
+      expect(markdown.trim().length).toBeGreaterThan(0);
+      expect(markdown).not.toMatch(/^```/);
+    },
+    TIMEOUT,
   );
 });

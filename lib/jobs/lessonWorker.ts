@@ -44,9 +44,10 @@ function stripNullFields(block: Record<string, unknown>): LessonBlock {
 }
 
 /**
- * Give practice blocks a `questionId` and the (at most one) interactive block a
- * `blockId` + pending artifact state. The prompt asks for one interactive block
- * at most; extras are dropped rather than failing an otherwise good lesson.
+ * Give practice blocks a `questionId`, every other block a `blockId` (what block
+ * variants are keyed by), and the (at most one) interactive block a pending
+ * artifact state. The prompt asks for one interactive block at most; extras are
+ * dropped rather than failing an otherwise good lesson.
  */
 export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
   let seenInteractive = false;
@@ -57,7 +58,7 @@ export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
       seenInteractive = true;
       return [{ ...b, blockId: randomUUID(), artifactStatus: "pending" }];
     }
-    return [b];
+    return [{ ...b, blockId: randomUUID() }];
   });
 }
 

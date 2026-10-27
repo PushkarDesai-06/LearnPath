@@ -3,13 +3,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUserOrRedirect } from "@/lib/auth/current";
 import { readLessonView } from "@/lib/data/lesson";
-import type { LessonDTO } from "@/lib/data/types";
+import type { LessonBlockDTO, LessonDTO } from "@/lib/data/types";
 import { Button } from "@/components/ui/button";
 import { LoadingRing } from "@/components/ui/loading-ring";
 import { Markdown } from "@/components/Markdown";
 import { ActiveTopicMarker } from "@/components/ActiveTopic";
 import { PracticeBlock } from "./PracticeBlock";
 import { InteractiveBlock } from "./InteractiveBlock";
+import { BlockVariants } from "./BlockVariants";
 import { LessonFooter } from "./LessonFooter";
 import { LessonPoller } from "./LessonPoller";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -42,7 +43,41 @@ function LessonGenerating({ curriculumId }: { curriculumId: string }) {
   );
 }
 
-/** A written lesson: server-rendered prose, with practice, interactive-demo and completion islands. */
+function CodeBlock({ block }: { block: LessonBlockDTO }) {
+  return (
+    <div className="flex flex-col gap-1">
+      {block.caption && (
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
+          {block.caption}
+        </p>
+      )}
+      <pre className="bg-surface-1 border-border/60 overflow-x-auto rounded-xl border p-4 font-mono text-xs leading-relaxed">
+        <code>{block.code}</code>
+      </pre>
+    </div>
+  );
+}
+
+function ProseBlock({ block }: { block: LessonBlockDTO }) {
+  const label = BLOCK_LABELS[block.kind];
+  return (
+    <section className="flex flex-col gap-2">
+      {label && (
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          {label}
+        </p>
+      )}
+      <div className="prose prose-invert prose-sm max-w-none prose-p:my-2">
+        <Markdown>{block.markdown ?? ""}</Markdown>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A written lesson: server-rendered prose, with practice, interactive-demo,
+ * "explain differently" and completion islands.
+ */
 function LessonArticle({ lesson }: { lesson: LessonDTO }) {
   return (
     <article className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -76,31 +111,18 @@ function LessonArticle({ lesson }: { lesson: LessonDTO }) {
               lessonId={lesson.id}
             />
           );
-        if (b.kind === "code")
-          return (
-            <div key={i} className="flex flex-col gap-1">
-              {b.caption && (
-                <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
-                  {b.caption}
-                </p>
-              )}
-              <pre className="bg-surface-1 border-border/60 overflow-x-auto rounded-xl border p-4 font-mono text-xs leading-relaxed">
-                <code>{b.code}</code>
-              </pre>
-            </div>
-          );
-        const label = BLOCK_LABELS[b.kind];
+        const content = b.kind === "code" ? <CodeBlock block={b} /> : <ProseBlock block={b} />;
+        if (!b.blockKey) return <div key={i}>{content}</div>;
         return (
-          <section key={i} className="flex flex-col gap-2">
-            {label && (
-              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-                {label}
-              </p>
-            )}
-            <div className="prose prose-invert prose-sm max-w-none prose-p:my-2">
-              <Markdown>{b.markdown ?? ""}</Markdown>
-            </div>
-          </section>
+          <BlockVariants
+            key={b.blockKey}
+            lessonId={lesson.id}
+            blockKey={b.blockKey}
+            kind={b.kind}
+            initial={b.variants ?? []}
+          >
+            {content}
+          </BlockVariants>
         );
       })}
 

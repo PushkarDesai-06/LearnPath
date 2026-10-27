@@ -166,3 +166,21 @@ export const tutorSchema = z.object({
   gaveDirectAnswer: z.boolean(),
 });
 export type TutorOutput = z.infer<typeof tutorSchema>;
+
+// --- block variants ("explain it differently") ---
+/**
+ * The variant agent replies in plain markdown (no `outputType`, for the same
+ * latency reason as the artifact agent). Unwrap a stray whole-reply
+ * ```markdown fence and reject an empty reply so runAgent's corrective retry
+ * applies.
+ */
+export const blockVariantReplySchema = z.string().transform((reply, ctx) => {
+  let text = reply.trim();
+  const fenced = /^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i.exec(text);
+  if (fenced) text = fenced[1].trim();
+  if (!text) {
+    ctx.addIssue({ code: "custom", message: "The rewrite was empty. Reply with the markdown explanation." });
+    return z.NEVER;
+  }
+  return text;
+});
