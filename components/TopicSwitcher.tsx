@@ -37,7 +37,7 @@ export interface SwitcherTopic {
 
 // Pages that scope themselves to `?id=`; anywhere else a switch lands on the
 // topic's dashboard instead of appending an id the route would ignore.
-const TOPIC_SCOPED = ["/dashboard", "/tutor"];
+const TOPIC_SCOPED = ["/dashboard", "/tutor", "/flashcards"];
 
 const noopSubscribe = () => () => {};
 

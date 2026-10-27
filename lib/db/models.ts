@@ -278,7 +278,8 @@ export type ProgressEventType =
   | "quiz_answered"
   | "review_triggered"
   | "curriculum_reordered"
-  | "block_variant_requested";
+  | "block_variant_requested"
+  | "flashcards_created";
 
 export interface ProgressEventDoc {
   _id: ObjectId;
@@ -346,6 +347,59 @@ export interface BlockVariantDoc {
   claimedAt?: Date | null;
   attempts: number;
   model?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// flashcardDecks + flashcards (review cards written from a lesson)
+// ---------------------------------------------------------------------------
+
+/**
+ * The generation record for one lesson's cards. Identity is (userId,
+ * curriculumId, lessonRef), enforced by a unique index that is also the dedup
+ * point for concurrent requests, exactly like a block variant. The cards
+ * themselves live in `flashcards`, one document each, so a review session can
+ * query what's due across every lesson of a topic.
+ */
+export interface FlashcardDeckDoc {
+  _id: ObjectId;
+  userId: ObjectId;
+  curriculumId: ObjectId;
+  lessonRef: string;
+  status: VariantGenStatus;
+  error?: string;
+  claimToken?: string | null;
+  claimedAt?: Date | null;
+  attempts: number;
+  model?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type FlashcardGrade = "again" | "hard" | "good" | "easy";
+
+/** Spaced-repetition state, updated by lib/domain/flashcards `scheduleCard`. */
+export interface FlashcardSchedule {
+  /** Successful reviews in a row; "again" resets it. */
+  reps: number;
+  intervalDays: number;
+  ease: number;
+  lapses: number;
+}
+
+export interface FlashcardDoc extends FlashcardSchedule {
+  _id: ObjectId;
+  userId: ObjectId;
+  curriculumId: ObjectId;
+  lessonRef: string;
+  deckId: ObjectId;
+  front: string;
+  back: string;
+  due: Date;
+  /** Every grade ever given; also fences concurrent reviews of one card. */
+  reviewCount: number;
+  lastReviewedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

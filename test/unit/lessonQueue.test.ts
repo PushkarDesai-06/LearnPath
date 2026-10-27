@@ -12,6 +12,8 @@ vi.mock("@/lib/db/collections", () => ({
   blockVariantsCollection: async () => ({
     find: () => ({ sort: () => ({ lean: mocks.variantRows }) }),
   }),
+  flashcardDecksCollection: async () => ({ findOne: () => ({ lean: async () => ({ status: "ready" }) }) }),
+  flashcardsCollection: async () => ({ countDocuments: async () => 4 }),
 }));
 import { ensureLessonQueued, readLessonView } from "@/lib/data/lesson";
 
@@ -94,6 +96,7 @@ describe("block variants on a ready lesson", () => {
     expect(code).toMatchObject({ blockKey: "b-code", variants: [{ style: "walkthrough", markdown: "Line by line" }] });
     expect(practice.blockKey).toBeUndefined();
     expect(practice.variants).toBeUndefined();
+    expect(view.lesson.flashcards).toEqual({ made: true, cardCount: 4 });
   });
 
   it("leaves rewrites off the poller's response", async () => {
@@ -101,6 +104,7 @@ describe("block variants on a ready lesson", () => {
     if (view?.status !== "ready") throw new Error("expected a ready lesson");
     expect(view.lesson.blocks[0]).toMatchObject({ blockKey: "i0" });
     expect(view.lesson.blocks[0].variants).toBeUndefined();
+    expect(view.lesson.flashcards).toBeUndefined();
     expect(mocks.variantRows).not.toHaveBeenCalled();
   });
 });

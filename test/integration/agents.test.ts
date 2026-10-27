@@ -23,6 +23,7 @@ import { runCurriculumAgent } from "@/lib/ai/agents/curriculum";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
 import { runArtifactAgent } from "@/lib/ai/agents/artifact";
 import { runVariantAgent } from "@/lib/ai/agents/variant";
+import { runFlashcardAgent } from "@/lib/ai/agents/flashcards";
 import { extractArtifactHtml } from "@/lib/ai/artifactHtml";
 import {
   claritySchema,
@@ -30,6 +31,7 @@ import {
   gradeSchema,
   curriculumSchema,
   lessonContentSchema,
+  flashcardDeckSchema,
 } from "@/lib/ai/schemas";
 import { DIFFICULTY_LEVELS } from "@/lib/db/models";
 import type { AssessmentResult } from "@/lib/db/models";
@@ -192,6 +194,29 @@ describe.skipIf(!hasKey)("AI agents (live provider)", () => {
       });
       expect(markdown.trim().length).toBeGreaterThan(0);
       expect(markdown).not.toMatch(/^```/);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "flashcards turns a lesson into a schema-valid deck",
+    async () => {
+      const deck = await runFlashcardAgent({
+        lessonTitle: "Recursion basics",
+        objectives: ["Explain what a base case is", "Trace a recursive call"],
+        blocks: [
+          {
+            kind: "text",
+            markdown:
+              "A recursive function solves a problem by calling itself on a smaller input. " +
+              "The base case is the input it answers directly, without recursing; without one, " +
+              "the calls never stop and the program runs out of stack space.",
+          },
+          { kind: "code", language: "python", code: "def fact(n):\n    return 1 if n == 0 else n * fact(n - 1)" },
+        ],
+      });
+      expect(flashcardDeckSchema.safeParse(deck).success).toBe(true);
+      expect(deck.cards.length).toBeGreaterThanOrEqual(3);
     },
     TIMEOUT,
   );

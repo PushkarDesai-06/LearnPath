@@ -21,6 +21,7 @@ import { lessonRetryState } from "@/lib/jobs/lessonPolicy";
 import { conflict } from "@/lib/http";
 import { requireLessonAccess } from "@/lib/server/lessonAccess";
 import { blockKey, stylesFor } from "@/lib/domain/variants";
+import { lessonFlashcards } from "@/lib/data/flashcards";
 
 function failedView(doc: LessonDoc): LessonView {
   return { status: "failed", curriculumId: doc.curriculumId.toHexString(),
@@ -106,7 +107,13 @@ export async function readLessonView(
   const lessons = await lessonsCollection();
   const doc = await lessons.findOne(filterFor(uid, located, lessonRef)).lean();
   if (isLessonReady(doc)) {
-    return readyView(doc!, lessonRef, located, await readyVariants(uid, located, lessonRef));
+    const [variants, flashcards] = await Promise.all([
+      readyVariants(uid, located, lessonRef),
+      lessonFlashcards(uid, located.curriculum._id, lessonRef),
+    ]);
+    const view = readyView(doc!, lessonRef, located, variants);
+    if (view.status === "ready") view.lesson.flashcards = flashcards;
+    return view;
   }
   if (doc?.genStatus === "failed") return failedView(doc);
   return {
