@@ -100,7 +100,7 @@ export type CurriculumOutput = z.infer<typeof curriculumSchema>;
 
 // --- lesson content generation ---
 const lessonBlockBase = z.object({
-  kind: z.enum(["text", "code", "analogy", "example", "practice"]),
+  kind: z.enum(["text", "code", "analogy", "example", "practice", "interactive"]),
   markdown: z.string().nullish(),
   language: z.string().nullish(),
   code: z.string().nullish(),
@@ -111,6 +111,7 @@ const lessonBlockBase = z.object({
   correctKey: z.string().nullish(),
   rubric: z.string().nullish(),
   explanation: z.string().nullish(),
+  spec: z.string().nullish(),
 });
 
 const nonEmpty = (v?: string | null) =>
@@ -140,6 +141,8 @@ function blockHasContent(b: z.infer<typeof lessonBlockBase>): boolean {
       }
       if (b.type === "short") return nonEmpty(b.rubric);
       return false; // practice needs a valid type
+    case "interactive":
+      return nonEmpty(b.spec);
     default:
       return false;
   }
@@ -150,7 +153,7 @@ export const lessonBlockSchema = lessonBlockBase.refine(blockHasContent, {
     'Each block must include its content. "text"/"analogy"/"example" need a non-empty "markdown"; ' +
     '"code" needs "code"; "practice" needs "prompt" + "type" ("mcq"|"short"), where "mcq" also needs ' +
     '"choices" (>=2) and a "correctKey" that is a zero-based index into "choices" (e.g. "2"), and ' +
-    '"short" also needs "rubric". Never emit a block with only "kind".',
+    '"short" also needs "rubric"; "interactive" needs "spec". Never emit a block with only "kind".',
 });
 export const lessonContentSchema = z.object({
   blocks: z.array(lessonBlockSchema).min(3),

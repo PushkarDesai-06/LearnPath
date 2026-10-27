@@ -204,7 +204,11 @@ export type LessonBlockKind =
   | "code"
   | "analogy"
   | "example"
-  | "practice";
+  | "practice"
+  | "interactive";
+
+/** Second-pass generation state of an `interactive` block's artifact. */
+export type ArtifactStatus = "pending" | "ready" | "failed";
 
 /**
  * A flat block shape (rather than a discriminated union) so the AI structured
@@ -224,6 +228,12 @@ export interface LessonBlock {
   correctKey?: string;
   rubric?: string;
   explanation?: string;
+  // interactive fields (artifact HTML is written later by the artifact worker):
+  blockId?: string;
+  spec?: string; // the lesson agent's brief for the artifact
+  artifactStatus?: ArtifactStatus;
+  artifactHtml?: string; // body fragment; wrapped by buildArtifactDocument
+  artifactError?: string;
 }
 
 export type LessonGenStatus = "generating" | "ready" | "failed";
@@ -247,6 +257,12 @@ export interface LessonDoc {
   claimToken?: string | null;
   generationAttempts?: number;
   failedAt?: Date | null;
+  // Artifact job (lib/jobs/artifactWorker.ts): set to "pending" when the lesson
+  // is saved with interactive blocks, "done" once each has been attempted.
+  artifactsStatus?: "pending" | "done";
+  artifactClaimedAt?: Date | null;
+  artifactClaimToken?: string | null;
+  artifactAttempts?: number;
 }
 
 // ---------------------------------------------------------------------------

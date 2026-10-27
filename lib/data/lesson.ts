@@ -142,3 +142,23 @@ export async function ensureLessonQueued(
   if (isLessonReady(doc)) return readyView(doc!, lessonRef, located);
   return generating;
 }
+
+/**
+ * A ready interactive block's artifact HTML, for the sandboxed artifact route.
+ * Same ownership and module-access rules as the lesson itself; null when the
+ * lesson or block doesn't exist or the artifact isn't written.
+ */
+export async function readLessonArtifact(
+  userId: ObjectId,
+  lessonRef: string,
+  blockId: string,
+): Promise<{ html: string; title: string } | null> {
+  const located = await locateLesson(userId, lessonRef);
+  if (!located) return null;
+  requireLessonAccess(located.curriculum, lessonRef);
+  const lessons = await lessonsCollection();
+  const doc = await lessons.findOne(filterFor(userId, located, lessonRef)).lean();
+  const block = doc?.blocks.find((b) => b.kind === "interactive" && b.blockId === blockId);
+  if (!block || block.artifactStatus !== "ready" || !block.artifactHtml) return null;
+  return { html: block.artifactHtml, title: block.caption ?? doc!.title };
+}

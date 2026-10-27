@@ -9,6 +9,7 @@ import { LoadingRing } from "@/components/ui/loading-ring";
 import { Markdown } from "@/components/Markdown";
 import { ActiveTopicMarker } from "@/components/ActiveTopic";
 import { PracticeBlock } from "./PracticeBlock";
+import { InteractiveBlock } from "./InteractiveBlock";
 import { LessonFooter } from "./LessonFooter";
 import { LessonPoller } from "./LessonPoller";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -41,7 +42,7 @@ function LessonGenerating({ curriculumId }: { curriculumId: string }) {
   );
 }
 
-/** A written lesson: server-rendered prose, with practice + completion islands. */
+/** A written lesson: server-rendered prose, with practice, interactive-demo and completion islands. */
 function LessonArticle({ lesson }: { lesson: LessonDTO }) {
   return (
     <article className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -63,6 +64,14 @@ function LessonArticle({ lesson }: { lesson: LessonDTO }) {
           return (
             <PracticeBlock
               key={b.questionId ?? i}
+              block={b}
+              lessonId={lesson.id}
+            />
+          );
+        if (b.kind === "interactive")
+          return (
+            <InteractiveBlock
+              key={b.blockId ?? i}
               block={b}
               lessonId={lesson.id}
             />

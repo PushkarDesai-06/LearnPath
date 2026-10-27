@@ -14,11 +14,7 @@
  *    once its `claimedAt` goes stale, so work survives restarts.
  */
 import { randomUUID } from "node:crypto";
-import {
-  assessmentsCollection,
-  lessonsCollection,
-  progressEventsCollection,
-} from "@/lib/db/collections";
+import { lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
 import type { LessonBlock, LessonDoc } from "@/lib/db/models";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
 import { modelName } from "@/lib/ai/provider";
@@ -27,6 +23,7 @@ import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
 import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
+import { loadLearnerContext } from "@/lib/jobs/learnerContext";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -44,6 +41,24 @@ function stripNullFields(block: Record<string, unknown>): LessonBlock {
     if (v !== null) out[k] = v;
   }
   return out as unknown as LessonBlock;
+}
+
+/**
+ * Give practice blocks a `questionId` and the (at most one) interactive block a
+ * `blockId` + pending artifact state. The prompt asks for one interactive block
+ * at most; extras are dropped rather than failing an otherwise good lesson.
+ */
+export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
+  let seenInteractive = false;
+  return blocks.flatMap((b): LessonBlock[] => {
+    if (b.kind === "practice") return [{ ...b, questionId: randomUUID() }];
+    if (b.kind === "interactive") {
+      if (seenInteractive) return [];
+      seenInteractive = true;
+      return [{ ...b, blockId: randomUUID(), artifactStatus: "pending" }];
+    }
+    return [b];
+  });
 }
 
 let started = false;
@@ -95,12 +110,7 @@ export async function generate(doc: LessonDoc): Promise<void> {
     if (!located) throw new Error("Lesson no longer exists in any curriculum");
     const { curriculum, lesson } = located;
 
-    const assessments = await assessmentsCollection();
-    const assessment = await assessments
-      .findOne({ _id: curriculum.assessmentId })
-      .lean();
-    const learnerLevel =
-      assessment?.result?.estimatedLevel ?? lesson.difficultyLevel;
+    const learner = await loadLearnerContext(curriculum, lesson);
 
     console.log("[worker] generating lesson:", lesson.title);
     const content = await runLessonAgent({
@@ -108,15 +118,11 @@ export async function generate(doc: LessonDoc): Promise<void> {
       objectives: lesson.objectives,
       topics: lesson.topics,
       difficultyLevel: lesson.difficultyLevel,
-      learnerLevel,
+      ...learner,
     });
 
-    const blocks: LessonBlock[] = content.blocks.map((b) => {
-      const clean = stripNullFields(b);
-      return clean.kind === "practice"
-        ? { ...clean, questionId: randomUUID() }
-        : clean;
-    });
+    const blocks = assignBlockIds(content.blocks.map(stripNullFields));
+    const hasArtifacts = blocks.some((b) => b.kind === "interactive");
 
     const saved = await lessons.updateOne(
       { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
@@ -130,6 +136,11 @@ export async function generate(doc: LessonDoc): Promise<void> {
           claimedAt: null,
           claimToken: null,
           failedAt: null,
+          // Hand interactive blocks to the artifact worker; the lesson is
+          // readable now and the demos fill in when they're written.
+          ...(hasArtifacts
+            ? { artifactsStatus: "pending", artifactClaimedAt: null, artifactClaimToken: null, artifactAttempts: 0 }
+            : {}),
         },
       },
     );

@@ -179,6 +179,12 @@ strictly pure; only the poller's explicit GET enqueues. The result is that leavi
 doesn't cancel generation, reopening doesn't duplicate it, and a server restart re-claims
 jobs whose worker died mid-flight (claims older than five minutes are reaped).
 
+A lesson may also carry one optional **interactive block**: the lesson agent writes only a
+short spec, and a second worker (`artifactWorker`) builds the HTML demo afterwards. The
+lesson is readable immediately; the block shows a placeholder until its demo is ready and
+disappears if building it fails. Demos run in a CSP-sandboxed, opaque-origin iframe with no
+network or storage access.
+
 ### Practice grading, split by question type
 
 - **Multiple choice** ships its `correctKey` and `explanation` with the lesson, so the
@@ -295,6 +301,7 @@ for scripts (the app itself signs in through Server Actions).
 | `GET` | `/api/lesson/[id]` | Lesson content or generation/failure status; enqueues only unwritten lessons |
 | `POST` | `/api/lesson/[id]` | Explicit retry of a failed lesson, with cooldown and a three-attempt limit |
 | `POST` | `/api/lesson/[id]/practice` | Grade inline practice → mastery |
+| `GET` | `/api/lesson/[id]/artifact/[blockId]` | An interactive block's demo as a standalone HTML document, served with a `sandbox allow-scripts` CSP for the lesson page's iframe |
 | `POST` | `/api/progress/complete` | Finalize a lesson and run adaptation |
 | `POST` | `/api/tutor` | Socratic tutor — new thread, or continue with `conversationId` |
 | `GET` | `/api/health` | Ops check (public) |

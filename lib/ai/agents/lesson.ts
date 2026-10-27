@@ -1,7 +1,9 @@
 /**
  * lessonAgent, authors a single lesson's content as a sequence of blocks:
- * explanation, a concrete example, an analogy, code where relevant, and at
- * least two embedded practice questions with explanations.
+ * explanation, a concrete example, an analogy, code where relevant, at least
+ * two embedded practice questions with explanations, and — only when the
+ * concept benefits from it — one `interactive` block whose `spec` the artifact
+ * agent later turns into a sandboxed HTML demo (see lib/jobs/artifactWorker.ts).
  */
 import { Agent } from "@openai/agents";
 import { modelName } from "@/lib/ai/provider";
@@ -37,9 +39,14 @@ const lessonAgent = new Agent({
 	- Every practice block MUST include a comprehensive 'explanation' of the answer.
 	- **For 'mcq':** Provide 3-4 choices. Ensure distractors represent common misconceptions. The 'correctKey' must be a STRING containing the zero-based index of the correct choice (e.g. "2" for the third choice). It MUST be a valid index into 'choices' — a whole number from "0" up to one less than the number of choices — never the answer text or an out-of-range index. (The output schema cannot enforce this range, so an invalid key gets the lesson rejected.)
 	- **For 'short' (Free-text):** Provide a strict, objective 'rubric' defining exactly what a correct answer must contain so the grading agent can evaluate it fairly.
+	- **'interactive':** (OPTIONAL — at most ONE per lesson) A hands-on visual demo the learner can manipulate, built later from your 'spec'.
+	- Include it ONLY when the concept is visual, spatial, dynamic or parameter-driven (e.g. an algorithm stepping through data, a function whose shape changes with a parameter, a state machine, a data structure being modified, a physical relationship). Omit it for definitional, historical or purely conceptual lessons — most lessons need none.
+	- 'caption': a short title for the demo (e.g. "Binary search, step by step").
+	- 'spec': a concise brief, NOT code, with these parts: Concept (what it shows); Controls (what the learner changes — sliders, buttons, inputs); Behaviour (what updates in response); Takeaway (the insight they should notice). Where the learner has listed gaps on this lesson's topics, aim the demo at them.
+	- Place it directly after the 'text' block that introduces the concept it illustrates.
 
 	# Execution Constraints
-	- Generate exactly **6 to 12 total blocks**.
+	- Generate exactly **6 to 12 total blocks** (an 'interactive' block counts toward this).
 	- You MUST open the lesson with a 'text' block.
 	- You MUST include at least **one 'example' block** and **one 'analogy' block**.
 	- You MUST include at least **two 'practice' blocks**, spread strategically throughout the lesson.
@@ -59,6 +66,28 @@ export interface LessonGenInput {
   topics: string[];
   difficultyLevel: string;
   learnerLevel: string;
+  /** From the assessment result; optional so older curricula still work. */
+  strengths?: string[];
+  gaps?: string[];
+  /** Mastery (0..1) for this lesson's topics only. */
+  topicMastery?: { topic: string; score: number }[];
+}
+
+/** Assessment-derived profile lines, shared with the artifact agent's prompt. */
+export function learnerProfile(
+  input: Pick<LessonGenInput, "strengths" | "gaps" | "topicMastery">,
+): string {
+  const lines: string[] = [];
+  if (input.strengths?.length) lines.push(`Learner strengths: ${input.strengths.join("; ")}`);
+  if (input.gaps?.length) lines.push(`Learner gaps: ${input.gaps.join("; ")}`);
+  if (input.topicMastery?.length) {
+    lines.push(
+      `Learner mastery on these topics: ${input.topicMastery
+        .map((m) => `${m.topic} ${Math.round(m.score * 100)}%`)
+        .join(", ")}`,
+    );
+  }
+  return lines.length ? `${lines.join("\n")}\n` : "";
 }
 
 export function runLessonAgent(
@@ -69,7 +98,7 @@ Objectives: ${input.objectives.join("; ")}
 Topics covered: ${input.topics.join(", ")}
 Lesson difficulty: ${input.difficultyLevel}
 Learner's overall level: ${input.learnerLevel}
-
+${learnerProfile(input)}
 Write the lesson.`;
   return runAgent(lessonAgent, prompt, lessonContentSchema);
 }

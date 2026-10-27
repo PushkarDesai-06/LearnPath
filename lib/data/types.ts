@@ -81,7 +81,7 @@ export type DashboardData =
 // ── Lessons ─────────────────────────────────────────────────────────────────
 
 export interface LessonBlockDTO {
-  kind: "text" | "code" | "analogy" | "example" | "practice";
+  kind: "text" | "code" | "analogy" | "example" | "practice" | "interactive";
   markdown?: string;
   language?: string;
   code?: string;
@@ -98,6 +98,9 @@ export interface LessonBlockDTO {
    */
   correctKey?: string | null;
   explanation?: string | null;
+  /** Interactive only — the HTML itself is served by the artifact route. */
+  blockId?: string;
+  artifactStatus?: "pending" | "ready" | "failed";
 }
 
 export interface LessonDTO {

@@ -122,7 +122,7 @@ const lessonBlockSchema = new Schema(
   {
     kind: {
       type: String,
-      enum: ["text", "code", "analogy", "example", "practice"],
+      enum: ["text", "code", "analogy", "example", "practice", "interactive"],
       required: true,
     },
     markdown: { type: String },
@@ -136,6 +136,11 @@ const lessonBlockSchema = new Schema(
     correctKey: { type: String },
     rubric: { type: String },
     explanation: { type: String },
+    blockId: { type: String },
+    spec: { type: String },
+    artifactStatus: { type: String, enum: ["pending", "ready", "failed"] },
+    artifactHtml: { type: String },
+    artifactError: { type: String },
   },
   subOpts,
 );
@@ -228,10 +233,16 @@ const lessonSchema = new Schema<LessonDoc>({
   claimToken: { type: String, default: null },
   generationAttempts: { type: Number, default: 0 },
   failedAt: { type: Date, default: null },
+  artifactsStatus: { type: String },
+  artifactClaimedAt: { type: Date, default: null },
+  artifactClaimToken: { type: String, default: null },
+  artifactAttempts: { type: Number, default: 0 },
 });
 lessonSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
 // Worker scans for lessons awaiting generation.
 lessonSchema.index({ genStatus: 1, claimedAt: 1 });
+// Artifact worker scans for lessons whose interactive blocks await HTML.
+lessonSchema.index({ artifactsStatus: 1, artifactClaimedAt: 1 });
 
 const progressEventSchema = new Schema<ProgressEventDoc>({
   userId: { type: Schema.Types.ObjectId, required: true },

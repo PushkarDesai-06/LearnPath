@@ -183,3 +183,30 @@ describe("lessonContentSchema — whole-lesson wrapper", () => {
     if (parsed.success) expect(parsed.data.blocks).toHaveLength(6);
   });
 });
+
+describe("interactive blocks", () => {
+  const interactiveBlock = (o: Record<string, unknown> = {}) => ({
+    kind: "interactive",
+    caption: "Binary search, step by step",
+    spec: "Concept: halving the range. Controls: target slider, Step button. Takeaway: ~log2(n) steps.",
+    ...o,
+  });
+
+  it("accepts an interactive block with a spec", () => {
+    expect(lessonBlockSchema.safeParse(interactiveBlock()).success).toBe(true);
+  });
+
+  it("rejects an interactive block without a spec, or with only whitespace", () => {
+    expect(lessonBlockSchema.safeParse(interactiveBlock({ spec: null })).success).toBe(false);
+    expect(lessonBlockSchema.safeParse(interactiveBlock({ spec: "  " })).success).toBe(false);
+  });
+
+  it("keeps interactive blocks optional", () => {
+    expect(
+      lessonContentSchema.safeParse({ blocks: [textBlock(), analogyBlock(), exampleBlock()] }).success,
+    ).toBe(true);
+    expect(
+      lessonContentSchema.safeParse({ blocks: [textBlock(), interactiveBlock(), exampleBlock()] }).success,
+    ).toBe(true);
+  });
+});
