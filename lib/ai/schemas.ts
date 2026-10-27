@@ -184,3 +184,21 @@ export const blockVariantReplySchema = z.string().transform((reply, ctx) => {
   }
   return text;
 });
+
+// --- flashcards from a lesson ---
+/**
+ * Short strings in a flat list, so strict `outputType` stays fast here. Caps on
+ * length and count are applied after parsing (`cleanCards`), not in the schema,
+ * so a slightly long card is trimmed away rather than failing the whole deck.
+ */
+export const flashcardDeckSchema = z.object({
+  cards: z
+    .array(
+      z.object({
+        front: z.string().trim().min(1),
+        back: z.string().trim().min(1),
+      }),
+    )
+    .min(3),
+});
+export type FlashcardDeckOutput = z.infer<typeof flashcardDeckSchema>;

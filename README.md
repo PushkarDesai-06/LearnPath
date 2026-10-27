@@ -197,6 +197,16 @@ abandoned record is taken over until three attempts are used. Learners get 30 ne
 rewrites per rolling 24 hours. A rewrite never moves mastery; it only logs a
 `block_variant_requested` event.
 
+**Flashcards.** At the end of a lesson, "Make flashcards" turns its prose and code (never
+its practice questions) into 6 to 10 short cards. Generation follows the same pattern
+as rewrites: inside the POST, one `flashcardDecks` record per lesson as the dedup point,
+a fenced claim, three attempts, and 20 lessons per rolling 24 hours. Each card is its own
+`flashcards` document carrying its schedule, so `/flashcards?id=` can pull everything due
+across a topic. Reviews are graded Again / Hard / Good / Easy and rescheduled by a
+simplified SM-2 in `lib/domain/flashcards.ts` (pure, so the page previews each button's
+interval with the same function the route saves with). They are self-graded, so they
+never move mastery. A topic exports as a tab-separated file Anki imports directly.
+
 ### Practice grading, split by question type
 
 - **Multiple choice** ships its `correctKey` and `explanation` with the lesson, so the
@@ -241,6 +251,8 @@ injection.
 | `progressEvents` | append-only log — powers dashboard time and history |
 | `chats` | one tutor thread each; many per topic |
 | `blockVariants` | "explain differently" rewrites, one per (lesson block, style) |
+| `flashcardDecks` | one generation record per lesson's flashcards (dedup, claim, attempts) |
+| `flashcards` | one card each, with its review schedule (`due`, interval, ease, reps, lapses) |
 
 A learner can study **several topics at once** — one topic is one curriculum, and nothing is
 one-at-a-time. Topic-scoped reads accept an optional `curriculumId` and default to the most
@@ -316,6 +328,10 @@ for scripts (the app itself signs in through Server Actions).
 | `POST` | `/api/lesson/[id]/practice` | Grade inline practice → mastery |
 | `GET` | `/api/lesson/[id]/artifact/[blockId]` | An interactive block's demo as a standalone HTML document, served with a `sandbox allow-scripts` CSP for the lesson page's iframe |
 | `POST` | `/api/lesson/[id]/blocks/[blockKey]/variants` | Rewrite one block in a `style`; returns the rewrite, or `generating` while another request writes it. 429 past the daily limit |
+| `POST` | `/api/lesson/[id]/flashcards` | Make the lesson's flashcards; returns the card count, or `generating` while another request writes them. 429 past the daily limit |
+| `POST` | `/api/flashcards/[cardId]/review` | Grade a review (`again`/`hard`/`good`/`easy`) and reschedule the card |
+| `DELETE` | `/api/flashcards/[cardId]` | Remove a card |
+| `GET` | `/api/flashcards/export?id=` | A topic's cards as an Anki import file |
 | `POST` | `/api/progress/complete` | Finalize a lesson and run adaptation |
 | `POST` | `/api/tutor` | Socratic tutor — new thread, or continue with `conversationId` |
 | `GET` | `/api/health` | Ops check (public) |

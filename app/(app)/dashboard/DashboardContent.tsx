@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Lock, ArrowUpRight } from "lucide-react";
+import { Lock, ArrowUpRight, Layers } from "lucide-react";
 import { getDashboard } from "@/lib/data/progress";
 import { Button } from "@/components/ui/button";
 import {
@@ -132,6 +132,27 @@ export async function DashboardContent({
               </div>
               <ArrowUpRight className="text-primary size-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </div>
+          </Link>
+        )}
+
+        {/* Flashcards: shown once the learner has made some */}
+        {data.flashcards.total > 0 && (
+          <Link
+            href={`/flashcards?id=${data.curriculumId}`}
+            className="group hover:bg-surface-2/40 border-border/60 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <Layers className="text-muted-foreground size-4 shrink-0" />
+              <span className="text-sm font-medium">
+                {data.flashcards.due > 0
+                  ? `${data.flashcards.due} flashcard${data.flashcards.due === 1 ? "" : "s"} due`
+                  : "Flashcards"}
+              </span>
+              <span className="text-muted-foreground truncate text-xs">
+                {data.flashcards.due > 0 ? "Review now" : "All caught up"}
+              </span>
+            </span>
+            <ArrowUpRight className="text-muted-foreground group-hover:text-primary size-4 shrink-0 transition-colors" />
           </Link>
         )}
 

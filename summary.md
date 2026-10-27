@@ -166,6 +166,23 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
    (`readLessonView`) attaches `variants` to the DTO; the poller's GET doesn't.
    Rewrites never touch mastery; success logs one `block_variant_requested` event.
 
+   **Flashcards**: the lesson page ends with a `LessonFlashcards` island. `POST
+   /api/lesson/[id]/flashcards` runs `lib/server/flashcards.ts` inside the request,
+   guarded exactly like variants (unique `flashcardDecks` record per lesson, claim
+   token, 3 attempts, 3 min stale, 20 decks per user per rolling 24h with the same
+   insert-then-count reservation). `flashcardAgent` HAS a strict `outputType`
+   (`{cards:[{front,back}]}`: short strings, so it's fast) and reads only prose and
+   code blocks; `cleanCards` trims, dedups and caps at 12 after parsing. Cards are
+   inserted BEFORE the claim is finished; a run that lost its claim deletes its own
+   cards. Each card is a `flashcards` doc with its schedule, so the review page
+   (`/flashcards?id=`, `getFlashcardsPage`) queries due cards across the topic.
+   `scheduleCard` (`lib/domain/flashcards.ts`, pure) is a simplified SM-2; the
+   review route fences on `reviewCount` so two tabs can't double-apply a grade.
+   Reviews are self-graded and never move mastery. `ReviewSession` grades
+   optimistically, re-queues "again" in the sitting, and `router.refresh()`es once
+   the queue is empty and all saves have landed (it stays mounted, so its summary
+   survives). Export (`toAnkiText`) is an Anki 2.1.55+ text file with `#` headers.
+
    **Reset / Try again** — each question can be cleared and retaken. Replays are
    still graded (MCQ locally, short answer by the agent) but must NOT move
    mastery: the answer has been on screen since the first attempt. The client
@@ -291,6 +308,9 @@ contentGenerated, topics[]...}}`, `version`.
   review_triggered, curriculum_reordered). Powers dashboard time + history.
 - **chats** — one tutor conversation thread each (`title`, `messages[]`); many
   per topic, keyed by `_id`. `lessonRef` is a context tag, not identity.
+- **blockVariants** — "explain differently" rewrites, one per (block, style).
+- **flashcardDecks** — one generation record per lesson's cards (dedup + claim).
+- **flashcards** — one card each, with its review schedule; queried by `due`.
 
 Indexes are declared in the Mongoose schemas (`collections.ts`) and built on
 connect (`autoIndex` on in dev).

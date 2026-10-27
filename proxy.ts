@@ -47,5 +47,6 @@ export const config = {
     "/onboarding",
     "/assessment",
     "/learn/:path*",
+    "/flashcards",
   ],
 };

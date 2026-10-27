@@ -12,6 +12,7 @@ import { generatedLessonRefs } from "@/lib/server/lessonReady";
 import { summarizeCurriculum } from "@/lib/server/curriculumView";
 import { gateModuleStatuses } from "@/lib/domain/adapt";
 import type { DashboardData } from "@/lib/data/types";
+import { flashcardCounts } from "@/lib/data/flashcards";
 
 type Pick = { moduleId: string; moduleTitle: string; lesson: CurriculumLesson };
 
@@ -36,9 +37,9 @@ export async function getDashboard(
       .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),
   );
 
-  // The readiness aggregation and the time aggregation are independent.
+  // The readiness, time and flashcard reads are independent.
   const events = await progressEventsCollection();
-  const [generated, timeAgg] = await Promise.all([
+  const [generated, timeAgg, flashcards] = await Promise.all([
     generatedLessonRefs(uid, curriculum._id),
     events.aggregate<{ _id: null; total: number }>([
       {
@@ -50,6 +51,7 @@ export async function getDashboard(
       },
       { $group: { _id: null, total: { $sum: "$timeSpentMs" } } },
     ]),
+    flashcardCounts(uid, curriculum._id),
   ]);
   const totalTimeMs = timeAgg[0]?.total ?? 0;
 
@@ -119,5 +121,6 @@ export async function getDashboard(
           masteryScore: Number(recommendation.lesson.masteryScore.toFixed(3)),
         }
       : null,
+    flashcards,
   };
 }

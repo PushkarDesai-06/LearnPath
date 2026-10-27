@@ -19,6 +19,8 @@ import type {
   BlockVariantDoc,
   ChatDoc,
   CurriculumDoc,
+  FlashcardDeckDoc,
+  FlashcardDoc,
   LessonDoc,
   OnboardingDoc,
   ProgressEventDoc,
@@ -305,6 +307,50 @@ blockVariantSchema.index(
 // Daily quota: variants a learner started in the last 24 hours.
 blockVariantSchema.index({ userId: 1, createdAt: -1 });
 
+const flashcardDeckSchema = new Schema<FlashcardDeckDoc>({
+  userId: { type: Schema.Types.ObjectId, required: true },
+  curriculumId: { type: Schema.Types.ObjectId, required: true },
+  lessonRef: { type: String, required: true },
+  status: {
+    type: String,
+    enum: ["generating", "ready", "failed"],
+    required: true,
+  },
+  error: { type: String },
+  claimToken: { type: String, default: null },
+  claimedAt: { type: Date, default: null },
+  attempts: { type: Number, default: 0 },
+  model: { type: String },
+  createdAt: { type: Date, required: true },
+  updatedAt: { type: Date, required: true },
+});
+// One deck per lesson: the insert that wins this index runs the agent.
+flashcardDeckSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
+// Daily quota: decks a learner started in the last 24 hours.
+flashcardDeckSchema.index({ userId: 1, createdAt: -1 });
+
+const flashcardSchema = new Schema<FlashcardDoc>({
+  userId: { type: Schema.Types.ObjectId, required: true },
+  curriculumId: { type: Schema.Types.ObjectId, required: true },
+  lessonRef: { type: String, required: true },
+  deckId: { type: Schema.Types.ObjectId, required: true },
+  front: { type: String, required: true },
+  back: { type: String, required: true },
+  due: { type: Date, required: true },
+  reps: { type: Number, default: 0 },
+  intervalDays: { type: Number, default: 0 },
+  ease: { type: Number, default: 2.5 },
+  lapses: { type: Number, default: 0 },
+  reviewCount: { type: Number, default: 0 },
+  lastReviewedAt: { type: Date, default: null },
+  createdAt: { type: Date, required: true },
+  updatedAt: { type: Date, required: true },
+});
+// The review queue: a topic's cards, soonest due first.
+flashcardSchema.index({ userId: 1, curriculumId: 1, due: 1 });
+// A lesson's cards (lesson page count, deck list).
+flashcardSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 });
+
 // --- model registration (HMR-safe) ----------------------------------------
 // `mongoose.models.X || mongoose.model(...)` avoids OverwriteModelError when
 // Next dev re-imports this module on hot reload. The collection name is pinned
@@ -352,6 +398,12 @@ const BlockVariant = model<BlockVariantDoc>(
   blockVariantSchema,
   "blockVariants",
 );
+const FlashcardDeck = model<FlashcardDeckDoc>(
+  "FlashcardDeck",
+  flashcardDeckSchema,
+  "flashcardDecks",
+);
+const Flashcard = model<FlashcardDoc>("Flashcard", flashcardSchema, "flashcards");
 
 // --- accessors (ensure connection, return the model) -----------------------
 
@@ -369,3 +421,5 @@ export const lessonsCollection = () => ready(Lesson);
 export const progressEventsCollection = () => ready(ProgressEvent);
 export const chatsCollection = () => ready(Chat);
 export const blockVariantsCollection = () => ready(BlockVariant);
+export const flashcardDecksCollection = () => ready(FlashcardDeck);
+export const flashcardsCollection = () => ready(Flashcard);

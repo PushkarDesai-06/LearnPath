@@ -12,6 +12,7 @@ import { PracticeBlock } from "./PracticeBlock";
 import { InteractiveBlock } from "./InteractiveBlock";
 import { BlockVariants } from "./BlockVariants";
 import { LessonFooter } from "./LessonFooter";
+import { LessonFlashcards } from "./LessonFlashcards";
 import { LessonPoller } from "./LessonPoller";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -76,7 +77,7 @@ function ProseBlock({ block }: { block: LessonBlockDTO }) {
 
 /**
  * A written lesson: server-rendered prose, with practice, interactive-demo,
- * "explain differently" and completion islands.
+ * "explain differently", flashcard and completion islands.
  */
 function LessonArticle({ lesson }: { lesson: LessonDTO }) {
   return (
@@ -125,6 +126,12 @@ function LessonArticle({ lesson }: { lesson: LessonDTO }) {
           </BlockVariants>
         );
       })}
+
+      <LessonFlashcards
+        lessonId={lesson.id}
+        curriculumId={lesson.curriculumId}
+        initial={lesson.flashcards ?? { made: false, cardCount: 0 }}
+      />
 
       <LessonFooter curriculumId={lesson.curriculumId} lessonRef={lesson.id} />
     </article>

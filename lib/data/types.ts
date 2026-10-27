@@ -5,7 +5,7 @@
  * Component: ids are hex strings, dates are ISO strings, no ObjectIds. Client
  * islands `import type` from this file; it has no runtime code.
  */
-import type { VariantStyle } from "@/lib/db/models";
+import type { FlashcardSchedule, VariantStyle } from "@/lib/db/models";
 
 export interface CurriculumSummary {
   modulesTotal: number;
@@ -77,6 +77,7 @@ export type DashboardData =
       summary: CurriculumSummary & { totalTimeMs: number };
       modules: DashboardModule[];
       recommendedNext: RecommendedNext | null;
+      flashcards: { total: number; due: number };
     };
 
 // ── Lessons ─────────────────────────────────────────────────────────────────
@@ -125,6 +126,8 @@ export interface LessonDTO {
   curriculumId: string;
   title: string;
   blocks: LessonBlockDTO[];
+  /** This lesson's flashcards. Only the page read attaches it. */
+  flashcards?: { made: boolean; cardCount: number };
 }
 
 export type LessonView =
@@ -132,6 +135,47 @@ export type LessonView =
   | { status: "locked"; curriculumId: string }
   | { status: "failed"; curriculumId: string; message: string; canRetry: boolean; retryAfterMs: number }
   | { status: "generating"; curriculumId: string };
+
+// ── Flashcards ──────────────────────────────────────────────────────────────
+
+export type FlashcardDeckResult =
+  | { status: "ready"; cardCount: number }
+  | { status: "generating" };
+
+export interface FlashcardDTO {
+  id: string;
+  front: string;
+  back: string;
+  lessonRef: string;
+  lessonTitle: string;
+  schedule: FlashcardSchedule;
+}
+
+export interface FlashcardReviewResult {
+  schedule: FlashcardSchedule;
+  due: string;
+}
+
+export interface FlashcardLessonSummary {
+  lessonRef: string;
+  lessonTitle: string;
+  cardCount: number;
+  dueCount: number;
+}
+
+export type FlashcardsPageData =
+  | { hasCurriculum: false }
+  | {
+      hasCurriculum: true;
+      curriculumId: string;
+      title: string;
+      /** The session: due cards, soonest first, at most REVIEW_SESSION_LIMIT. */
+      due: FlashcardDTO[];
+      dueCount: number;
+      totalCount: number;
+      nextDueAt: string | null;
+      lessons: FlashcardLessonSummary[];
+    };
 
 // ── Tutor ───────────────────────────────────────────────────────────────────
 
