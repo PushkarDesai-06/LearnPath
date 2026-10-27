@@ -94,6 +94,30 @@ describe.skipIf(!uri)("block variants against MongoDB", () => {
     expect(saved).toMatchObject({ status: "ready", markdown: "A new analogy.", attempts: 2, claimToken: null });
   });
 
+  it("lets exactly one of several parallel requests take the last rewrite of the day", async () => {
+    const { userId, curriculumId, lessonRef } = await seedLesson();
+    const variants = await blockVariantsCollection();
+    const now = new Date();
+    await variants.insertMany(Array.from({ length: VARIANT_DAILY_LIMIT - 1 }, (_, i) => ({
+      _id: new ObjectId(), userId, curriculumId, lessonRef, blockKey: `used-${i}`, style: "simpler",
+      status: "ready", markdown: "m", attempts: 1, createdAt: now, updatedAt: now,
+    })));
+    ai.variant.mockReset();
+    ai.variant.mockResolvedValue("Rewritten.");
+
+    const styles = ["simpler", "analogy", "example"] as const;
+    const results = await Promise.allSettled(
+      styles.map((style) => requestBlockVariant({ userId, lessonRef, blockKey: "b1", style })),
+    );
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.filter((r) => r.status === "rejected");
+    expect(refused).toHaveLength(2);
+    for (const r of refused) expect((r as PromiseRejectedResult).reason).toMatchObject({ status: 429 });
+    expect(ai.variant).toHaveBeenCalledTimes(1);
+    // Refused reservations are rolled back, so the learner sits exactly at the limit.
+    expect(await variants.countDocuments({ userId })).toBe(VARIANT_DAILY_LIMIT);
+  });
+
   it("refuses new rewrites past the daily limit but still serves stored ones", async () => {
     const { userId, curriculumId, lessonRef } = await seedLesson();
     const variants = await blockVariantsCollection();

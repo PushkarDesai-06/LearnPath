@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   user: vi.fn(), locate: vi.fn(), learner: vi.fn(), agent: vi.fn(),
   lessonFind: vi.fn(),
   variantFind: vi.fn(), variantCreate: vi.fn(), variantUpdate: vi.fn(), variantCount: vi.fn(),
+  variantDelete: vi.fn(),
   eventCreate: vi.fn(),
 }));
 vi.mock("@/lib/auth/guards", () => ({ requireUser: mocks.user }));
@@ -26,6 +27,7 @@ vi.mock("@/lib/db/collections", () => ({
   blockVariantsCollection: async () => ({
     findOne: mocks.variantFind, create: mocks.variantCreate,
     updateOne: mocks.variantUpdate, countDocuments: mocks.variantCount,
+    deleteOne: mocks.variantDelete,
   }),
   progressEventsCollection: async () => ({ create: mocks.eventCreate }),
 }));
@@ -144,10 +146,22 @@ describe("POST /api/lesson/[id]/blocks/[key]/variants", () => {
     expect(mocks.eventCreate).not.toHaveBeenCalled();
   });
 
-  it("enforces the daily limit before starting a new rewrite", async () => {
-    mocks.variantCount.mockResolvedValue(VARIANT_DAILY_LIMIT);
+  it("reserves first, then refuses and rolls back a rewrite past the daily limit", async () => {
+    mocks.variantCount.mockResolvedValue(VARIANT_DAILY_LIMIT + 1);
     expect((await post()).status).toBe(429);
-    expect(mocks.variantCreate).not.toHaveBeenCalled();
+    const created = mocks.variantCreate.mock.calls[0][0];
+    // Only reservations up to this one count, so later parallel ones can't block it.
+    expect(mocks.variantCount.mock.calls[0][0]).toMatchObject({
+      userId: curriculum.userId, _id: { $lte: created._id },
+    });
+    expect(mocks.variantDelete).toHaveBeenCalledWith({ _id: created._id, claimToken: created.claimToken });
+    expect(mocks.agent).not.toHaveBeenCalled();
+  });
+
+  it("allows the rewrite that reaches the limit exactly", async () => {
+    mocks.variantCount.mockResolvedValue(VARIANT_DAILY_LIMIT);
+    expect((await post()).status).toBe(200);
+    expect(mocks.variantDelete).not.toHaveBeenCalled();
   });
 
   it("addresses blocks of older lessons by position", async () => {

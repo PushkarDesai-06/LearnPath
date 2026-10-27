@@ -177,14 +177,17 @@ export async function DashboardContent({
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             {locked ? (
-                              <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm break-words">
+                              <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
                                 <Lock className="size-3.5 shrink-0" />
-                                {l.title}
+                                {/* Its own element, so a long unbroken word can wrap beside the icon. */}
+                                <span className="min-w-0 [overflow-wrap:anywhere]">
+                                  {l.title}
+                                </span>
                               </span>
                             ) : (
                               <Link
                                 href={lessonHref(l.id)}
-                                className="hover:text-primary min-w-0 text-sm font-medium break-words transition-colors"
+                                className="hover:text-primary min-w-0 text-sm font-medium [overflow-wrap:anywhere] transition-colors"
                               >
                                 {l.title}
                               </Link>

@@ -38,16 +38,26 @@ import {
 import { ApiError, badRequest, conflict, notFound } from "@/lib/http";
 
 /**
- * Checked only when a new (block, style) record is about to be created, so
- * returning a stored variant or retrying a failed one never counts twice. The
- * count and the insert aren't atomic: a burst of parallel requests can overshoot
- * the limit by a few, which is acceptable for a cost guard.
+ * Runs right after a new (block, style) record is inserted, so returning a
+ * stored variant or retrying a failed one never counts twice. The new record is
+ * the reservation: counting only records up to and including it (by `_id`) means
+ * parallel requests can't all pass a check made before any of them inserted.
+ * Exactly the first VARIANT_DAILY_LIMIT reservations in the window succeed; a
+ * later one removes itself and is refused before the model is called.
  */
-async function enforceDailyLimit(userId: ObjectId): Promise<void> {
+async function enforceDailyLimit(
+  userId: ObjectId,
+  reservation: { _id: ObjectId; claimToken: string },
+): Promise<void> {
   const variants = await blockVariantsCollection();
   const since = new Date(Date.now() - VARIANT_WINDOW_MS);
-  const used = await variants.countDocuments({ userId, createdAt: { $gte: since } });
-  if (used >= VARIANT_DAILY_LIMIT) {
+  const used = await variants.countDocuments({
+    userId,
+    createdAt: { $gte: since },
+    _id: { $lte: reservation._id },
+  });
+  if (used > VARIANT_DAILY_LIMIT) {
+    await variants.deleteOne(reservation);
     throw new ApiError(
       429,
       `You've used today's ${VARIANT_DAILY_LIMIT} rewrites. They reset over the next 24 hours.`,
@@ -108,7 +118,6 @@ export async function requestBlockVariant({
     if (!took.matchedCount) return generating; // a concurrent request took it first
     id = existing._id;
   } else {
-    await enforceDailyLimit(userId);
     id = new ObjectId();
     try {
       await variants.create({
@@ -125,6 +134,7 @@ export async function requestBlockVariant({
       if ((err as { code?: number })?.code !== 11000) throw err;
       return generating; // a concurrent request inserted first and is writing it
     }
+    await enforceDailyLimit(userId, { _id: id, claimToken });
   }
 
   const owned = { _id: id, claimToken };
