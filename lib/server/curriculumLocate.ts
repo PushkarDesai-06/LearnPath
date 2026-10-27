@@ -4,6 +4,7 @@
  */
 import { ObjectId } from "mongodb";
 import { curriculaCollection } from "@/lib/db/collections";
+import { findLessonAccess } from "@/lib/server/lessonAccess";
 import type {
   CurriculumDoc,
   CurriculumLesson,
@@ -50,11 +51,8 @@ export async function locateLesson(
     .lean();
   if (!curriculum) return null;
 
-  for (const mod of curriculum.modules) {
-    const lesson = mod.lessons.find((l) => l.id === lessonRef);
-    if (lesson) return { curriculum, module: mod, lesson };
-  }
-  return null;
+  const located = findLessonAccess(curriculum, lessonRef);
+  return located ? { curriculum, ...located } : null;
 }
 
 /**
@@ -72,6 +70,9 @@ export async function locateLesson(
  * SHORT-answer blocks reveal nothing: their `rubric` and `explanation` are the
  * answer in prose, and grading needs the model. `rubric` is never sent for any
  * block kind.
+ *
+ * INTERACTIVE blocks ship only their id, title and artifact status. The HTML is
+ * fetched by the page's sandboxed iframe from the artifact route.
  */
 export function publicLessonBlock(block: LessonBlock) {
   if (block.kind === "practice") {
@@ -87,6 +88,15 @@ export function publicLessonBlock(block: LessonBlock) {
       ...base,
       correctKey: block.correctKey ?? null,
       explanation: block.explanation ?? null,
+    };
+  }
+  if (block.kind === "interactive") {
+    // The HTML is served by its own sandboxed route; the spec stays server-side.
+    return {
+      kind: block.kind,
+      blockId: block.blockId,
+      caption: block.caption,
+      artifactStatus: block.artifactStatus ?? "failed",
     };
   }
   const { ...rest } = block;

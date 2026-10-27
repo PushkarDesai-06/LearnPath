@@ -131,6 +131,8 @@ export interface AssessmentDoc {
   result?: AssessmentResult;
   createdAt: Date;
   updatedAt: Date;
+  curriculumClaimToken?: string | null;
+  curriculumClaimedAt?: Date | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +159,16 @@ export interface CurriculumLesson {
   contentGenerated: boolean;
   status: LessonStatus;
   masteryScore: number; // 0..1 EWMA
+  /** First counted attempts, stored atomically with the mastery they produced. */
+  practiceAttempts?: PracticeAttempt[];
+  completion?: { at: Date; timeSpentMs?: number };
+}
+
+export interface PracticeAttempt {
+  questionId: string;
+  correct: boolean;
+  score: number;
+  at: Date;
 }
 
 export interface CurriculumModule {
@@ -177,6 +189,8 @@ export interface CurriculumDoc {
   title: string;
   modules: CurriculumModule[];
   version: number;
+  /** Write revision, separate from the user-visible adaptation version. */
+  revision?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -190,7 +204,11 @@ export type LessonBlockKind =
   | "code"
   | "analogy"
   | "example"
-  | "practice";
+  | "practice"
+  | "interactive";
+
+/** Second-pass generation state of an `interactive` block's artifact. */
+export type ArtifactStatus = "pending" | "ready" | "failed";
 
 /**
  * A flat block shape (rather than a discriminated union) so the AI structured
@@ -210,6 +228,12 @@ export interface LessonBlock {
   correctKey?: string;
   rubric?: string;
   explanation?: string;
+  // interactive fields (artifact HTML is written later by the artifact worker):
+  blockId?: string;
+  spec?: string; // the lesson agent's brief for the artifact
+  artifactStatus?: ArtifactStatus;
+  artifactHtml?: string; // body fragment; wrapped by buildArtifactDocument
+  artifactError?: string;
 }
 
 export type LessonGenStatus = "generating" | "ready" | "failed";
@@ -230,6 +254,15 @@ export interface LessonDoc {
   genStatus: LessonGenStatus;
   genError?: string;
   claimedAt?: Date | null; // worker claim timestamp (for the stale-claim reaper)
+  claimToken?: string | null;
+  generationAttempts?: number;
+  failedAt?: Date | null;
+  // Artifact job (lib/jobs/artifactWorker.ts): set to "pending" when the lesson
+  // is saved with interactive blocks, "done" once each has been attempted.
+  artifactsStatus?: "pending" | "done";
+  artifactClaimedAt?: Date | null;
+  artifactClaimToken?: string | null;
+  artifactAttempts?: number;
 }
 
 // ---------------------------------------------------------------------------

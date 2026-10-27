@@ -72,7 +72,11 @@ export const POST = handler(async (request) => {
     nextQuestions = r2.map(publicQuestion);
   }
 
-  await assessments.replaceOne({ _id: doc._id }, doc);
+  // Preserve the separate curriculum-generation claim if another tab is using it.
+  await assessments.updateOne({ _id: doc._id, userId: user._id }, {
+    $set: { questions: doc.questions, result: doc.result, state: doc.state,
+      rounds: doc.rounds, updatedAt: doc.updatedAt },
+  });
 
   return json({
     score: result.score,

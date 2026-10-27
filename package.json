@@ -10,6 +10,7 @@
     "lint": "eslint",
     "test": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
+    "test:database": "vitest run test/database",
     "test:all": "vitest run",
     "test:watch": "vitest"
   },

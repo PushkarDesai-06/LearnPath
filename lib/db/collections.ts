@@ -85,6 +85,22 @@ const curriculumLessonSchema = new Schema(
     contentGenerated: { type: Boolean, default: false },
     status: { type: String, required: true },
     masteryScore: { type: Number, default: 0 },
+    practiceAttempts: {
+      type: [new Schema({
+        questionId: { type: String, required: true },
+        correct: { type: Boolean, required: true },
+        score: { type: Number, required: true },
+        at: { type: Date, required: true },
+      }, subOpts)],
+      default: undefined,
+    },
+    completion: {
+      type: new Schema({
+        at: { type: Date, required: true },
+        timeSpentMs: { type: Number },
+      }, subOpts),
+      default: undefined,
+    },
   },
   subOpts,
 );
@@ -106,7 +122,7 @@ const lessonBlockSchema = new Schema(
   {
     kind: {
       type: String,
-      enum: ["text", "code", "analogy", "example", "practice"],
+      enum: ["text", "code", "analogy", "example", "practice", "interactive"],
       required: true,
     },
     markdown: { type: String },
@@ -120,6 +136,11 @@ const lessonBlockSchema = new Schema(
     correctKey: { type: String },
     rubric: { type: String },
     explanation: { type: String },
+    blockId: { type: String },
+    spec: { type: String },
+    artifactStatus: { type: String, enum: ["pending", "ready", "failed"] },
+    artifactHtml: { type: String },
+    artifactError: { type: String },
   },
   subOpts,
 );
@@ -179,6 +200,8 @@ const assessmentSchema = new Schema<AssessmentDoc>({
   rounds: { type: Number, default: 1 },
   questions: { type: [assessmentQuestionSchema], default: [] },
   result: { type: assessmentResultSchema, default: undefined },
+  curriculumClaimToken: { type: String, default: null },
+  curriculumClaimedAt: { type: Date, default: null },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
@@ -191,6 +214,7 @@ const curriculumSchema = new Schema<CurriculumDoc>({
   title: { type: String, required: true },
   modules: { type: [curriculumModuleSchema], default: [] },
   version: { type: Number, default: 1 },
+  revision: { type: Number, default: 0 },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
@@ -206,10 +230,19 @@ const lessonSchema = new Schema<LessonDoc>({
   genStatus: { type: String, default: "ready" },
   genError: { type: String },
   claimedAt: { type: Date, default: null },
+  claimToken: { type: String, default: null },
+  generationAttempts: { type: Number, default: 0 },
+  failedAt: { type: Date, default: null },
+  artifactsStatus: { type: String },
+  artifactClaimedAt: { type: Date, default: null },
+  artifactClaimToken: { type: String, default: null },
+  artifactAttempts: { type: Number, default: 0 },
 });
 lessonSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 }, { unique: true });
 // Worker scans for lessons awaiting generation.
 lessonSchema.index({ genStatus: 1, claimedAt: 1 });
+// Artifact worker scans for lessons whose interactive blocks await HTML.
+lessonSchema.index({ artifactsStatus: 1, artifactClaimedAt: 1 });
 
 const progressEventSchema = new Schema<ProgressEventDoc>({
   userId: { type: Schema.Types.ObjectId, required: true },

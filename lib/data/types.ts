@@ -81,12 +81,13 @@ export type DashboardData =
 // ── Lessons ─────────────────────────────────────────────────────────────────
 
 export interface LessonBlockDTO {
-  kind: "text" | "code" | "analogy" | "example" | "practice";
+  kind: "text" | "code" | "analogy" | "example" | "practice" | "interactive";
   markdown?: string;
   language?: string;
   code?: string;
   caption?: string;
   questionId?: string;
+  attempted?: boolean;
   prompt?: string;
   type?: "mcq" | "short";
   choices?: string[] | null;
@@ -97,6 +98,9 @@ export interface LessonBlockDTO {
    */
   correctKey?: string | null;
   explanation?: string | null;
+  /** Interactive only — the HTML itself is served by the artifact route. */
+  blockId?: string;
+  artifactStatus?: "pending" | "ready" | "failed";
 }
 
 export interface LessonDTO {
@@ -108,6 +112,8 @@ export interface LessonDTO {
 
 export type LessonView =
   | { status: "ready"; lesson: LessonDTO }
+  | { status: "locked"; curriculumId: string }
+  | { status: "failed"; curriculumId: string; message: string; canRetry: boolean; retryAfterMs: number }
   | { status: "generating"; curriculumId: string };
 
 // ── Tutor ───────────────────────────────────────────────────────────────────

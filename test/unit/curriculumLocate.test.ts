@@ -57,4 +57,21 @@ describe("publicLessonBlock", () => {
     const text: LessonBlock = { kind: "text", markdown: "Hello" };
     expect(publicLessonBlock(text)).toEqual(text);
   });
+
+  it("ships only id, title and status for an interactive block — never its HTML or spec", () => {
+    const out = publicLessonBlock({
+      kind: "interactive",
+      blockId: "b1",
+      caption: "Demo",
+      spec: "Concept: ...",
+      artifactStatus: "ready",
+      artifactHtml: "<script>1</script>",
+    });
+    expect(out).toEqual({ kind: "interactive", blockId: "b1", caption: "Demo", artifactStatus: "ready" });
+  });
+
+  it("treats a legacy interactive block without a status as failed", () => {
+    const out = publicLessonBlock({ kind: "interactive", blockId: "b2" }) as Record<string, unknown>;
+    expect(out.artifactStatus).toBe("failed");
+  });
 });

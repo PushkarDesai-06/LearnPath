@@ -42,7 +42,9 @@ enough; asks follow-ups, capped at 4 cycles).
 **Markdown:** LLM markdown (lesson text/analogy/example blocks, tutor replies,
 practice explanations) renders via `components/Markdown.tsx` (`react-markdown` +
 `remark-gfm` + the Tailwind typography `prose` plugin). Raw HTML is escaped (safe
-for model output). The structured `code` lesson block stays a `<pre>` (not markdown).
+for model output). The structured `code` lesson block stays a `<pre>` (not markdown). Model-written
+HTML exists ONLY in `interactive` artifacts, which never touch the app's DOM:
+they run in a CSP-sandboxed iframe (see §3, step 5).
 
 **Accent color (one knob):** `app/globals.css` defines `--brand` /
 `--brand-foreground` at the top of `:root` (and `.dark`); `--primary` is wired to
@@ -121,6 +123,28 @@ signup/login ─▶ /onboarding ─▶ /assessment ─▶ /curriculum (generate)
      side); it waits on `answerGradeAgent` behind a bouncing-dots indicator and a
      `animate-sweep` highlight across the card.
    `rubric` is never sent to the client for any block kind.
+
+   **Interactive blocks (optional artifacts)** — when a concept is visual or
+   parameter-driven, `lessonAgent` may emit ONE `interactive` block carrying a
+   short `spec` (concept / controls / behaviour / takeaway), never code. The
+   lesson is saved `ready` with `artifactsStatus:"pending"`, so it renders at
+   once; a second worker (`lib/jobs/artifactWorker.ts`, concurrency 1) runs
+   `artifactAgent` to write a self-contained HTML/JS fragment into the block
+   (`artifactStatus: pending → ready | failed`). A failure only hides that block,
+   never fails the lesson, and is not retried automatically. The agent has NO
+   `outputType` (a big code string under constrained decoding is slow): it replies
+   with a fenced ```html block that `extractArtifactHtml` validates (no network,
+   storage, external resources, dialogs, or redeclared theme tokens; ≤60 KB)
+   inside runAgent's corrective retry. The client gets only `blockId`, `caption`
+   and status; `InteractiveBlock` polls while pending, then loads
+   `GET /api/lesson/[id]/artifact/[blockId]` in `<iframe sandbox="allow-scripts">`.
+   **Security model:** that route serves `buildArtifactDocument` (theme tokens +
+   a height/error postMessage bridge) with a CSP whose `sandbox allow-scripts`
+   (no `allow-same-origin`) and `connect-src 'none'` make the document an opaque
+   origin even when opened directly — model JS can't read cookies, call the API,
+   or navigate the app. The validator is a quality gate; the CSP is the boundary.
+   Learner strengths, gaps and per-topic mastery (`lib/jobs/learnerContext.ts`)
+   now reach both the lesson and artifact prompts.
 
    **Reset / Try again** — each question can be cleared and retaken. Replays are
    still graded (MCQ locally, short answer by the agent) but must NOT move

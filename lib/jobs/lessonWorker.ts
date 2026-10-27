@@ -8,23 +8,22 @@
  * docs atomically, runs the lesson agent, and writes the result.
  *
  * Properties:
- *  - Dedup: only one `generating` doc per lesson, so only one generation runs.
- *  - Concurrency cap: at most CONCURRENCY generations at once.
+ *  - Dedup: one job per lesson; only the current worker claim may save results.
+ *  - Concurrency cap: at most CONCURRENCY generations per process.
  *  - Reaper: a doc claimed but never finished (server died mid-run) is re-claimed
  *    once its `claimedAt` goes stale, so work survives restarts.
  */
 import { randomUUID } from "node:crypto";
-import {
-  assessmentsCollection,
-  curriculaCollection,
-  lessonsCollection,
-  progressEventsCollection,
-} from "@/lib/db/collections";
+import { lessonsCollection, progressEventsCollection } from "@/lib/db/collections";
 import type { LessonBlock, LessonDoc } from "@/lib/db/models";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
 import { modelName } from "@/lib/ai/provider";
 import { locateLesson } from "@/lib/server/curriculumLocate";
+import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
+import { createJobPump } from "@/lib/jobs/pump";
+import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
+import { loadLearnerContext } from "@/lib/jobs/learnerContext";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -44,8 +43,31 @@ function stripNullFields(block: Record<string, unknown>): LessonBlock {
   return out as unknown as LessonBlock;
 }
 
+/**
+ * Give practice blocks a `questionId` and the (at most one) interactive block a
+ * `blockId` + pending artifact state. The prompt asks for one interactive block
+ * at most; extras are dropped rather than failing an otherwise good lesson.
+ */
+export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
+  let seenInteractive = false;
+  return blocks.flatMap((b): LessonBlock[] => {
+    if (b.kind === "practice") return [{ ...b, questionId: randomUUID() }];
+    if (b.kind === "interactive") {
+      if (seenInteractive) return [];
+      seenInteractive = true;
+      return [{ ...b, blockId: randomUUID(), artifactStatus: "pending" }];
+    }
+    return [b];
+  });
+}
+
 let started = false;
-let active = 0;
+const tick = createJobPump({
+  concurrency: CONCURRENCY,
+  claim: claimNext,
+  run: generate,
+  onError: (error) => console.error("[worker] job error:", error),
+});
 
 export function startLessonWorker(): void {
   if (started) return;
@@ -56,51 +78,39 @@ export function startLessonWorker(): void {
   }, POLL_MS);
 }
 
-async function tick(): Promise<void> {
-  try {
-    while (active < CONCURRENCY) {
-      const lesson = await claimNext();
-      if (!lesson) break;
-      active += 1;
-      void generate(lesson).finally(() => {
-        active -= 1;
-      });
-    }
-  } catch (err) {
-    console.error("[worker] tick error:", err);
-  }
-}
-
 /** Atomically claim the oldest unclaimed (or stale-claimed) generating lesson. */
-async function claimNext(): Promise<LessonDoc | null> {
+export async function claimNext(): Promise<LessonDoc | null> {
   const lessons = await lessonsCollection();
   const staleBefore = new Date(Date.now() - STALE_MS);
+  await lessons.updateMany(
+    { genStatus: "generating", generationAttempts: { $gte: MAX_LESSON_ATTEMPTS },
+      $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }] },
+    { $set: { genStatus: "failed", genError: "Generation timed out", failedAt: new Date(), claimedAt: null, claimToken: null } },
+  );
   const doc = await lessons
     .findOneAndUpdate(
       {
         genStatus: "generating",
-        $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }],
+        $and: [
+          { $or: [{ claimedAt: null }, { claimedAt: { $lt: staleBefore } }] },
+          { $or: [{ generationAttempts: { $lt: MAX_LESSON_ATTEMPTS } }, { generationAttempts: { $exists: false } }] },
+        ],
       },
-      { $set: { claimedAt: new Date() } },
+      { $set: { claimedAt: new Date(), claimToken: randomUUID() }, $inc: { generationAttempts: 1 } },
       { sort: { generatedAt: 1 }, returnDocument: "after" },
     )
     .lean();
   return (doc as LessonDoc | null) ?? null;
 }
 
-async function generate(doc: LessonDoc): Promise<void> {
+export async function generate(doc: LessonDoc): Promise<void> {
   const lessons = await lessonsCollection();
   try {
     const located = await locateLesson(doc.userId, doc.lessonRef);
     if (!located) throw new Error("Lesson no longer exists in any curriculum");
     const { curriculum, lesson } = located;
 
-    const assessments = await assessmentsCollection();
-    const assessment = await assessments
-      .findOne({ _id: curriculum.assessmentId })
-      .lean();
-    const learnerLevel =
-      assessment?.result?.estimatedLevel ?? lesson.difficultyLevel;
+    const learner = await loadLearnerContext(curriculum, lesson);
 
     console.log("[worker] generating lesson:", lesson.title);
     const content = await runLessonAgent({
@@ -108,18 +118,14 @@ async function generate(doc: LessonDoc): Promise<void> {
       objectives: lesson.objectives,
       topics: lesson.topics,
       difficultyLevel: lesson.difficultyLevel,
-      learnerLevel,
+      ...learner,
     });
 
-    const blocks: LessonBlock[] = content.blocks.map((b) => {
-      const clean = stripNullFields(b);
-      return clean.kind === "practice"
-        ? { ...clean, questionId: randomUUID() }
-        : clean;
-    });
+    const blocks = assignBlockIds(content.blocks.map(stripNullFields));
+    const hasArtifacts = blocks.some((b) => b.kind === "interactive");
 
-    await lessons.updateOne(
-      { _id: doc._id },
+    const saved = await lessons.updateOne(
+      { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
       {
         $set: {
           blocks,
@@ -128,28 +134,27 @@ async function generate(doc: LessonDoc): Promise<void> {
           model: modelName(),
           generatedAt: new Date(),
           claimedAt: null,
+          claimToken: null,
+          failedAt: null,
+          // Hand interactive blocks to the artifact worker; the lesson is
+          // readable now and the demos fill in when they're written.
+          ...(hasArtifacts
+            ? { artifactsStatus: "pending", artifactClaimedAt: null, artifactClaimToken: null, artifactAttempts: 0 }
+            : {}),
         },
       },
     );
+    if (!saved.matchedCount) return; // another worker now owns the stale claim
 
     // Side effects (same as the old synchronous route): mark generated, flip
     // available -> in_progress, log the start event.
-    const curricula = await curriculaCollection();
-    await curricula.collection.updateOne(
-      { _id: curriculum._id },
-      {
-        $set: {
-          "modules.$[].lessons.$[l].contentGenerated": true,
-          updatedAt: new Date(),
-        },
-      },
-      { arrayFilters: [{ "l.id": doc.lessonRef }] },
-    );
-    await curricula.collection.updateOne(
-      { _id: curriculum._id },
-      { $set: { "modules.$[].lessons.$[l].status": "in_progress" } },
-      { arrayFilters: [{ "l.id": doc.lessonRef, "l.status": "available" }] },
-    );
+    await mutateCurriculum(doc.userId, curriculum._id, (current) => {
+      const target = current.modules.flatMap((m) => m.lessons).find((l) => l.id === doc.lessonRef);
+      if (!target) throw new Error("Lesson no longer exists in curriculum");
+      target.contentGenerated = true;
+      if (target.status === "available") target.status = "in_progress";
+      return { changed: true, value: undefined };
+    });
 
     const events = await progressEventsCollection();
     await events.create({
@@ -167,8 +172,8 @@ async function generate(doc: LessonDoc): Promise<void> {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[worker] lesson generation failed:", doc.lessonRef, message);
     await lessons.updateOne(
-      { _id: doc._id },
-      { $set: { genStatus: "failed", genError: message, claimedAt: null } },
+      { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
+      { $set: { genStatus: "failed", genError: message, failedAt: new Date(), claimedAt: null, claimToken: null } },
     );
   }
 }

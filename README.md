@@ -143,6 +143,10 @@ version. Module access is a sliding window — the next two incomplete modules p
 already completed — applied at both write and read, so existing curricula pick up the rule
 without a migration.
 
+Direct lesson URLs render a locked state outside that window. Generation, retries,
+practice, and completion enforce the same rule on the server; practice and completion
+recheck it when retrying a concurrent progress update.
+
 ### Lesson generation is a job, not a request
 
 Authoring a lesson takes tens of seconds. Blocking a request on it would be a bad page and
@@ -175,6 +179,12 @@ strictly pure; only the poller's explicit GET enqueues. The result is that leavi
 doesn't cancel generation, reopening doesn't duplicate it, and a server restart re-claims
 jobs whose worker died mid-flight (claims older than five minutes are reaped).
 
+A lesson may also carry one optional **interactive block**: the lesson agent writes only a
+short spec, and a second worker (`artifactWorker`) builds the HTML demo afterwards. The
+lesson is readable immediately; the block shows a placeholder until its demo is ready and
+disappears if building it fails. Demos run in a CSP-sandboxed, opaque-origin iframe with no
+network or storage access.
+
 ### Practice grading, split by question type
 
 - **Multiple choice** ships its `correctKey` and `explanation` with the lesson, so the
@@ -188,11 +198,12 @@ jobs whose worker died mid-flight (claims older than five minutes are reaped).
 
 `rubric` is never sent to the client for any block kind.
 
-**Retakes don't inflate mastery.** Any question can be reset and retried — the replay is
-still graded, but the answer has been on screen since the first attempt, so the client marks
-it `countsTowardMastery: false` and the route skips both the mastery write and the progress
-event. Preserve that flag if you add another practice surface; without it, "try again" is a
-one-click mastery inflator.
+**Retakes don't inflate mastery.** First counted attempts are stored with the
+lesson's mastery in one atomic curriculum update. Reloading, concurrent POSTs,
+and retrying a failed save cannot count the same question twice. The client can
+request practice-only grading with `countsTowardMastery: false`; the server's
+persisted receipt decides whether a counted attempt is still available. Progress
+events use stable IDs so retrying also repairs interrupted event logging.
 
 ### Tutor grounding
 
@@ -286,9 +297,11 @@ for scripts (the app itself signs in through Server Actions).
 | `POST` | `/api/onboarding/clarity` | Clarity loop — repeat until `done`; `restart:true` starts a new topic |
 | `POST` | `/api/assessment/start` | Generate a fresh diagnostic, or report the resumable/completed one |
 | `POST` | `/api/assessment/submit` | Grade the batch → score, level, review, optional refinement round |
-| `POST` | `/api/curriculum/generate` | Build the path from a finished assessment |
-| `GET` | `/api/lesson/[id]` | Lesson content; enqueues generation if unwritten (the poller) |
+| `POST` | `/api/curriculum/generate` | Build the path for the required `assessmentId`; concurrent requests are deduplicated |
+| `GET` | `/api/lesson/[id]` | Lesson content or generation/failure status; enqueues only unwritten lessons |
+| `POST` | `/api/lesson/[id]` | Explicit retry of a failed lesson, with cooldown and a three-attempt limit |
 | `POST` | `/api/lesson/[id]/practice` | Grade inline practice → mastery |
+| `GET` | `/api/lesson/[id]/artifact/[blockId]` | An interactive block's demo as a standalone HTML document, served with a `sandbox allow-scripts` CSP for the lesson page's iframe |
 | `POST` | `/api/progress/complete` | Finalize a lesson and run adaptation |
 | `POST` | `/api/tutor` | Socratic tutor — new thread, or continue with `conversationId` |
 | `GET` | `/api/health` | Ops check (public) |
@@ -300,8 +313,14 @@ most recent topic.
 
 ## Testing
 
+Database regressions run separately from the live-LLM tests. Point
+`RELIABILITY_TEST_DB_URI` at a disposable MongoDB server, then run
+`npm run test:database`. The suite creates and removes its own randomly named
+test database; it never loads `.env.local` or calls an AI provider. It covers
+concurrent progress writes, generation claims, retry limits, and module access.
+
 ```bash
-npm test                   # 84 unit tests, fast and deterministic
+npm test                   # unit tests, fast and deterministic
 npm run test:integration   # live-LLM agent tests (slow; self-skips without GEMINI_API_KEY)
 npm run test:all           # both
 ```

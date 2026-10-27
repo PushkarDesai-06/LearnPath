@@ -21,3 +21,14 @@ export const GET = handler(
     return json(view);
   },
 );
+
+/** Explicit retry; GET polling must never restart a failed generation. */
+export const POST = handler(
+  async (_request, ctx: { params: Promise<{ lessonId: string }> }) => {
+    const { lessonId } = await ctx.params;
+    const user = await requireUser();
+    const view = await ensureLessonQueued(user._id, lessonId, true);
+    if (!view) throw notFound("Lesson not found");
+    return json(view);
+  },
+);

@@ -21,6 +21,8 @@ import { runQuizGenAgent } from "@/lib/ai/agents/assessment";
 import { runAnswerGradeAgent } from "@/lib/ai/agents/grading";
 import { runCurriculumAgent } from "@/lib/ai/agents/curriculum";
 import { runLessonAgent } from "@/lib/ai/agents/lesson";
+import { runArtifactAgent } from "@/lib/ai/agents/artifact";
+import { extractArtifactHtml } from "@/lib/ai/artifactHtml";
 import {
   claritySchema,
   quizSchema,
@@ -143,8 +145,28 @@ describe.skipIf(!hasKey)("AI agents (live provider)", () => {
       // no "practice" blocks), and the schema doesn't require any specific kind.
       expect(lessonContentSchema.safeParse(lesson).success).toBe(true);
       expect(lesson.blocks.length).toBeGreaterThanOrEqual(3);
-      const validKinds = ["text", "code", "analogy", "example", "practice"];
+      const validKinds = ["text", "code", "analogy", "example", "practice", "interactive"];
       for (const b of lesson.blocks) expect(validKinds).toContain(b.kind);
+    },
+    LESSON_TIMEOUT,
+  );
+
+  it(
+    "artifact generation returns a sandbox-safe interactive fragment",
+    async () => {
+      const html = await runArtifactAgent({
+        lessonTitle: "Binary search",
+        objectives: ["Explain why binary search takes about log2(n) steps"],
+        learnerLevel: "beginner",
+        gaps: ["logarithms"],
+        title: "Binary search, step by step",
+        spec:
+          "Concept: each guess halves the remaining range. Controls: a slider for the target (1-100) " +
+          "and a Step button. Behaviour: highlight the current low/mid/high over a row of 100 cells and " +
+          "count steps. Takeaway: it never needs more than 7 steps for 100 items.",
+      });
+      // runAgent already validated it; re-check the invariant the route relies on.
+      expect(extractArtifactHtml("```html\n" + html + "\n```")).toMatchObject({ ok: true });
     },
     LESSON_TIMEOUT,
   );
