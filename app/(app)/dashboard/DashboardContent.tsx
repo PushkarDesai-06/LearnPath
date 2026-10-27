@@ -162,11 +162,11 @@ export async function DashboardContent({
                       {formatStatus(m.status)}
                     </Badge>
                   </div>
-                  <CardDescription className="ml-9">
+                  <CardDescription className="sm:ml-9">
                     {m.summary}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="ml-9 flex flex-col gap-2.5">
+                <CardContent className="flex flex-col gap-2.5 sm:ml-9">
                   {m.lessons.map((l) => {
                     const lt = statusTone(l.status);
                     return (
@@ -175,21 +175,21 @@ export async function DashboardContent({
                         className="hover:bg-surface-2/40 flex flex-col gap-1.5 rounded-md border border-transparent px-3 py-2.5 transition-colors hover:border-border/40"
                       >
                         <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2 truncate">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                             {locked ? (
-                              <span className="text-muted-foreground flex items-center gap-2 text-sm">
+                              <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm break-words">
                                 <Lock className="size-3.5 shrink-0" />
                                 {l.title}
                               </span>
                             ) : (
                               <Link
                                 href={lessonHref(l.id)}
-                                className="hover:text-primary text-sm font-medium transition-colors"
+                                className="hover:text-primary min-w-0 text-sm font-medium break-words transition-colors"
                               >
                                 {l.title}
                               </Link>
                             )}
-                            <Badge variant="status" tone={lt}>
+                            <Badge variant="status" tone={lt} className="shrink-0">
                               {formatStatus(l.status)}
                             </Badge>
                           </div>

@@ -13,7 +13,7 @@
  * (`router.refresh()` after a mutation, or a hard load).
  */
 
-import { Suspense } from "react";
+import { Suspense, useSyncExternalStore } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,11 +39,18 @@ export interface SwitcherTopic {
 // topic's dashboard instead of appending an id the route would ignore.
 const TOPIC_SCOPED = ["/dashboard", "/tutor"];
 
+const noopSubscribe = () => () => {};
+
 function TopicSwitcherInner({ topics }: { topics: SwitcherTopic[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const topicId = useSearchParams().get("id");
-  const announced = useActiveTopic();
+  // The page announces its topic from an effect, which can run before this
+  // Suspense-wrapped bar hydrates. Ignore it until hydration is done so the
+  // first client render matches the server's "Select topic".
+  const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const announcedTopic = useActiveTopic();
+  const announced = hydrated ? announcedTopic : null;
 
   if (topics.length === 0) return null;
 
@@ -76,7 +83,7 @@ function TopicSwitcherInner({ topics }: { topics: SwitcherTopic[] }) {
     <>
       {/* Owned here, not by the topbar: a learner with no topics renders
           nothing at all, and a lone divider would be left behind. */}
-      <Separator orientation="vertical" className="mx-1 h-4" />
+      <Separator orientation="vertical" className="mx-1 h-4 data-vertical:self-center" />
       <DropdownMenu
         onOpenChange={(open) => {
           // Warm the likely destinations while the learner reads the list.
@@ -87,7 +94,7 @@ function TopicSwitcherInner({ topics }: { topics: SwitcherTopic[] }) {
           <Button
             variant="ghost"
             size="sm"
-            className="max-w-[9rem] sm:max-w-[14rem]"
+            className="min-w-0 max-w-[9rem] shrink sm:max-w-[14rem]"
           >
             <span className="truncate">{active?.title ?? "Select topic"}</span>
             <ChevronsUpDown data-icon="inline-end" />

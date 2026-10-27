@@ -8,6 +8,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { TopicSwitcher, type SwitcherTopic } from "@/components/TopicSwitcher";
 import { AccountMenu } from "@/components/AccountMenu";
 import type { SessionUser } from "@/lib/auth/types";
@@ -38,25 +39,31 @@ export function NavBar({
               className="invert"
             />
           </span>
-          <span className="logo-word text-base font-semibold tracking-tight">
+          {/* Signed in, phones need the room for the topic switcher. */}
+          <span
+            className={cn(
+              "logo-word text-base font-semibold tracking-tight",
+              user && "hidden sm:inline",
+            )}
+          >
             LearnPath
           </span>
         </Link>
         {user && (
           <>
             <TopicSwitcher topics={topics} />
-            <div className="flex items-center">
+            <div className="flex shrink-0 items-center">
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/topics">Topics</Link>
               </Button>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/onboarding?new=1">
+                <Link href="/onboarding?new=1" aria-label="New topic">
                   <Plus data-icon="inline-start" />
-                  New topic
+                  <span className="hidden sm:inline">New topic</span>
                 </Link>
               </Button>
             </div>
-            <div className="ml-auto flex items-center">
+            <div className="ml-auto flex shrink-0 items-center">
               <AccountMenu email={user.email} displayName={user.displayName} />
             </div>
           </>
