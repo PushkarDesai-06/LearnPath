@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
+import { LoadingRing } from "@/components/ui/loading-ring";
 import { Progress } from "@/components/ui/progress";
 import { Markdown } from "@/components/Markdown";
 import { cn } from "@/lib/utils";
@@ -13,7 +14,6 @@ import {
   FLASHCARD_GRADES,
   formatInterval,
   previewIntervals,
-  scheduleCard,
 } from "@/lib/domain/flashcards";
 import type { FlashcardGrade } from "@/lib/db/models";
 import type { FlashcardDTO, FlashcardReviewResult } from "@/lib/data/types";
@@ -29,12 +29,14 @@ const GRADE_LABELS: Record<FlashcardGrade, string> = {
  * One review sitting over the cards that were due when the page loaded. Show
  * the front, reveal the back, then grade it: the card leaves the queue at once
  * and the grade saves in the background. "Again" puts the card back at the end
- * of this sitting. Keys: Space or Enter reveals, 1 to 4 grade.
+ * of this sitting once that save lands. Keys: Space or Enter reveals (unless a
+ * control has focus), 1 to 4 grade.
  *
  * Once the queue is empty and every grade has saved, the server tree is
  * refreshed so the page's counts catch up. This island stays mounted through
- * that refresh, so the summary survives it. With nothing due on arrival it
- * shows the server's "all caught up" note instead.
+ * that refresh, so the summary survives it, and if more cards were due than one
+ * session holds, the refreshed batch starts straight away. With nothing due on
+ * arrival it shows the server's "all caught up" note instead.
  */
 export function ReviewSession({
   curriculumId,
@@ -50,6 +52,10 @@ export function ReviewSession({
 }) {
   const router = useRouter();
   const [queue, setQueue] = useState(initialCards);
+  // The batch the queue was last filled from. A refresh after the queue drains
+  // brings the next batch (when more were due than one session holds); a new
+  // `initialCards` prop doesn't reset useState, so adopt it here.
+  const [batch, setBatch] = useState(initialCards);
   const [revealed, setRevealed] = useState(false);
   const [reviewed, setReviewed] = useState(0);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -59,22 +65,38 @@ export function ReviewSession({
     initialNextDueAt ? Date.parse(initialNextDueAt) : null,
   );
   const [finishedAt, setFinishedAt] = useState<number | null>(null);
-  const inFlight = useRef(0);
-  const drained = useRef(initialCards.length === 0);
+  /** Saves in flight. The sitting isn't over until they land. */
+  const [saving, setSaving] = useState(0);
+  const saved = useRef(false);
+
+  if (batch !== initialCards) {
+    setBatch(initialCards);
+    if (!queue.length && !saving && initialCards.length) {
+      setQueue(initialCards);
+      setRevealed(false);
+      setFinishedAt(null);
+    }
+  }
 
   const card = queue[0];
 
-  /** Wraps each save; refreshes the page's counts after the last one lands. */
+  // Once the queue is empty and every save has landed, refresh the server tree
+  // so the page's counts catch up (and the next batch arrives, if any).
+  useEffect(() => {
+    if (saving || queue.length || !saved.current) return;
+    saved.current = false;
+    router.refresh();
+  }, [saving, queue.length, router]);
+
   function track<T>(request: Promise<T>): Promise<T> {
-    inFlight.current++;
+    setSaving((n) => n + 1);
     return request.finally(() => {
-      inFlight.current--;
-      if (inFlight.current === 0 && drained.current) router.refresh();
+      saved.current = true;
+      setSaving((n) => n - 1);
     });
   }
 
   function requeue(update: (q: FlashcardDTO[]) => FlashcardDTO[]) {
-    drained.current = false;
     setQueue(update);
     setFinishedAt(null);
   }
@@ -92,23 +114,21 @@ export function ReviewSession({
     setQueue(rest);
     setRevealed(false);
     setConfirmRemove(false);
-    drained.current = rest.length === 0;
     if (!rest.length) setFinishedAt(Date.now());
   }
 
   function grade(g: FlashcardGrade) {
     if (!card || !revealed) return;
-    const rest = queue.slice(1);
-    // "Again" comes back in this sitting with its relearning schedule.
-    const local = scheduleCard(card.schedule, g);
-    const requeued = g === "again" ? [...rest, { ...card, schedule: local }] : rest;
-    advance(requeued);
+    // Every grade leaves the queue at once. "Again" comes back at the end of
+    // this sitting, but only after its save lands: grading it again sooner
+    // would race that save on the same review count.
+    advance(queue.slice(1));
     setReviewed((n) => n + 1);
 
     track(api<FlashcardReviewResult>(`/api/flashcards/${card.id}/review`, { body: { grade: g } }))
       .then((res) => {
         if (g === "again") {
-          setQueue((q) => q.map((c) => (c.id === card.id ? { ...c, schedule: res.schedule } : c)));
+          requeue((q) => [...q, { ...card, schedule: res.schedule }]);
         } else {
           const due = Date.parse(res.due);
           setNextDue((n) => (n === null ? due : Math.min(n, due)));
@@ -143,8 +163,10 @@ export function ReviewSession({
     function onKey(e: KeyboardEvent) {
       if (!card || e.metaKey || e.ctrlKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
-      if (target?.closest("input, textarea, [contenteditable=true]")) return;
-      if (!revealed && (e.key === " " || e.key === "Enter")) {
+      if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
+      // A focused control keeps its own Space/Enter (Show answer included).
+      const onControl = !!target?.closest("button, a, [role=button]");
+      if (!revealed && !onControl && (e.key === " " || e.key === "Enter")) {
         e.preventDefault();
         setRevealed(true);
         return;
@@ -158,6 +180,16 @@ export function ReviewSession({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   });
+
+  if (!card && saving) {
+    // The last grades are still saving (an "again" card may be about to return).
+    return (
+      <section className="border-border/60 bg-surface-1/60 text-muted-foreground flex min-h-72 items-center justify-center gap-2 rounded-2xl border text-sm">
+        <LoadingRing className="size-3.5" />
+        Saving…
+      </section>
+    );
+  }
 
   if (!card) {
     const sat = reviewed > 0;

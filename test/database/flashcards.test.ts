@@ -18,7 +18,7 @@ import { requestFlashcardDeck, reviewFlashcard } from "@/lib/server/flashcards";
 import { getFlashcardsPage } from "@/lib/data/flashcards";
 import { readLessonView } from "@/lib/data/lesson";
 import { getDashboard } from "@/lib/data/progress";
-import { DECK_DAILY_LIMIT } from "@/lib/domain/flashcards";
+import { DECK_DAILY_LIMIT, DECK_STALE_MS, NEW_CARD } from "@/lib/domain/flashcards";
 import { curriculumFixture } from "../helpers/curriculum";
 
 const ai = vi.hoisted(() => ({ flashcards: vi.fn() }));
@@ -114,6 +114,30 @@ describe.skipIf(!uri)("flashcards against MongoDB", () => {
     // Another learner can't grade it.
     await expect(reviewFlashcard({ userId: new ObjectId(), cardId: card!._id.toHexString(), grade: "good" }))
       .rejects.toMatchObject({ status: 404 });
+  });
+
+  it("replaces the cards a dead run left behind when it takes over the deck", async () => {
+    const { userId, curriculumId, lessonRef } = await seedLesson();
+    const decks = await flashcardDecksCollection();
+    const cards = await flashcardsCollection();
+    const old = new Date(Date.now() - DECK_STALE_MS - 1000);
+    const deckId = new ObjectId();
+    await decks.create({
+      _id: deckId, userId, curriculumId, lessonRef, status: "generating",
+      claimToken: "dead-request", claimedAt: old, attempts: 1, createdAt: old, updatedAt: old,
+    });
+    // The dead run got as far as inserting its cards.
+    await cards.insertMany(["Left 1", "Left 2"].map((front) => ({
+      _id: new ObjectId(), userId, curriculumId, lessonRef, deckId, front, back: "b",
+      ...NEW_CARD, due: old, reviewCount: 0, createdAt: old, updatedAt: old,
+    })));
+    ai.flashcards.mockReset();
+    ai.flashcards.mockResolvedValue({ cards: [{ front: "Q", back: "A" }, { front: "Q2", back: "A2" }, { front: "Q3", back: "A3" }] });
+
+    expect(await requestFlashcardDeck({ userId, lessonRef })).toEqual({ status: "ready", cardCount: 3 });
+    const fronts = (await cards.find({ userId, curriculumId }).lean()).map((c) => c.front).sort();
+    expect(fronts).toEqual(["Q", "Q2", "Q3"]);
+    expect(await decks.findOne({ _id: deckId }).lean()).toMatchObject({ status: "ready", attempts: 2 });
   });
 
   it("lets exactly one of several parallel lessons take the last deck of the day", async () => {

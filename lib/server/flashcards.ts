@@ -107,6 +107,10 @@ export async function requestFlashcardDeck({
       },
     );
     if (!took.matchedCount) return generating; // a concurrent request took it first
+    // A run that died between inserting its cards and finishing its claim left
+    // them behind; clear them so this run doesn't duplicate them. A run that is
+    // still alive can't finish now (its token is gone) and removes its own.
+    await (await flashcardsCollection()).deleteMany({ deckId: existing._id });
     id = existing._id;
   } else {
     id = new ObjectId();
@@ -129,6 +133,7 @@ export async function requestFlashcardDeck({
   }
 
   const owned = { _id: id, claimToken };
+  let insertedIds: ObjectId[] = [];
   try {
     const output = await runFlashcardAgent({
       lessonTitle: lesson.title,
@@ -156,6 +161,7 @@ export async function requestFlashcardDeck({
         updatedAt: stamp,
       })),
     );
+    insertedIds = inserted.map((c) => c._id);
     const saved = await decks.updateOne(owned, {
       $set: {
         status: "ready",
@@ -166,7 +172,7 @@ export async function requestFlashcardDeck({
       },
     });
     if (!saved.matchedCount) {
-      await cards.deleteMany({ _id: { $in: inserted.map((c) => c._id) } });
+      await cards.deleteMany({ _id: { $in: insertedIds } });
       return generating;
     }
     const events = await progressEventsCollection();
@@ -183,6 +189,10 @@ export async function requestFlashcardDeck({
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[flashcards] generation failed:", lessonRef, message);
+    // Cards from a run that failed after inserting them would outlive the deck.
+    if (insertedIds.length) {
+      await (await flashcardsCollection()).deleteMany({ _id: { $in: insertedIds } });
+    }
     await decks.updateOne(owned, {
       $set: { status: "failed", error: message, claimToken: null, claimedAt: null, updatedAt: new Date() },
     });

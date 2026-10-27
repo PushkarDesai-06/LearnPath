@@ -137,6 +137,9 @@ describe("POST /api/lesson/[id]/flashcards", () => {
     expect((await make()).status).toBe(200);
     expect(mocks.deckUpdate.mock.calls[0][0]).toEqual({ _id: failed._id, status: "failed", claimToken: null });
     expect(mocks.deckCreate).not.toHaveBeenCalled();
+    // Cards a dead run left under this deck are cleared before new ones go in.
+    expect(mocks.cardDeleteMany).toHaveBeenCalledWith({ deckId: failed._id });
+    expect(mocks.cardDeleteMany.mock.invocationCallOrder[0]).toBeLessThan(mocks.cardInsert.mock.invocationCallOrder[0]);
 
     mocks.deckFind.mockImplementation(() => ({ lean: async () => deck({ status: "failed", attempts: 3 }) }));
     mocks.agent.mockClear();
@@ -151,6 +154,14 @@ describe("POST /api/lesson/[id]/flashcards", () => {
     expect(filter.claimToken).toBe(mocks.deckCreate.mock.calls[0][0].claimToken);
     expect(update.$set).toMatchObject({ status: "failed", error: "model down", claimToken: null });
     expect(mocks.cardInsert).not.toHaveBeenCalled();
+  });
+
+  it("removes its own cards when it fails after inserting them", async () => {
+    mocks.deckUpdate.mockRejectedValueOnce(new Error("db down")).mockResolvedValue({ matchedCount: 1 });
+    expect((await make()).status).toBe(500);
+    const ids = mocks.cardInsert.mock.calls[0][0].map((c: { _id: ObjectId }) => c._id);
+    expect(mocks.cardDeleteMany).toHaveBeenCalledWith({ _id: { $in: ids } });
+    expect(mocks.deckUpdate.mock.calls[1][1].$set).toMatchObject({ status: "failed", error: "db down" });
   });
 
   it("reserves first, then refuses and rolls back a deck past the daily limit", async () => {
