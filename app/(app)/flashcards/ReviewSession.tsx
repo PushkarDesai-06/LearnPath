@@ -217,7 +217,7 @@ export function ReviewSession({
   return (
     <section className="flex flex-col gap-4" aria-label="Review">
       <div className="flex items-center gap-3">
-        <Progress value={(reviewed / total) * 100} className="flex-1" />
+        <Progress value={(reviewed / total) * 100} aria-label="Review progress" className="flex-1" />
         <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
           {queue.length} left
         </span>

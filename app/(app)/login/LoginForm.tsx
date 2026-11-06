@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { toast } from "sonner";
 import { loginAction, signupAction, type AuthFormState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +10,6 @@ import {
   CardDescription,
   CardFooter,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -25,8 +23,10 @@ const IDLE: AuthFormState = { error: null };
  * same round trip — the redirect also re-renders the root layout, so the Nav
  * already shows the new identity when the destination paints.
  */
-export function LoginForm() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+export type AuthMode = "login" | "signup";
+
+export function LoginForm({ initialMode }: { initialMode: AuthMode }) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   // Controlled on purpose: React resets an action form's UNcontrolled fields
   // after each submit, which would wipe the email after a wrong password.
   const [email, setEmail] = useState("");
@@ -42,29 +42,24 @@ export function LoginForm() {
   const busy = loggingIn || signingUp;
   const error = isLogin ? loginState.error : signupState.error;
 
-  // Surface each new failure as a toast too (the inline text stays).
-  useEffect(() => {
-    if (loginState.error) toast.error(loginState.error);
-  }, [loginState]);
-  useEffect(() => {
-    if (signupState.error) toast.error(signupState.error);
-  }, [signupState]);
-
   function toggleMode() {
-    setMode(isLogin ? "signup" : "login");
+    const next = isLogin ? "signup" : "login";
+    setMode(next);
+    // Keep the URL in step so a reload or shared link opens the same form.
+    window.history.replaceState(null, "", next === "signup" ? "?mode=signup" : window.location.pathname);
     // Don't carry a revealed password across the switch.
     setShowPassword(false);
   }
 
   return (
-    <Card className="mx-auto max-w-sm">
+    // Centred in the space under the topbar, but free to scroll on short
+    // screens or with a phone keyboard open.
+    <div className="flex min-h-[calc(100svh-10rem)] items-center justify-center">
+    <Card className="w-full max-w-sm">
       <CardHeader>
-        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-          LearnPath
-        </p>
-        <CardTitle className="h-display text-3xl">
+        <h1 data-slot="card-title" className="h-display text-3xl">
           {isLogin ? "Welcome back." : "Start something."}
-        </CardTitle>
+        </h1>
         <CardDescription>
           {isLogin
             ? "Pick up where you left off."
@@ -173,5 +168,6 @@ export function LoginForm() {
         </p>
       </CardFooter>
     </Card>
+    </div>
   );
 }

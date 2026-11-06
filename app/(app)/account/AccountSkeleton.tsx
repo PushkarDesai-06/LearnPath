@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function AccountSkeleton() {
   return (
-    <div className="flex flex-col gap-10">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
       <header className="flex items-center gap-4">
         <Skeleton className="size-10 rounded-full" />
         <div className="flex flex-col gap-2">

@@ -6,6 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { runQuizGenAgent } from "@/lib/ai/agents/assessment";
 import { levelIndex, levelName } from "@/lib/domain/assessment";
+import { shuffleMcq } from "@/lib/domain/shuffle";
 import type { AssessmentQuestion } from "@/lib/db/models";
 
 /** Generate one quiz round at the given difficulty bands. */
@@ -23,17 +24,21 @@ export async function generateQuizRound(params: {
     avoidTopics: params.avoidTopics,
   });
   const now = new Date();
-  return quiz.questions.map((q) => ({
-    id: randomUUID(),
-    round: params.round,
-    levelIdx: levelIndex(q.level),
-    topic: q.topic,
-    prompt: q.prompt,
-    type: "mcq" as const,
-    choices: q.choices,
-    correctKey: q.correctKey,
-    askedAt: now,
-  }));
+  return quiz.questions.map((q) => {
+    // Stored shuffled: the model puts the answer first far more often than chance.
+    const { choices, correctKey } = shuffleMcq({ choices: q.choices, correctKey: q.correctKey });
+    return {
+      id: randomUUID(),
+      round: params.round,
+      levelIdx: levelIndex(q.level),
+      topic: q.topic,
+      prompt: q.prompt,
+      type: "mcq" as const,
+      choices,
+      correctKey,
+      askedAt: now,
+    };
+  });
 }
 
 /** Learner-safe question — NO correctKey (the answer key must stay server-side). */

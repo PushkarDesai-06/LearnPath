@@ -7,6 +7,7 @@ import { ObjectId } from "mongodb";
 import { chatsCollection } from "@/lib/db/collections";
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import type { ConversationDTO, ConversationSummary } from "@/lib/data/types";
+import { tidyCurriculumTitle } from "@/lib/domain/title";
 
 /**
  * A topic's threads, newest first. `null` = the requested topic doesn't exist
@@ -17,12 +18,14 @@ export async function listConversations(
   curriculumId?: string | null,
 ): Promise<{
   curriculumId: string | null;
+  /** The topic the tutor is grounded in (null with no topic). */
+  title: string | null;
   conversations: ConversationSummary[];
 } | null> {
   const uid = new ObjectId(userId);
   const curriculum = await resolveCurriculum(uid, curriculumId);
   if (!curriculum) {
-    return curriculumId ? null : { curriculumId: null, conversations: [] };
+    return curriculumId ? null : { curriculumId: null, title: null, conversations: [] };
   }
 
   const chats = await chatsCollection();
@@ -33,6 +36,7 @@ export async function listConversations(
 
   return {
     curriculumId: curriculum._id.toHexString(),
+    title: tidyCurriculumTitle(curriculum.title),
     conversations: docs.map((c) => ({
       id: c._id.toHexString(),
       title: c.title ?? "Conversation",

@@ -13,14 +13,24 @@ import type { AssessmentDoc, OnboardingDoc } from "@/lib/db/models";
 import { publicQuestion, reviewItem } from "@/lib/server/assessmentFlow";
 import type { AssessmentState } from "@/lib/data/types";
 
-/** The onboarding + latest assessment the quiz belongs to (raw docs, server-side). */
-export async function loadAssessmentContext(userId: ObjectId): Promise<{
+/**
+ * The onboarding + latest assessment the quiz belongs to (raw docs, server-side).
+ * `onboardingId` pins a specific setup (Topics "Continue"); without it, the newest.
+ */
+export async function loadAssessmentContext(
+  userId: ObjectId,
+  onboardingId?: string | null,
+): Promise<{
   onboarding: OnboardingDoc | null;
   existing: AssessmentDoc | null;
 }> {
   const onboarding = await onboardingCollection();
   const ob = await onboarding
-    .findOne({ userId, status: { $in: ["ready", "assessing"] } })
+    .findOne({
+      userId,
+      status: { $in: ["ready", "assessing"] },
+      ...(onboardingId ? { _id: ObjectId.isValid(onboardingId) ? new ObjectId(onboardingId) : null } : {}),
+    })
     .sort({ updatedAt: -1 })
     .lean();
   if (!ob) return { onboarding: null, existing: null };
@@ -65,6 +75,7 @@ export function assessmentStateOf(ctx: {
 
 export async function readAssessmentState(
   userId: string,
+  onboardingId?: string | null,
 ): Promise<AssessmentState> {
-  return assessmentStateOf(await loadAssessmentContext(new ObjectId(userId)));
+  return assessmentStateOf(await loadAssessmentContext(new ObjectId(userId), onboardingId));
 }

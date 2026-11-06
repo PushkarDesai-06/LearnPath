@@ -8,6 +8,7 @@ import { flashcardDecksCollection, flashcardsCollection } from "@/lib/db/collect
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import { REVIEW_SESSION_LIMIT } from "@/lib/domain/flashcards";
 import type { FlashcardsPageData, LessonDTO } from "@/lib/data/types";
+import { tidyCurriculumTitle } from "@/lib/domain/title";
 
 /** Cards in a topic, and how many are due now. */
 export async function flashcardCounts(
@@ -81,7 +82,7 @@ export async function getFlashcardsPage(
   return {
     hasCurriculum: true,
     curriculumId: curriculum._id.toHexString(),
-    title: curriculum.title,
+    title: tidyCurriculumTitle(curriculum.title),
     due: due.map((card) => ({
       id: card._id.toHexString(),
       front: card.front,

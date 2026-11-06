@@ -128,13 +128,14 @@ export function BlockVariants({
           size="icon-sm"
           aria-label="Explain this block differently"
           disabled={!!pending}
+          title="Explain differently"
           className={cn(
             "bg-background/80 text-muted-foreground absolute top-0 right-0 z-10 backdrop-blur-sm lg:-right-10",
-            "transition-opacity duration-150",
-            "pointer-events-none opacity-0",
-            "group-hover/block:pointer-events-auto group-hover/block:opacity-100",
-            "group-focus-within/block:pointer-events-auto group-focus-within/block:opacity-100",
-            "data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
+            // Always present (touch screens can't hover to find it), quiet until
+            // the block is hovered or the button is focused or open.
+            "opacity-40 transition-opacity duration-150 [@media(hover:none)]:opacity-100",
+            "group-hover/block:opacity-100 group-focus-within/block:opacity-100",
+            "focus-visible:opacity-100 data-[state=open]:opacity-100",
           )}
         >
           <EllipsisVertical />

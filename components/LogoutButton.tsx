@@ -2,7 +2,6 @@
 
 import { useTransition } from "react";
 import { LogOut } from "lucide-react";
-import { toast } from "sonner";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
 import { LoadingRing } from "@/components/ui/loading-ring";
@@ -15,7 +14,6 @@ export function LogoutButton() {
       variant="destructive"
       disabled={pending}
       onClick={() => {
-        toast.success("Logged out");
         startTransition(() => logoutAction());
       }}
     >

@@ -1,9 +1,20 @@
 import { Suspense } from "react";
-import { notFound } from "next/navigation";
 import { requireUserOrRedirect } from "@/lib/auth/current";
 import { getConversation, listConversations } from "@/lib/data/tutor";
 import { TutorChat } from "./TutorChat";
 import { TutorSkeleton } from "./TutorParts";
+import { NoTopicState } from "@/components/NoTopicState";
+
+import type { Metadata } from "next";
+import { topicPageMetadata } from "@/lib/data/metadata";
+
+export function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string | string[] }>;
+}): Promise<Metadata> {
+  return topicPageMetadata("Tutor", searchParams);
+}
 
 /** Threads + the newest thread's transcript, read on the server. */
 async function TutorContent({
@@ -14,13 +25,17 @@ async function TutorContent({
   topicId: string | null;
 }) {
   const list = await listConversations(userId, topicId);
-  if (!list) notFound();
+  // No topic to tutor on: the API refuses to chat without one, so say why
+  // instead of offering a composer that can't send.
+  if (!list || !list.curriculumId)
+    return <NoTopicState userId={userId} requestedId={topicId} />;
   const first = list.conversations[0];
   const initial = first ? await getConversation(userId, first.id) : null;
 
   return (
     <TutorChat
       curriculumId={list.curriculumId}
+      topicTitle={list.title ?? ""}
       initialConversations={list.conversations}
       initialActiveId={initial?.conversationId ?? null}
       initialMessages={initial?.messages ?? []}

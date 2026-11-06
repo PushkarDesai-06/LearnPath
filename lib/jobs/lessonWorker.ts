@@ -24,6 +24,8 @@ import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
 import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
 import { loadLearnerContext } from "@/lib/jobs/learnerContext";
+import { shuffleMcq } from "@/lib/domain/shuffle";
+import { normalizeLessonBlocks } from "@/lib/domain/lessonContent";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -60,6 +62,14 @@ export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
     }
     return [{ ...b, blockId: randomUUID() }];
   });
+}
+
+/** MCQ practice choices are stored shuffled, so the key isn't always first. */
+export function shufflePracticeChoices(block: LessonBlock): LessonBlock {
+  if (block.kind !== "practice" || block.type !== "mcq" || !block.choices || block.correctKey === undefined) {
+    return block;
+  }
+  return shuffleMcq({ ...block, choices: block.choices, correctKey: block.correctKey });
 }
 
 let started = false;
@@ -122,7 +132,10 @@ export async function generate(doc: LessonDoc): Promise<void> {
       ...learner,
     });
 
-    const blocks = assignBlockIds(content.blocks.map(stripNullFields));
+    const blocks = normalizeLessonBlocks(
+      assignBlockIds(content.blocks.map(stripNullFields)).map(shufflePracticeChoices),
+      lesson.title,
+    );
     const hasArtifacts = blocks.some((b) => b.kind === "interactive");
 
     const saved = await lessons.updateOne(

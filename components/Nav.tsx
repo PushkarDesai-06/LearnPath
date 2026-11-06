@@ -3,7 +3,7 @@
  * render (no /api/me or /api/topics round trip). It lives in the root layout,
  * which does NOT re-render on client navigation — identity changes arrive via
  * the auth Server Actions (a cookie write re-renders the tree) and topic list
- * changes via `router.refresh()` after a mutation.
+ * changes via `router.refresh()` or a Server Action's layout revalidation.
  */
 import { getCurrentUser } from "@/lib/auth/current";
 import { publicUser } from "@/lib/auth/guards";
@@ -12,7 +12,7 @@ import { NavBar } from "@/components/NavBar";
 
 export async function Nav() {
   const user = await getCurrentUser();
-  if (!user) return <NavBar user={null} topics={[]} />;
+  if (!user) return <NavBar user={null} topics={[]} signedIn={false} />;
 
   const topics = await listTopics(user._id.toHexString());
   return (

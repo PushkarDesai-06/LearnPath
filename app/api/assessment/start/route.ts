@@ -14,12 +14,16 @@ import { DIFFICULTY_LEVELS, type AssessmentDoc } from "@/lib/db/models";
 import { ROUND1_LEVELS } from "@/lib/domain/assessment";
 import { generateQuizRound, publicQuestion } from "@/lib/server/assessmentFlow";
 import { assessmentStateOf, loadAssessmentContext } from "@/lib/data/assessment";
-import { badRequest, handler, json } from "@/lib/http";
+import { z } from "zod";
+import { badRequest, handler, json, readJson } from "@/lib/http";
 
-export const POST = handler(async () => {
+const Body = z.object({ onboardingId: z.string().optional() });
+
+export const POST = handler(async (request) => {
   const user = await requireUser();
+  const { onboardingId } = await readJson(request, Body);
 
-  const ctx = await loadAssessmentContext(user._id);
+  const ctx = await loadAssessmentContext(user._id, onboardingId);
   const state = assessmentStateOf(ctx);
   const ob = ctx.onboarding;
   if (state.kind === "no_onboarding" || !ob) {
