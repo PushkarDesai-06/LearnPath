@@ -3,6 +3,17 @@ import { requireUserOrRedirect } from "@/lib/auth/current";
 import { FlashcardsContent } from "./FlashcardsContent";
 import { FlashcardsSkeleton } from "./FlashcardsSkeleton";
 
+import type { Metadata } from "next";
+import { topicPageMetadata } from "@/lib/data/metadata";
+
+export function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string | string[] }>;
+}): Promise<Metadata> {
+  return topicPageMetadata("Flashcards", searchParams);
+}
+
 export default async function FlashcardsPage({
   searchParams,
 }: {

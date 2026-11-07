@@ -10,6 +10,10 @@
 import "server-only";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { usersCollection } from "@/lib/db/collections";
+import { requireUser } from "@/lib/auth/guards";
 import { createSession, destroySession } from "@/lib/auth/session";
 import {
   authenticate,
@@ -72,4 +76,31 @@ export async function signupAction(
 export async function logoutAction(): Promise<void> {
   await destroySession();
   redirect("/login");
+}
+
+export interface ProfileFormState {
+  error: string | null;
+  saved: boolean;
+}
+
+const DisplayName = z.string().trim().max(60, "Keep it under 60 characters.");
+
+/** Set (or clear, when blank) the display name shown in the topbar and account. */
+export async function updateDisplayNameAction(
+  _prev: ProfileFormState,
+  form: FormData,
+): Promise<ProfileFormState> {
+  const user = await requireUser();
+  const parsed = DisplayName.safeParse(field(form, "displayName"));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid name", saved: false };
+  }
+  const users = await usersCollection();
+  await users.updateOne(
+    { _id: user._id },
+    parsed.data ? { $set: { displayName: parsed.data } } : { $unset: { displayName: "" } },
+  );
+  // The avatar initials in the topbar come from the root layout.
+  revalidatePath("/", "layout");
+  return { error: null, saved: true };
 }

@@ -11,14 +11,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
+
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { title: "Topics" };
 
 export default async function TopicsPage() {
   const user = await requireUserOrRedirect();
@@ -30,31 +28,31 @@ export default async function TopicsPage() {
 
   return (
     <div className="flex flex-col gap-10">
-      {/* Hero */}
-      <header className="flex items-end justify-between gap-4">
-        <div className="flex flex-col gap-2">
-          <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-            Your studies
-          </p>
-          <h1 className="h-display text-3xl sm:text-4xl">Topics</h1>
-        </div>
-        <Button asChild className="cta-path">
-          <Link href="/onboarding?new=1">
-            <Plus
-              data-icon="inline-start"
-              className="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/button:rotate-90"
-            />
-            New topic
-            {/* Draws the trail on hover — see `.cta-path` in globals.css. */}
-            <span aria-hidden className="cta-trail" />
-          </Link>
-        </Button>
-      </header>
+      <PageHeader
+        eyebrow="Your studies"
+        title="Topics"
+        actions={
+          // With no topics the empty state carries the one call to action.
+          topics.length > 0 && (
+            <Button asChild className="cta-path">
+              <Link href="/onboarding?new=1">
+                <Plus
+                  data-icon="inline-start"
+                  className="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/button:rotate-90"
+                />
+                New topic
+                {/* Draws the trail on hover — see `.cta-path` in globals.css. */}
+                <span aria-hidden className="cta-trail" />
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       {inProgress.length > 0 && (
         <section className="flex flex-col gap-3">
           <h2 className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-            Pick up
+            Unfinished setup
           </h2>
           <div className="flex flex-col gap-2">
             {inProgress.map((p) => (
@@ -65,14 +63,15 @@ export default async function TopicsPage() {
                     <p className="text-muted-foreground text-xs">
                       {p.status === "clarifying"
                         ? "Setup unfinished"
-                        : "Assessment unfinished"}
+                        : p.status === "ready"
+                          ? "Quiz not taken yet"
+                          : "Quiz unfinished"}
                     </p>
                   </div>
                   <Button variant="secondary" asChild>
                     <Link
-                      href={
-                        p.next === "onboarding" ? "/onboarding" : "/assessment"
-                      }
+                      href={`/${p.next}?ob=${p.onboardingId}`}
+                      aria-label={`Continue ${p.topic}`}
                     >
                       Continue
                       <ArrowRight data-icon="inline-end" />
@@ -86,24 +85,12 @@ export default async function TopicsPage() {
       )}
 
       {topics.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <BookOpen />
-            </EmptyMedia>
-            <EmptyTitle className="text-lg">
-              Pick something you want to learn.
-            </EmptyTitle>
-            <EmptyDescription>
-              Describe a goal; LearnPath builds the path.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button asChild>
-              <Link href="/onboarding?new=1">Start your first topic</Link>
-            </Button>
-          </EmptyContent>
-        </Empty>
+        <EmptyState
+          icon={BookOpen}
+          title="Pick something you want to learn."
+          description="Describe a goal; LearnPath builds the path."
+          action={{ href: "/onboarding?new=1", label: "Start your first topic" }}
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {topics.map((t) => {
@@ -129,7 +116,7 @@ export default async function TopicsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex flex-1 flex-col justify-end gap-3">
-                  <Progress value={pct} />
+                  <Progress value={pct} aria-label={`${t.title} mastery`} />
                   <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
                     {t.summary.lessonsMastered}/{t.summary.lessonsTotal} lessons
                     · {t.summary.modulesCompleted}/{t.summary.modulesTotal}{" "}

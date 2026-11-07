@@ -50,7 +50,9 @@ const lessonAgent = new Agent({
 	- You MUST open the lesson with a 'text' block.
 	- You MUST include at least **one 'example' block** and **one 'analogy' block**.
 	- You MUST include at least **two 'practice' blocks**, spread strategically throughout the lesson.
-	- 'practice' blocks should include the questions in the 'prompt' tag.
+	- MCQ choices are shuffled after generation. Every choice must stand alone. Never reference another choice or its position (for example, "All of the above", "None of the above", "Both A and B", or "the first option"). References to numbered statements in the question prompt are allowed.
+	- 'practice' blocks should include the questions in the 'prompt' tag. Prompts and choices may use inline markdown (e.g. \`GROUP BY\`) for code.
+	- The page already shows the lesson title as its heading and labels analogy/example blocks. Do NOT open the first block with a heading that repeats the lesson title, and do NOT start an analogy or example block with "Analogy:" or "Example:".
 
 	# Execution Workflow (Internal Logic)
 	1. Analyze the requested topic and the learner's target difficulty level.

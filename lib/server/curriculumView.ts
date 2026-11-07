@@ -2,6 +2,7 @@
  * Public projection of a curriculum for API responses (ObjectIds -> strings).
  */
 import type { CurriculumDoc } from "@/lib/db/models";
+import { tidyCurriculumTitle } from "@/lib/domain/title";
 
 /**
  * Pure progress rollup for one curriculum (no I/O). Shared by the topics list
@@ -28,7 +29,7 @@ export function summarizeCurriculum(doc: CurriculumDoc) {
 export function topicListItem(doc: CurriculumDoc) {
   return {
     id: doc._id.toHexString(),
-    title: doc.title,
+    title: tidyCurriculumTitle(doc.title),
     domain: doc.domain,
     version: doc.version,
     createdAt: doc.createdAt.toISOString(),
@@ -41,7 +42,7 @@ export function publicCurriculum(doc: CurriculumDoc) {
     id: doc._id.toHexString(),
     assessmentId: doc.assessmentId.toHexString(),
     domain: doc.domain,
-    title: doc.title,
+    title: tidyCurriculumTitle(doc.title),
     version: doc.version,
     modules: doc.modules.map((m) => ({
       id: m.id,

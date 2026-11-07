@@ -209,12 +209,6 @@ function DitheredWaves({
   useFrame(({ clock }) => {
     const u = waveUniformsRef.current;
 
-    // TEMP DEBUG — remove after diagnosing animation
-    if (typeof window !== 'undefined') {
-      window.__ditherFrames = (window.__ditherFrames || 0) + 1;
-      window.__ditherElapsed = clock.getElapsedTime();
-    }
-
     if (!disableAnimation) {
       u.time.value = clock.getElapsedTime();
     }
@@ -287,6 +281,8 @@ export default function Dither({
       className="dither-container"
       camera={{ position: [0, 0, 6] }}
       dpr={1}
+      // A still background renders once instead of burning frames.
+      frameloop={disableAnimation ? 'demand' : 'always'}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
     >
       <DitheredWaves

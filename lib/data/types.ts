@@ -64,6 +64,8 @@ export interface RecommendedNext {
   lessonId: string;
   lessonTitle: string;
   generated: boolean;
+  /** The learner has opened it before (as opposed to a fresh "up next"). */
+  started: boolean;
   masteryScore: number;
 }
 
@@ -125,6 +127,12 @@ export interface LessonDTO {
   id: string;
   curriculumId: string;
   title: string;
+  /** Where it sits: "Lesson 2 of 4 · <module>". */
+  context: { moduleTitle: string; position: number; moduleLessonCount: number; estMinutes: number };
+  /** Already marked complete (the footer shows its done state). */
+  completed: boolean;
+  /** For a completed lesson: what to open next, from the current path. */
+  next: { lessonId: string; lessonTitle: string; moduleTitle: string } | null;
   blocks: LessonBlockDTO[];
   /** This lesson's flashcards. Only the page read attaches it. */
   flashcards?: { made: boolean; cardCount: number };

@@ -13,9 +13,12 @@ function Progress({
   return (
     <ProgressPrimitive.Root
       data-slot="progress"
+      // Radix needs the value for aria-valuenow; without it every bar reads as
+      // indeterminate to assistive tech.
+      value={value}
       className={cn(
         // Hairline track: barely-there border, no fill, mint indicator.
-        "relative flex h-[3px] w-full items-center overflow-x-hidden rounded-full bg-white/[0.04]",
+        "relative flex h-[3px] w-full items-center overflow-x-hidden rounded-full bg-foreground/[0.06]",
         className
       )}
       {...props}

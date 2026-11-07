@@ -12,29 +12,39 @@ import { requireUser } from "@/lib/auth/guards";
 import { onboardingCollection } from "@/lib/db/collections";
 import type { OnboardingDoc } from "@/lib/db/models";
 import { runClarityAgent } from "@/lib/ai/agents/clarity";
-import { handler, json, readJson } from "@/lib/http";
+import { badRequest, conflict, handler, json, notFound, readJson } from "@/lib/http";
 
 const MAX_CYCLES = 4;
 
 const Body = z.object({
   description: z.string().trim().min(1, "Please describe what you want to learn"),
   restart: z.boolean().optional(),
+  /** The setup being continued; without it, the newest unfinished one. */
+  onboardingId: z.string().optional(),
 });
 
 export const POST = handler(async (request) => {
   const user = await requireUser();
-  const { description, restart } = await readJson(request, Body);
+  const { description, restart, onboardingId } = await readJson(request, Body);
 
   const onboarding = await onboardingCollection();
   const now = new Date();
 
-  // Continue an in-progress clarification, unless restarting or none exists.
-  let doc: OnboardingDoc | null = restart
-    ? null
-    : await onboarding
-        .findOne({ userId: user._id, status: "clarifying" })
-        .sort({ updatedAt: -1 })
-        .lean();
+  // Continue a clarification. A named setup (`onboardingId`) must be the
+  // learner's own and still clarifying; without one, the newest open setup is
+  // continued, or a fresh one started (always fresh on `restart`).
+  let doc: OnboardingDoc | null = null;
+  if (onboardingId && !restart) {
+    if (!ObjectId.isValid(onboardingId)) throw badRequest("Invalid onboardingId");
+    doc = await onboarding.findOne({ _id: new ObjectId(onboardingId), userId: user._id }).lean();
+    if (!doc) throw notFound("Setup not found");
+    if (doc.status !== "clarifying") throw conflict("This topic is already set up. Start the quiz instead.");
+  } else if (!restart) {
+    doc = await onboarding
+      .findOne({ userId: user._id, status: "clarifying" })
+      .sort({ updatedAt: -1 })
+      .lean();
+  }
 
   if (!doc) {
     const fresh: OnboardingDoc = {

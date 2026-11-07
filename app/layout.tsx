@@ -1,89 +1,56 @@
 import type { Metadata } from "next";
-import {
-  Geist,
-  Geist_Mono,
-  Inter,
-  DM_Sans,
-  Manrope,
-  Space_Grotesk,
-  Plus_Jakarta_Sans,
-  Instrument_Serif,
-  JetBrains_Mono,
-} from "next/font/google";
+import { cookies } from "next/headers";
+import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { Nav } from "@/components/Nav";
 import { NavBar } from "@/components/NavBar";
 import { Toaster } from "@/components/ui/sonner";
 import { ActiveTopicProvider } from "@/components/ActiveTopic";
+import { SESSION_COOKIE } from "@/lib/auth/session";
 
-// ── Default body + mono ──────────────────────────────────────────────────────
+// Three families: Geist for text, Geist Mono for eyebrows, stats and code, and
+// Space Grotesk for display headings (`.h-display`, `font-heading`).
 const geistSans = Geist({ variable: "--font-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-
-// ── Sans-serif sampler ───────────────────────────────────────────────────────
-// Swap any of these in via the Tailwind class shown next to each one.
-const inter = Inter({ variable: "--font-inter", subsets: ["latin"], display: "swap" }); // font-inter
-const dmSans = DM_Sans({ variable: "--font-dm", subsets: ["latin"], display: "swap" }); // font-dm
-const manrope = Manrope({ variable: "--font-manrope", subsets: ["latin"], display: "swap" }); // font-manrope
-const spaceGrotesk = Space_Grotesk({ variable: "--font-space", subsets: ["latin"], display: "swap" }); // font-space
-const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], display: "swap" }); // font-jakarta
-
-// ── Serif option (if you want one big editorial heading) ────────────────────
-const instrument = Instrument_Serif({
-  variable: "--font-instrument",
-  subsets: ["latin"],
-  weight: ["400"],
-  display: "swap",
-}); // font-instrument
-
-// ── Alt mono ─────────────────────────────────────────────────────────────────
-const jetbrains = JetBrains_Mono({
-  variable: "--font-jetbrains",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space",
   subsets: ["latin"],
   display: "swap",
-}); // font-jetbrains
+});
 
 export const metadata: Metadata = {
-  title: "LearnPath",
+  title: { default: "LearnPath", template: "%s · LearnPath" },
   description: "Personalized, adaptive learning paths generated for you.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const fontVars = [
-    geistSans.variable,
-    geistMono.variable,
-    inter.variable,
-    dmSans.variable,
-    manrope.variable,
-    spaceGrotesk.variable,
-    jakarta.variable,
-    instrument.variable,
-    jetbrains.variable,
-  ].join(" ");
+  // Cookie PRESENCE only (no DB read), so the topbar's loading fallback can
+  // reserve the signed-in layout instead of flashing a logo-only bar.
+  const signedIn = (await cookies()).has(SESSION_COOKIE);
+  const fontVars = [geistSans.variable, geistMono.variable, spaceGrotesk.variable].join(" ");
 
   return (
     <html lang="en" className={`dark ${fontVars} h-full antialiased`}>
       <body className="bg-background text-foreground flex min-h-full flex-col">
         {/* Spans the nav and the page so a route whose topic isn't in the URL
-            (a lesson) can announce it to the topic switcher. `children` stays a
+            (a lesson) can announce it to the topic bar. `children` stays a
             server-rendered subtree — the provider only passes it through. */}
         <ActiveTopicProvider>
-          {/* The Nav reads the session cookie. Behind its own boundary so that
-              read doesn't hold the first streamed byte; the fallback is the
-              logo-only bar. */}
-          <Suspense fallback={<NavBar user={null} topics={[]} />}>
+          {/* The Nav reads the session. Behind its own boundary so that read
+              doesn't hold the first streamed byte. */}
+          <Suspense fallback={<NavBar user={null} topics={[]} signedIn={signedIn} />}>
             <Nav />
           </Suspense>
           {/* The <main> wrapper lives in the route-group layouts: `(app)` sets
               the reading-width container, `(marketing)` stays full-bleed. */}
           {children}
         </ActiveTopicProvider>
-        <Toaster richColors position="bottom-right" theme="dark" />
+        <Toaster position="bottom-right" theme="dark" />
       </body>
     </html>
   );

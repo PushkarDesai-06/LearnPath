@@ -1,19 +1,23 @@
 "use client";
 
-import { startTransition, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { LoadingRing, PageLoader } from "@/components/ui/loading-ring";
 import { cn } from "@/lib/utils";
+import { InlineMarkdown } from "@/components/Markdown";
+import { PageHeader } from "@/components/PageHeader";
+import { SetupSteps } from "@/components/SetupSteps";
+import { StatRow } from "@/components/StatRow";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { AssessmentState, PublicQuestion, ReviewItem } from "@/lib/data/types";
+import { generatePathAction } from "./actions";
 
 type Question = Pick<PublicQuestion, "id" | "prompt" | "choices" | "level">;
 
@@ -48,8 +52,10 @@ function resultFrom(s: Extract<AssessmentState, { kind: "complete" }>): ResultDa
  */
 export function AssessmentClient({
   initial,
+  onboardingId,
 }: {
   initial: Exclude<AssessmentState, { kind: "no_onboarding" }>;
+  onboardingId: string | null;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>(
@@ -86,7 +92,7 @@ export function AssessmentClient({
       score?: number;
       result?: { estimatedLevel: string };
       review?: ReviewItem[];
-    }>("/api/assessment/start", { method: "POST" })
+    }>("/api/assessment/start", { body: { onboardingId: onboardingId ?? undefined } })
       .then((res) => {
         if (!active) return;
         setAssessmentId(res.assessmentId);
@@ -116,7 +122,7 @@ export function AssessmentClient({
     return () => {
       active = false;
     };
-  }, [needsQuiz, router, startAttempt]);
+  }, [needsQuiz, onboardingId, router, startAttempt]);
 
   const allAnswered =
     questions.length > 0 && questions.every((q) => answers[q.id] !== undefined);
@@ -134,14 +140,7 @@ export function AssessmentClient({
       setResult(res);
       setShowAnswers(false);
       setPhase("result");
-      toast.success(
-        `Scored ${Math.round(res.score * 100)}% — level ${res.estimatedLevel}`,
-      );
-      if (res.recommendAnotherRound) {
-        toast.info(
-          "Your results look mixed — try one more short quiz to refine.",
-        );
-      }
+      window.scrollTo({ top: 0 });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to submit");
     } finally {
@@ -158,44 +157,47 @@ export function AssessmentClient({
 
   async function generatePath() {
     setGenerating(true);
-    const t = toast.loading("Generating your learning path…");
+    // On success the action redirects to the new dashboard (and refreshes the
+    // topbar's topic list); it only returns when something went wrong.
+    let error: string;
     try {
-      const res = await api<{ curriculum: { id: string } }>(
-        "/api/curriculum/generate",
-        { body: { assessmentId } },
-      );
-      toast.success("Your learning path is ready!", { id: t });
-      // One transition: refresh so the Nav's topic list picks up the new
-      // curriculum, then land on its dashboard.
-      startTransition(() => {
-        router.refresh();
-        router.push(`/dashboard?id=${res.curriculum.id}`);
-      });
+      const res = await generatePathAction(assessmentId);
+      if (!res?.error) return;
+      error = res.error;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generation failed", {
-        id: t,
-      });
-      setGenerating(false);
+      // The redirect is a navigation, not a failure: leave the busy state up.
+      const digest = (err as { digest?: unknown } | null)?.digest;
+      if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) return;
+      error = "Couldn't reach the server. Check your connection and try again.";
     }
+    toast.error(error);
+    setGenerating(false);
   }
 
   if (phase === "loading")
-    return <PageLoader label="Preparing your quiz…" />;
+    return (
+      <Shell step={1}>
+        <PageLoader label="Writing your quiz…" />
+      </Shell>
+    );
 
   if (phase === "error") {
     return (
-      <div className="flex flex-col items-start gap-4">
+      <Shell step={1}>
         <Alert variant="destructive">
           <AlertDescription>{startError}</AlertDescription>
         </Alert>
-        <Button onClick={() => {
-          setStartError("");
-          setPhase("loading");
-          setStartAttempt((attempt) => attempt + 1);
-        }}>
-          Retry preparing quiz
+        <Button
+          className="self-start"
+          onClick={() => {
+            setStartError("");
+            setPhase("loading");
+            setStartAttempt((attempt) => attempt + 1);
+          }}
+        >
+          Try again
         </Button>
-      </div>
+      </Shell>
     );
   }
 
@@ -203,161 +205,178 @@ export function AssessmentClient({
     const correct = result.review.filter((r) => r.correct).length;
     const total = result.review.length;
     return (
-      <div className="flex flex-col gap-4">
-        <Card className="text-center">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">
-              Quiz complete
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-3">
-            <p className="text-5xl font-bold">
-              {Math.round(result.score * 100)}%
-            </p>
-            <p className="text-muted-foreground text-sm">
-              {correct}/{total} correct · estimated level{" "}
-              <Badge variant="secondary">{result.estimatedLevel}</Badge>
-            </p>
-            {generating ? (
-              <div className="flex flex-col items-center gap-2 py-2">
-                <LoadingRing className="size-6" />
-                <p className="text-foreground text-sm">
-                  Building your personalized path…
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  This can take a moment.
+      <Shell step={generating ? 2 : 1}>
+        <PageHeader eyebrow="Knowledge check" title="Here's where you are" />
+        <StatRow
+          stats={[
+            { label: "Score", value: `${Math.round(result.score * 100)}%` },
+            { label: "Correct", value: `${correct}/${total}` },
+            { label: "Level", value: result.estimatedLevel },
+          ]}
+        />
+        {generating ? (
+          <Card role="status">
+            <CardContent className="flex items-start gap-3">
+              <LoadingRing className="mt-0.5 size-5 shrink-0" />
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium">Building your path…</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Writing modules and lessons for a {result.estimatedLevel} learner, ordering them
+                  so nothing comes before what it depends on, and marking what you already showed
+                  you know. This usually takes under a minute.
                 </p>
               </div>
-            ) : (
-              <div className="flex flex-wrap justify-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowAnswers((s) => !s)}
-                >
-                  {showAnswers ? "Hide answers" : "Check answers"}
-                </Button>
-                {result.recommendAnotherRound && (
-                  <Button variant="outline" onClick={refine}>
-                    Refine my level
-                  </Button>
-                )}
-                <Button onClick={generatePath} disabled={generating}>
-                  Generate my path
-                  <ArrowRight data-icon="inline-end" />
-                </Button>
-              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {result.recommendAnotherRound && (
+              <p className="text-muted-foreground text-sm">
+                Your answers were mixed (some harder ones right, easier ones wrong). A few more
+                questions would pin your level down.
+              </p>
             )}
-          </CardContent>
-        </Card>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={generatePath}>
+                Build my path
+                <ArrowRight data-icon="inline-end" />
+              </Button>
+              {result.recommendAnotherRound && (
+                <Button variant="secondary" onClick={refine}>
+                  Answer a few more
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                aria-expanded={showAnswers}
+                onClick={() => setShowAnswers((s) => !s)}
+              >
+                {showAnswers ? "Hide answers" : "Review answers"}
+              </Button>
+            </div>
+          </div>
+        )}
 
-        {showAnswers &&
-          result.review.map((r, i) => (
-            <Card key={r.id}>
-              <CardContent className="flex flex-col gap-2">
-                <p className="text-sm font-medium">
-                  {i + 1}. {r.prompt}
-                </p>
-                <div className="flex flex-col gap-1">
-                  {(r.choices ?? []).map((c, idx) => {
-                    const isCorrect = String(idx) === r.correctKey;
-                    const isYoursWrong =
-                      String(idx) === r.yourAnswer && !isCorrect;
-                    return (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
-                          isCorrect &&
-                            "bg-primary/10 text-foreground font-medium",
-                          isYoursWrong && "text-destructive",
-                        )}
-                      >
-                        {isCorrect ? (
-                          <Check className="text-primary size-4 shrink-0" />
-                        ) : isYoursWrong ? (
-                          <X className="size-4 shrink-0" />
-                        ) : (
-                          <span className="size-4 shrink-0" />
-                        )}
-                        {c}
-                      </div>
-                    );
-                  })}
-                </div>
-                {r.yourAnswer === IDK && (
-                  <p className="text-muted-foreground text-xs">
-                    You answered: I don&apos;t know
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-      </div>
+        {showAnswers && (
+          <ol className="flex flex-col gap-3">
+            {result.review.map((r, i) => (
+              <li key={r.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-2">
+                    <p className="text-sm font-medium">
+                      {i + 1}. <InlineMarkdown>{r.prompt}</InlineMarkdown>
+                    </p>
+                    <ul className="flex flex-col gap-1">
+                      {(r.choices ?? []).map((c, idx) => {
+                        const isCorrect = String(idx) === r.correctKey;
+                        const isYoursWrong = String(idx) === r.yourAnswer && !isCorrect;
+                        return (
+                          <li
+                            key={idx}
+                            className={cn(
+                              "flex items-center gap-2 rounded-md px-2 py-1 text-sm",
+                              isCorrect && "bg-primary/10 text-foreground font-medium",
+                              isYoursWrong && "text-destructive",
+                            )}
+                          >
+                            {isCorrect ? (
+                              <Check className="text-primary size-4 shrink-0" aria-label="Correct answer" />
+                            ) : isYoursWrong ? (
+                              <X className="size-4 shrink-0" aria-label="Your answer" />
+                            ) : (
+                              <span className="size-4 shrink-0" />
+                            )}
+                            <span className="min-w-0 [overflow-wrap:anywhere]">
+                              <InlineMarkdown>{c}</InlineMarkdown>
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {r.yourAnswer === IDK && (
+                      <p className="text-muted-foreground text-xs">You answered: I don&apos;t know</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Shell>
     );
   }
 
+  const answeredCount = questions.filter((q) => answers[q.id] !== undefined).length;
+
   return (
-    <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2">
-        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-          Diagnostic
-        </p>
-        <h1 className="h-display text-3xl">Knowledge check</h1>
-        <p className="text-muted-foreground text-sm">
-          Answer every question. One submit. I&apos;ll read what you wrote and
-          shape the curriculum.
-        </p>
-      </header>
-      {questions.map((q, i) => (
-        <Card key={q.id}>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{i + 1}.</span>
-              <Badge variant="outline">level {q.level}</Badge>
-            </div>
-            <p className="font-medium whitespace-pre-wrap">{q.prompt}</p>
-            <RadioGroup
-              value={answers[q.id] ?? ""}
-              onValueChange={(v) => setAnswers((a) => ({ ...a, [q.id]: v }))}
-            >
-              {(q.choices ?? []).map((c, idx) => (
-                <Label
-                  key={idx}
-                  htmlFor={`${q.id}-${idx}`}
-                  className="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded-md border p-3 font-normal"
-                >
-                  <RadioGroupItem value={String(idx)} id={`${q.id}-${idx}`} />
-                  {c}
-                </Label>
-              ))}
-            </RadioGroup>
-            <Button
-              type="button"
-              variant={answers[q.id] === IDK ? "default" : "secondary"}
-              size="sm"
-              className={cn(
-                "self-start border-dashed",
-                // answers[q.id] === IDK && "ring-primary border-solid",
-              )}
-              onClick={() => setAnswers((a) => ({ ...a, [q.id]: IDK }))}
-            >
-              {answers[q.id] === IDK && <Check data-icon="inline-start" />}I
-              don&apos;t know
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
-      <div className="flex items-center gap-3">
+    <Shell step={1}>
+      <PageHeader
+        eyebrow="Knowledge check"
+        title="Where are you starting from?"
+        description={`${questions.length} multiple-choice questions, easy to hard. Pick "I don't know" rather than guessing: an honest answer gives you a better path.`}
+      />
+      <ol className="flex flex-col gap-4">
+        {questions.map((q, i) => {
+          const promptId = `${q.id}-prompt`;
+          return (
+            <li key={q.id}>
+              <Card>
+                <CardContent className="flex flex-col gap-3">
+                  <p id={promptId} className="font-medium whitespace-pre-wrap">
+                    <span className="text-muted-foreground mr-2 font-mono text-xs tabular-nums">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <InlineMarkdown>{q.prompt}</InlineMarkdown>
+                  </p>
+                  <RadioGroup
+                    aria-labelledby={promptId}
+                    value={answers[q.id] ?? ""}
+                    onValueChange={(v) => setAnswers((a) => ({ ...a, [q.id]: v }))}
+                  >
+                    {[...(q.choices ?? []).map((c, idx) => ({ value: String(idx), label: c })), { value: IDK, label: null }].map(
+                      (opt) => (
+                        <Label
+                          key={opt.value}
+                          htmlFor={`${q.id}-${opt.value}`}
+                          className={cn(
+                            "hover:bg-muted/50 has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-muted/40 flex cursor-pointer items-center gap-2 rounded-md border p-3 font-normal",
+                            opt.label === null && "text-muted-foreground border-dashed",
+                          )}
+                        >
+                          <RadioGroupItem value={opt.value} id={`${q.id}-${opt.value}`} />
+                          <span className="min-w-0 [overflow-wrap:anywhere]">
+                            {opt.label === null ? "I don't know" : <InlineMarkdown>{opt.label}</InlineMarkdown>}
+                          </span>
+                        </Label>
+                      ),
+                    )}
+                  </RadioGroup>
+                </CardContent>
+              </Card>
+            </li>
+          );
+        })}
+      </ol>
+      {/* Sticky, so the count and the one submit are always in reach. */}
+      <div className="bg-background/85 border-border sticky bottom-0 -mx-4 flex items-center justify-between gap-3 border-t px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6">
+        <span className="text-muted-foreground font-mono text-xs tabular-nums" aria-live="polite">
+          {answeredCount} / {questions.length} answered
+        </span>
         <Button onClick={submit} disabled={busy || !allAnswered}>
-          {busy && <LoadingRing data-icon="inline-start" />}
-          Submit quiz
+          {busy && <LoadingRing data-icon="inline-start" className="text-current" />}
+          Submit answers
         </Button>
-        {!allAnswered && (
-          <span className="text-muted-foreground text-sm">
-            Answer all {questions.length} questions.
-          </span>
-        )}
       </div>
+    </Shell>
+  );
+}
+
+/** Same reading column and step marker in every phase. */
+function Shell({ step, children }: { step: 0 | 1 | 2; children: React.ReactNode }) {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 pb-4">
+      <SetupSteps current={step} />
+      {children}
     </div>
   );
 }

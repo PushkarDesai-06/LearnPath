@@ -6,15 +6,15 @@
 import "server-only";
 import { ObjectId } from "mongodb";
 import { progressEventsCollection } from "@/lib/db/collections";
-import type { CurriculumLesson } from "@/lib/db/models";
 import { resolveCurriculum } from "@/lib/server/curriculumLocate";
 import { generatedLessonRefs } from "@/lib/server/lessonReady";
 import { summarizeCurriculum } from "@/lib/server/curriculumView";
 import { gateModuleStatuses } from "@/lib/domain/adapt";
+import { recommendNext } from "@/lib/domain/next";
 import type { DashboardData } from "@/lib/data/types";
 import { flashcardCounts } from "@/lib/data/flashcards";
+import { tidyCurriculumTitle } from "@/lib/domain/title";
 
-type Pick = { moduleId: string; moduleTitle: string; lesson: CurriculumLesson };
 
 /**
  * `curriculumId` selects a topic (owner-scoped — a foreign id resolves to
@@ -30,12 +30,6 @@ export async function getDashboard(
 
   // Apply the access window so module badges + recommended-next reflect the rule.
   curriculum.modules = gateModuleStatuses(curriculum.modules);
-
-  const reviewLessons: Pick[] = curriculum.modules.filter((m) => m.status !== "locked").flatMap((m) =>
-    m.lessons
-      .filter((l) => l.status === "needs_review")
-      .map((l) => ({ moduleId: m.id, moduleTitle: m.title, lesson: l })),
-  );
 
   // The readiness, time and flashcard reads are independent.
   const events = await progressEventsCollection();
@@ -83,41 +77,24 @@ export async function getDashboard(
     };
   });
 
-  // Recommended next: pending reviews first, else weakest non-done lesson in an
-  // unlocked, incomplete module.
-  const pickWeakest = (): Pick | null => {
-    let best: Pick | null = null;
-    for (const m of curriculum.modules) {
-      if (m.status === "locked" || m.status === "completed") continue;
-      for (const l of m.lessons) {
-        if (l.status === "mastered") continue;
-        if (!best || l.masteryScore < best.lesson.masteryScore) {
-          best = { moduleId: m.id, moduleTitle: m.title, lesson: l };
-        }
-      }
-    }
-    return best;
-  };
-  const recommendation = reviewLessons[0] ?? pickWeakest();
+  const recommendation = recommendNext(curriculum.modules);
 
   return {
     hasCurriculum: true,
     curriculumId: curriculum._id.toHexString(),
-    title: curriculum.title,
+    title: tidyCurriculumTitle(curriculum.title),
     version: curriculum.version,
     summary: { ...summarizeCurriculum(curriculum), totalTimeMs },
     modules,
     recommendedNext: recommendation
       ? {
-          reason:
-            recommendation === reviewLessons[0]
-              ? "needs_review"
-              : "weakest_available",
+          reason: recommendation.reason,
           moduleId: recommendation.moduleId,
           moduleTitle: recommendation.moduleTitle,
           lessonId: recommendation.lesson.id,
           lessonTitle: recommendation.lesson.title,
           generated: generated.has(recommendation.lesson.id),
+          started: recommendation.lesson.status === "in_progress",
           masteryScore: Number(recommendation.lesson.masteryScore.toFixed(3)),
         }
       : null,

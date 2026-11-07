@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Check, RotateCcw, Lock, Dot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatStatus } from "@/lib/format";
 
 /**
  * The landing page's centerpiece: the adaptive path, moving.
@@ -93,12 +94,13 @@ const STAGES: Stage[] = [
   },
 ];
 
+// The app's own wording (lib/format.ts), so the demo promises what the path shows.
 const STATUS_LABEL: Record<Status, string> = {
-  mastered: "Mastered",
-  progress: "In progress",
-  review: "Needs review",
-  locked: "Locked",
-  available: "Up next",
+  mastered: formatStatus("mastered"),
+  progress: formatStatus("in_progress"),
+  review: formatStatus("needs_review"),
+  locked: formatStatus("locked"),
+  available: formatStatus("available"),
 };
 
 function StatusIcon({ status }: { status: Status }) {

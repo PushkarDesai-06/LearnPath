@@ -7,14 +7,17 @@ import { ObjectId } from "mongodb";
 import { onboardingCollection } from "@/lib/db/collections";
 import type { OnboardingResume } from "@/lib/data/types";
 
+/** The named setup when `onboardingId` is given (Topics "Continue"), else the newest. */
 export async function getResumableOnboarding(
   userId: string,
+  onboardingId?: string | null,
 ): Promise<OnboardingResume | null> {
   const onboarding = await onboardingCollection();
   const ob = await onboarding
     .findOne({
       userId: new ObjectId(userId),
       status: { $in: ["clarifying", "ready"] },
+      ...(onboardingId ? { _id: ObjectId.isValid(onboardingId) ? new ObjectId(onboardingId) : null } : {}),
     })
     .sort({ updatedAt: -1 })
     .lean();

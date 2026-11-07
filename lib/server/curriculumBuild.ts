@@ -18,6 +18,7 @@ import {
   type CurriculumModule,
   type DifficultyLevel,
 } from "@/lib/db/models";
+import { tidyCurriculumTitle } from "@/lib/domain/title";
 
 function coerceLevel(value: string): DifficultyLevel {
   const v = value.toLowerCase().trim();
@@ -96,7 +97,7 @@ export function buildCurriculumDoc(params: {
     userId,
     assessmentId,
     domain,
-    title: output.title,
+    title: tidyCurriculumTitle(output.title),
     modules,
     version: 1,
     createdAt: now,

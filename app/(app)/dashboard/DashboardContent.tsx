@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Lock, ArrowUpRight, Layers } from "lucide-react";
 import { getDashboard } from "@/lib/data/progress";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -12,6 +11,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TrailRail } from "@/components/TrailRail";
+import { NoTopicState } from "@/components/NoTopicState";
+import { PageHeader } from "@/components/PageHeader";
+import { StatRow } from "@/components/StatRow";
 import { formatStatus, statusTone } from "@/lib/format";
 
 function lessonHref(lessonId: string) {
@@ -37,21 +39,7 @@ export async function DashboardContent({
   const data = await getDashboard(userId, curriculumId);
 
   if (!data.hasCurriculum)
-    return (
-      <Card className="mx-auto max-w-md">
-        <CardHeader>
-          <CardTitle className="h-display text-3xl">Nothing here yet</CardTitle>
-          <CardDescription>
-            This topic doesn&apos;t have a learning path yet.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/topics">Go to topics</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return <NoTopicState userId={userId} requestedId={curriculumId} />;
 
   const s = data.summary;
   const railItems = data.modules.map((m) => ({
@@ -69,45 +57,21 @@ export async function DashboardContent({
     // its left (`right-full`), so it never pulls the content off-centre. It
     // only appears once that gutter is actually wide enough to hold it.
     <div className="relative mx-auto w-full max-w-2xl">
-      <div className="absolute inset-y-0 right-full hidden w-44 pr-6 min-[1180px]:block">
+      <div className="absolute inset-y-0 right-full hidden w-52 pr-6 min-[1180px]:block">
         <TrailRail items={railItems} activeId={currentModule} />
       </div>
 
       <div className="flex flex-col gap-8">
-        {/* Hero */}
-        <header className="flex flex-col gap-3">
-          <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-            Your path
-          </p>
-          <div className="flex items-end justify-between gap-4">
-            <h1 className="h-display text-3xl sm:text-4xl">{data.title}</h1>
-            <div className="flex shrink-0 gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href={`/tutor?id=${data.curriculumId}`}>Tutor</Link>
-              </Button>
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/topics">All topics</Link>
-              </Button>
-            </div>
-          </div>
-        </header>
+        <PageHeader eyebrow="Your path" title={data.title} />
 
-        {/* Instrument-panel stats */}
-        <section className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 sm:grid-cols-4">
-          <Stat
-            label="Mastery"
-            value={`${Math.round(s.overallMastery * 100)}%`}
-          />
-          <Stat
-            label="Lessons mastered"
-            value={`${s.lessonsMastered}/${s.lessonsTotal}`}
-          />
-          <Stat
-            label="Modules done"
-            value={`${s.modulesCompleted}/${s.modulesTotal}`}
-          />
-          <Stat label="Time spent" value={fmtTime(s.totalTimeMs)} />
-        </section>
+        <StatRow
+          stats={[
+            { label: "Mastery", value: `${Math.round(s.overallMastery * 100)}%` },
+            { label: "Lessons mastered", value: `${s.lessonsMastered}/${s.lessonsTotal}` },
+            { label: "Modules done", value: `${s.modulesCompleted}/${s.modulesTotal}` },
+            { label: "Time spent", value: fmtTime(s.totalTimeMs) },
+          ]}
+        />
 
         {/* Recommended next */}
         {data.recommendedNext && (
@@ -119,7 +83,9 @@ export async function DashboardContent({
             <p className="text-primary/90 font-mono text-[10px] uppercase tracking-[0.18em]">
               {data.recommendedNext.reason === "needs_review"
                 ? "Pick up a review"
-                : "Pick up where you left off"}
+                : data.recommendedNext.started
+                  ? "Pick up where you left off"
+                  : "Up next"}
             </p>
             <div className="mt-2 flex items-end justify-between gap-4">
               <div>
@@ -167,7 +133,7 @@ export async function DashboardContent({
               <Card
                 key={m.id}
                 id={`mod-${m.id}`}
-                className="scroll-mt-24 transition-colors hover:border-border/60"
+                className="scroll-mt-32 transition-colors hover:border-border/60"
               >
                 <CardHeader>
                   <div className="flex items-start justify-between gap-3">
@@ -189,7 +155,9 @@ export async function DashboardContent({
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2.5 sm:ml-9">
                   {m.lessons.map((l) => {
-                    const lt = statusTone(l.status);
+                    // A locked module locks its lessons, whatever their own status.
+                    const shownStatus = locked ? "locked" : l.status;
+                    const lt = statusTone(shownStatus);
                     return (
                       <div
                         key={l.id}
@@ -214,7 +182,7 @@ export async function DashboardContent({
                               </Link>
                             )}
                             <Badge variant="status" tone={lt} className="shrink-0">
-                              {formatStatus(l.status)}
+                              {formatStatus(shownStatus)}
                             </Badge>
                           </div>
                           <span className="text-muted-foreground/80 shrink-0 font-mono text-[10px] tabular-nums">
@@ -223,6 +191,7 @@ export async function DashboardContent({
                         </div>
                         <Progress
                           value={l.masteryScore * 100}
+                          aria-label={`${l.title} mastery`}
                           className="max-w-40"
                         />
                       </div>
@@ -241,17 +210,6 @@ export async function DashboardContent({
           </p>
         )}
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
-      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
-        {label}
-      </p>
     </div>
   );
 }

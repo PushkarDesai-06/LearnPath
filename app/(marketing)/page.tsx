@@ -68,6 +68,14 @@ const TUTOR_THREAD = [
   },
 ] as const;
 
+/** In-page anchors to the sections above. */
+const FOOTER_SECTIONS = [
+  { href: "#mechanic", label: "How the path adapts" },
+  { href: "#flow", label: "How it works" },
+  { href: "#lessons", label: "Lessons" },
+  { href: "#tutor", label: "The tutor" },
+];
+
 export default async function Home() {
   // Signed-in learners go straight to their studies; the redirect happens on
   // the server, before any landing markup (or the WebGL bundle) is sent.
@@ -75,87 +83,88 @@ export default async function Home() {
 
   return (
     <>
-      <DitherBackground />
-
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="mx-auto w-full max-w-4xl px-4 pt-16 pb-20 sm:px-6 sm:pt-28 sm:pb-28">
-        <div className="flex flex-col gap-7">
-          <Reveal>
-            <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-              Adaptive learning, paced for you
-            </p>
-          </Reveal>
-          <Reveal delay={80}>
-            <h1 className="h-display text-[2.75rem] leading-[1.02] sm:text-6xl lg:text-7xl">
-              A path drawn from
-              <br className="hidden sm:block" /> where you{" "}
-              <span className="relative whitespace-nowrap">
-                actually are
-                {/* Hand-drawn underline: draws itself once, then rests. */}
-                <svg
-                  aria-hidden
-                  viewBox="0 0 300 12"
-                  preserveAspectRatio="none"
-                  className="text-primary/50 absolute bottom-[-0.16em] left-0 h-[0.3em] w-full"
+      <div className="relative">
+        <DitherBackground />
+        <section className="mx-auto w-full max-w-4xl px-4 pt-16 pb-20 sm:px-6 sm:pt-28 sm:pb-28">
+          <div className="flex flex-col gap-7">
+            <Reveal>
+              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+                Adaptive learning, paced for you
+              </p>
+            </Reveal>
+            <Reveal delay={80}>
+              <h1 className="h-display text-[2.75rem] leading-[1.02] sm:text-6xl lg:text-7xl">
+                A path drawn from
+                <br className="hidden sm:block" /> where you{" "}
+                <span className="relative whitespace-nowrap">
+                  actually are
+                  {/* Hand-drawn underline: draws itself once, then rests. */}
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 300 12"
+                    preserveAspectRatio="none"
+                    className="text-primary/50 absolute bottom-[-0.16em] left-0 h-[0.3em] w-full"
+                  >
+                    <path
+                      d="M2 8C60 3 120 2 180 4C220 5.2 260 7 298 5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      className="underline-draw"
+                    />
+                  </svg>
+                </span>
+                .
+              </h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p className="text-muted-foreground max-w-xl text-base leading-relaxed sm:text-lg">
+                Most courses start at lesson one whoever you are. LearnPath
+                diagnoses your level first, writes a curriculum around it, and
+                keeps rewriting that curriculum as your mastery shifts.
+              </p>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button size="lg" className="h-11 px-5 text-sm" asChild>
+                  <Link href="/login?mode=signup">
+                    Get started
+                    <ArrowRight data-icon="inline-end" />
+                  </Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="ghost"
+                  className="text-muted-foreground h-11 px-4 text-sm"
+                  asChild
                 >
-                  <path
-                    d="M2 8C60 3 120 2 180 4C220 5.2 260 7 298 5"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    className="underline-draw"
-                  />
-                </svg>
-              </span>
-              .
-            </h1>
-          </Reveal>
-          <Reveal delay={160}>
-            <p className="text-muted-foreground max-w-xl text-base leading-relaxed sm:text-lg">
-              Most courses start at lesson one whoever you are. LearnPath
-              diagnoses your level first, writes a curriculum around it, and
-              keeps rewriting that curriculum as your mastery shifts.
-            </p>
-          </Reveal>
-          <Reveal delay={240}>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button size="lg" className="h-11 px-5 text-sm" asChild>
-                <Link href="/login">
-                  Get started
-                  <ArrowRight data-icon="inline-end" />
-                </Link>
-              </Button>
-              <Button
-                size="lg"
-                variant="ghost"
-                className="text-muted-foreground h-11 px-4 text-sm"
-                asChild
-              >
-                <Link href="/login">I already have an account</Link>
-              </Button>
-            </div>
-          </Reveal>
-          <Reveal delay={320}>
-            <ul className="text-muted-foreground/70 border-border/60 flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-6 font-mono text-[11px]">
-              {[
-                "Adaptive intake quiz",
-                "Prerequisite-ordered path",
-                "AI-authored lessons",
-                "Socratic tutor",
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-1.5">
-                  <span className="bg-primary/50 size-1 rounded-full" />
-                  {f}
-                </li>
-              ))}
-            </ul>
-          </Reveal>
-        </div>
-      </section>
+                  <Link href="/login">I already have an account</Link>
+                </Button>
+              </div>
+            </Reveal>
+            <Reveal delay={320}>
+              <ul className="text-muted-foreground/70 border-border/60 flex flex-wrap items-center gap-x-5 gap-y-2 border-t pt-6 font-mono text-[11px]">
+                {[
+                  "Adaptive intake quiz",
+                  "Prerequisite-ordered path",
+                  "AI-authored lessons",
+                  "Socratic tutor",
+                ].map((f) => (
+                  <li key={f} className="flex items-center gap-1.5">
+                    <span className="bg-primary/50 size-1 rounded-full" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </Reveal>
+          </div>
+        </section>
+      </div>
 
       {/* ── 01 · The adaptive mechanic, demonstrated ─────────────────────── */}
-      <section className="border-border/60 border-t">
+      <section id="mechanic" className="scroll-mt-20 border-border/60 border-t">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-20 sm:px-6 sm:py-24">
           <SectionHead
             index="01 · The mechanic"
@@ -169,7 +178,7 @@ export default async function Home() {
       </section>
 
       {/* ── 02 · How it works ───────────────────────────────────────────── */}
-      <section className="border-border/60 border-t">
+      <section id="flow" className="scroll-mt-20 border-border/60 border-t">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-4 py-20 sm:px-6 sm:py-24">
           <SectionHead index="02 · The flow" title="Four steps, then it runs." />
           <ol className="grid gap-x-8 gap-y-10 sm:grid-cols-2">
@@ -194,7 +203,7 @@ export default async function Home() {
       </section>
 
       {/* ── 03 · Inside a lesson ────────────────────────────────────────── */}
-      <section className="border-border/60 border-t">
+      <section id="lessons" className="scroll-mt-20 border-border/60 border-t">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-20 sm:px-6 sm:py-24">
           <SectionHead
             index="03 · The lessons"
@@ -265,7 +274,7 @@ export default async function Home() {
       </section>
 
       {/* ── 04 · The tutor ──────────────────────────────────────────────── */}
-      <section className="border-border/60 border-t">
+      <section id="tutor" className="scroll-mt-20 border-border/60 border-t">
         <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-20 sm:px-6 sm:py-24">
           <SectionHead
             index="04 · The tutor"
@@ -324,7 +333,7 @@ export default async function Home() {
               from there.
             </p>
             <Button size="lg" className="h-11 px-5 text-sm" asChild>
-              <Link href="/login">
+              <Link href="/login?mode=signup">
                 Get started
                 <ArrowRight data-icon="inline-end" />
               </Link>
@@ -334,13 +343,36 @@ export default async function Home() {
       </section>
 
       <footer className="border-border/60 border-t">
-        <div className="text-muted-foreground/60 mx-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-8 sm:px-6">
-          <span className="text-foreground/80 text-sm font-medium">
-            LearnPath
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-[0.16em]">
-            Adaptive learning, paced for you
-          </span>
+        <div className="text-muted-foreground mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+          <div className="flex flex-col gap-1">
+            <span className="text-foreground/80 text-sm font-medium">LearnPath</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em]">
+              Adaptive learning, paced for you
+            </span>
+          </div>
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-10 gap-y-4 text-sm">
+            <ul className="flex flex-col gap-2">
+              {FOOTER_SECTIONS.map((l) => (
+                <li key={l.href}>
+                  <a href={l.href} className="hover:text-foreground transition-colors">
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <ul className="flex flex-col gap-2">
+              <li>
+                <Link href="/login?mode=signup" className="hover:text-foreground transition-colors">
+                  Get started
+                </Link>
+              </li>
+              <li>
+                <Link href="/login" className="hover:text-foreground transition-colors">
+                  Log in
+                </Link>
+              </li>
+            </ul>
+          </nav>
         </div>
       </footer>
     </>

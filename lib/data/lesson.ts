@@ -16,16 +16,38 @@ import {
   type LocatedLesson,
 } from "@/lib/server/curriculumLocate";
 import { isLessonReady } from "@/lib/server/lessonReady";
-import type { BlockVariantDTO, LessonBlockDTO, LessonView } from "@/lib/data/types";
+import type { BlockVariantDTO, LessonBlockDTO, LessonDTO, LessonView } from "@/lib/data/types";
 import { lessonRetryState } from "@/lib/jobs/lessonPolicy";
 import { conflict } from "@/lib/http";
 import { requireLessonAccess } from "@/lib/server/lessonAccess";
 import { blockKey, stylesFor } from "@/lib/domain/variants";
 import { lessonFlashcards } from "@/lib/data/flashcards";
+import { normalizeLessonBlocks } from "@/lib/domain/lessonContent";
+import { recommendNext } from "@/lib/domain/next";
+import { gateModuleStatuses } from "@/lib/domain/adapt";
 
 function failedView(doc: LessonDoc): LessonView {
   return { status: "failed", curriculumId: doc.curriculumId.toHexString(),
     message: "We couldn't prepare this lesson.", ...lessonRetryState(doc) };
+}
+
+/** Same pick the completion response makes, read from the path as it is now. */
+function nextAfter(located: LocatedLesson): LessonDTO["next"] {
+  const pick = recommendNext(gateModuleStatuses(located.curriculum.modules), located.lesson.id);
+  return pick
+    ? { lessonId: pick.lesson.id, lessonTitle: pick.lesson.title, moduleTitle: pick.moduleTitle }
+    : null;
+}
+
+/** The lesson's place in its module, in path order. */
+function lessonContext(located: LocatedLesson): LessonDTO["context"] {
+  const ordered = [...located.module.lessons].sort((a, b) => a.order - b.order);
+  return {
+    moduleTitle: located.module.title,
+    position: ordered.findIndex((l) => l.id === located.lesson.id) + 1,
+    moduleLessonCount: ordered.length,
+    estMinutes: located.lesson.estMinutes,
+  };
 }
 
 /**
@@ -45,7 +67,12 @@ function readyView(
       id: lessonRef,
       curriculumId: located.curriculum._id.toHexString(),
       title: doc.title,
-      blocks: doc.blocks.map((block, index) => {
+      context: lessonContext(located),
+      completed: !!located.lesson.completion,
+      next: located.lesson.completion ? nextAfter(located) : null,
+      // Lessons written before the worker normalized prose still echo the title
+      // and block labels; the cleanup is pure, so it's applied on read too.
+      blocks: normalizeLessonBlocks(doc.blocks, doc.title).map((block, index) => {
         const key = blockKey(block, index);
         return {
           ...publicLessonBlock(block),

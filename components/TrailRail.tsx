@@ -46,16 +46,16 @@ export function TrailRail({ items, activeId, className }: Props) {
       aria-label="Learning path"
       className={cn(
         "relative flex flex-col",
-        // Sticky within the gutter the caller positions it in — the caller also
+        // Sticky below the two-row topbar (~97px), within the gutter the caller positions it in — the caller also
         // owns when the rail is shown, since that depends on gutter width.
-        "sticky top-20 self-start",
+        "sticky top-28 self-start",
         className,
       )}
     >
       {/* Hairline through the dot centers — first/last row half-heights inset */}
       <div
         aria-hidden
-        className="bg-border absolute top-3 bottom-3 left-[4.5px] w-px"
+        className="bg-border absolute top-2.5 bottom-2.5 left-[4.5px] w-px"
       />
       <ul className="flex flex-col gap-1">
         {items.map((item) => {
@@ -68,7 +68,7 @@ export function TrailRail({ items, activeId, className }: Props) {
                 title={item.title}
                 aria-current={isActive ? "true" : undefined}
                 className={cn(
-                  "flex h-6 items-center gap-2.5 pr-2",
+                  "flex min-h-6 items-start gap-2.5 py-1 pr-2",
                   "transition-colors hover:text-foreground",
                   isActive ? "text-foreground" : "text-muted-foreground",
                 )}
@@ -76,13 +76,15 @@ export function TrailRail({ items, activeId, className }: Props) {
                 <span
                   aria-hidden
                   className={cn(
-                    "relative size-2.5 shrink-0 rounded-full",
+                    "relative mt-px size-2.5 shrink-0 rounded-full",
                     DOT_BY_TONE[tone],
                   )}
                 />
                 <span
                   className={cn(
-                    "truncate text-xs leading-none",
+                    // Two lines before clipping: module titles run long, and
+                    // "SQL Foundations Ref…" names nothing.
+                    "line-clamp-2 text-xs leading-tight",
                     isActive && "font-medium",
                   )}
                 >
