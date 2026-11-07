@@ -162,6 +162,9 @@ export function PracticeBlock({
         />
       )}
       <CardContent className="flex flex-col gap-3">
+        <p role="status" className="sr-only">
+          {result ? (result.correct ? "Correct" : "Not quite") : ""}
+        </p>
         <p className="text-primary font-mono text-[10px] uppercase tracking-[0.18em]">
           Practice
         </p>
@@ -242,9 +245,7 @@ export function PracticeBlock({
             </div>
           )
         ) : (
-          // The verdict lands here, announced politely (no toast on top of it).
           <div
-            role="status"
             className="animate-in fade-in-0 slide-in-from-bottom-2 flex flex-col gap-2 text-sm duration-300 ease-out"
           >
             <Badge

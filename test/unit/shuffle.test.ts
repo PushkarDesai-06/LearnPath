@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shuffleMcq, shuffledIndices } from "@/lib/domain/shuffle";
-import { shufflePracticeChoices } from "@/lib/jobs/lessonWorker";
+import { shuffleMcq, shuffledIndices, shufflePracticeChoices } from "@/lib/domain/shuffle";
 import { gradeMcq } from "@/lib/domain/grade";
 
 /** Deterministic PRNG so the permutations are reproducible. */

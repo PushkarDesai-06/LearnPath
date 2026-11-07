@@ -6,18 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LoadingRing } from "@/components/ui/loading-ring";
 
-type State = ProfileFormState & { savedValue: string | null };
+type State = ProfileFormState & { savedValue: string | null; submittedValue: string | null };
 
 /** Inline editor for the display name; blank clears it back to the email. */
 export function DisplayNameForm({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
   const [state, save, saving] = useActionState(
     async (prev: State, form: FormData): Promise<State> => {
-      const res = await updateDisplayNameAction(prev, form);
-      return { ...res, savedValue: res.saved ? String(form.get("displayName") ?? "").trim() : prev.savedValue };
+      const submittedValue = String(form.get("displayName") ?? "");
+      try {
+        const res = await updateDisplayNameAction(prev, form);
+        return { ...res, submittedValue, savedValue: res.saved ? submittedValue.trim() : prev.savedValue };
+      } catch {
+        return { error: "Could not save. Try again.", saved: false, savedValue: prev.savedValue, submittedValue };
+      }
     },
-    { error: null, saved: false, savedValue: null },
+    { error: null, saved: false, savedValue: null, submittedValue: null },
   );
+  const error = value === state.submittedValue ? state.error : null;
   const dirty = value.trim() !== (state.savedValue ?? initial).trim();
 
   return (
@@ -39,6 +45,7 @@ export function DisplayNameForm({ initial }: { initial: string }) {
           maxLength={60}
           placeholder="How LearnPath greets you"
           onChange={(e) => setValue(e.target.value)}
+          aria-invalid={!!error}
           aria-describedby="displayName-status"
           className="max-w-xs"
         />
@@ -48,8 +55,8 @@ export function DisplayNameForm({ initial }: { initial: string }) {
         </Button>
       </div>
       <p id="displayName-status" role="status" className="min-h-4 text-xs">
-        {state.error ? (
-          <span className="text-destructive">{state.error}</span>
+        {error ? (
+          <span className="text-destructive">{error}</span>
         ) : state.saved && !dirty ? (
           <span className="text-muted-foreground">Saved.</span>
         ) : null}

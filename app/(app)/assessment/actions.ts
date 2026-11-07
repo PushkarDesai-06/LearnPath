@@ -11,14 +11,14 @@ import "server-only";
 import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireUser } from "@/lib/auth/guards";
+import { requireUserOrRedirect } from "@/lib/auth/current";
 import { generateCurriculum } from "@/lib/server/curriculumGeneration";
 
 export async function generatePathAction(assessmentId: string): Promise<{ error: string }> {
   if (!/^[a-f0-9]{24}$/i.test(assessmentId)) return { error: "Invalid assessment." };
+  const user = await requireUserOrRedirect();
   let curriculumId: string;
   try {
-    const user = await requireUser();
     const { curriculum } = await generateCurriculum(user._id, new ObjectId(assessmentId));
     curriculumId = curriculum._id.toHexString();
   } catch (err) {

@@ -24,7 +24,7 @@ import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
 import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
 import { loadLearnerContext } from "@/lib/jobs/learnerContext";
-import { shuffleMcq } from "@/lib/domain/shuffle";
+import { shufflePracticeChoices } from "@/lib/domain/shuffle";
 import { normalizeLessonBlocks } from "@/lib/domain/lessonContent";
 
 const CONCURRENCY = 3;
@@ -62,14 +62,6 @@ export function assignBlockIds(blocks: LessonBlock[]): LessonBlock[] {
     }
     return [{ ...b, blockId: randomUUID() }];
   });
-}
-
-/** MCQ practice choices are stored shuffled, so the key isn't always first. */
-export function shufflePracticeChoices(block: LessonBlock): LessonBlock {
-  if (block.kind !== "practice" || block.type !== "mcq" || !block.choices || block.correctKey === undefined) {
-    return block;
-  }
-  return shuffleMcq({ ...block, choices: block.choices, correctKey: block.correctKey });
 }
 
 let started = false;

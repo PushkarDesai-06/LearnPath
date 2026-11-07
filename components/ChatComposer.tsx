@@ -37,11 +37,16 @@ export function ChatComposer({
   autoFocus?: boolean;
   className?: string;
 }) {
+  function submit() {
+    if (busy || disabled || !value.trim()) return;
+    onSubmit();
+  }
+
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        onSubmit();
+        submit();
       }}
       className={cn(
         "bg-surface-1 border-border flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)] transition-[border-color,box-shadow]",
@@ -64,7 +69,7 @@ export function ChatComposer({
           if (e.nativeEvent.isComposing) return;
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            onSubmit();
+            submit();
           }
         }}
         aria-describedby={`${id}-hint`}

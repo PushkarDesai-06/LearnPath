@@ -39,6 +39,7 @@ export function LessonFooter({
   const [startedAt] = useState(() => Date.now());
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(initiallyCompleted);
+  const [announcement, setAnnouncement] = useState("");
   // The completion response's pick bridges the gap until the refreshed server
   // render (which then knows the lesson is complete) takes over.
   const [completedNext, setCompletedNext] = useState<NextLesson | null>(null);
@@ -52,6 +53,7 @@ export function LessonFooter({
         body: { curriculumId, lessonRef, timeSpentMs: Date.now() - startedAt },
       });
       setCompleted(true);
+      setAnnouncement("Lesson complete.");
       setCompletedNext(res.next);
       // Re-render the server tree so the topic bar's mastery (and any cached
       // dashboard payload) reflect the new standing.
@@ -63,48 +65,46 @@ export function LessonFooter({
     }
   }
 
-  if (!completed) {
-    return (
-      <div className="border-border mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-6">
-        <span className="text-muted-foreground text-sm">Done reading and practicing?</span>
-        <Button onClick={markComplete} disabled={completing}>
-          {completing && <LoadingRing data-icon="inline-start" className="text-current" />}
-          Mark complete
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div
-      role="status"
-      className="border-border animate-in fade-in-0 mt-4 flex flex-col gap-4 border-t pt-6 duration-300 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div className="flex flex-col gap-1.5">
-        <Badge variant="status" tone="mastered" className="self-start">
-          <CheckCircle2 data-icon="inline-start" />
-          Complete
-        </Badge>
-        {next && (
-          <p className="text-muted-foreground text-sm">
-            Up next: <span className="text-foreground">{next.lessonTitle}</span>
-            <span className="text-muted-foreground"> in {next.moduleTitle}</span>
-          </p>
-        )}
-      </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        <Button variant={next ? "secondary" : "default"} asChild>
-          <Link href={pathHref}>Back to path</Link>
-        </Button>
-        {next && (
-          <Button asChild>
-            <Link href={`/learn/${next.lessonId}`}>
-              Next lesson
-              <ArrowRight data-icon="inline-end" />
-            </Link>
+    <>
+      <p role="status" className="sr-only">{announcement}</p>
+      {!completed ? (
+        <div className="border-border mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-6">
+          <span className="text-muted-foreground text-sm">Done reading and practicing?</span>
+          <Button onClick={markComplete} disabled={completing}>
+            {completing && <LoadingRing data-icon="inline-start" className="text-current" />}
+            Mark complete
           </Button>
-        )}
-      </div>
-    </div>
+        </div>
+      ) : (
+        <div className="border-border animate-in fade-in-0 mt-4 flex flex-col gap-4 border-t pt-6 duration-300 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-1.5">
+            <Badge variant="status" tone="mastered" className="self-start">
+              <CheckCircle2 data-icon="inline-start" />
+              Complete
+            </Badge>
+            {next && (
+              <p className="text-muted-foreground text-sm">
+                Up next: <span className="text-foreground">{next.lessonTitle}</span>
+                <span className="text-muted-foreground"> in {next.moduleTitle}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button variant={next ? "secondary" : "default"} asChild>
+              <Link href={pathHref}>Back to path</Link>
+            </Button>
+            {next && (
+              <Button asChild>
+                <Link href={`/learn/${next.lessonId}`}>
+                  Next lesson
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

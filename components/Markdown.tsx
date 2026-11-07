@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { markdownUrl } from "@/lib/domain/markdownUrl";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/CopyButton";
 
@@ -33,6 +34,7 @@ export function Markdown({
       )}
     >
       <ReactMarkdown
+        urlTransform={markdownUrl}
         remarkPlugins={[remarkGfm]}
         // Only fences that name a language are highlighted; tones come from
         // `.hljs-*` rules in globals.css (lightness, not hue).
@@ -91,6 +93,7 @@ const INLINE_ELEMENTS = ["p", "code", "strong", "em", "del", "a"];
 export function InlineMarkdown({ children }: { children: string }) {
   return (
     <ReactMarkdown
+      urlTransform={markdownUrl}
       remarkPlugins={[remarkGfm]}
       allowedElements={INLINE_ELEMENTS}
       unwrapDisallowed

@@ -11,6 +11,12 @@ describe("tidyCurriculumTitle", () => {
     ["Next.js Novice Learning Path: Server-Side Rendered Optimization", "Next.js Novice: Server-Side Rendered Optimization"],
     ["Data Structures for Intermediate Learners", "Data Structures"],
     ["Linear Algebra", "Linear Algebra"],
+    ["Personalized Medicine", "Personalized Medicine"],
+    ["Golf Course", "Golf Course"],
+    ["Curriculum Design", "Curriculum Design"],
+    ["Product Roadmap", "Product Roadmap"],
+    ["Golf Course Learning Path", "Golf Course"],
+    ["Personalised Learning Path: SQL", "SQL"],
   ])("%s -> %s", (input, expected) => {
     expect(tidyCurriculumTitle(input)).toBe(expected);
   });

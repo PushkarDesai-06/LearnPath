@@ -1,3 +1,5 @@
+import type { LessonBlock } from "@/lib/db/models";
+
 /**
  * Answer-position shuffling for generated multiple-choice questions.
  *
@@ -41,4 +43,12 @@ export function shuffleMcq<T extends McqShape>(question: T, random: Random = Mat
     choices: order.map((i) => choices[i]),
     correctKey: String(order.indexOf(Number(key))),
   };
+}
+
+/** MCQ practice choices are stored shuffled, so the key isn't always first. */
+export function shufflePracticeChoices(block: LessonBlock): LessonBlock {
+  if (block.kind !== "practice" || block.type !== "mcq" || !block.choices || block.correctKey === undefined) {
+    return block;
+  }
+  return shuffleMcq({ ...block, choices: block.choices, correctKey: block.correctKey });
 }

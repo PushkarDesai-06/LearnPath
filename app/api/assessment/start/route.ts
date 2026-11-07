@@ -21,7 +21,9 @@ const Body = z.object({ onboardingId: z.string().optional() });
 
 export const POST = handler(async (request) => {
   const user = await requireUser();
-  const { onboardingId } = await readJson(request, Body);
+  const { onboardingId } = (await request.clone().text()) === ""
+    ? Body.parse({})
+    : await readJson(request, Body);
 
   const ctx = await loadAssessmentContext(user._id, onboardingId);
   const state = assessmentStateOf(ctx);
