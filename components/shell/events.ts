@@ -3,8 +3,14 @@ import {
   OPEN_SHORTCUTS_EVENT,
 } from "@/components/shell/constants";
 
-export function openCommandPalette() {
-  window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT));
+export type PaletteMode = "default" | "search";
+
+export function openCommandPalette(mode: PaletteMode = "default") {
+  window.dispatchEvent(
+    new CustomEvent<{ mode: PaletteMode }>(OPEN_PALETTE_EVENT, {
+      detail: { mode },
+    }),
+  );
 }
 
 export function openShortcutsSheet() {

@@ -8,13 +8,12 @@ import { PrimaryNav, SidebarSearch } from "@/components/shell/SidebarNav";
 import { LessonGroup } from "@/components/shell/SidebarLessons";
 import { ArchivedGroup, TopicsGroup } from "@/components/shell/SidebarTopics";
 import { SidebarFooter } from "@/components/shell/SidebarFooter";
-import { shellOverrides, useShellOverrides } from "@/components/shell/shellOverrides";
+import { useShellView } from "@/components/shell/useShellView";
 import { useSidebarUi } from "@/components/shell/SidebarUi";
 import { usePinActions } from "@/components/shell/usePinActions";
 import { useTopicMenus } from "@/components/shell/useTopicMenus";
 import { useSidebarGroups } from "@/components/shell/useSidebarGroups";
 import { useSidebarTopic } from "@/components/shell/useSidebarTopic";
-import { applyTopicOverrides } from "@/lib/client/topicState";
 import type { ShellData } from "@/lib/data/types";
 
 export interface SidebarUser {
@@ -33,29 +32,8 @@ export function AppSidebar({
   const { setOpenMobile } = useSidebar();
   const { rail } = useSidebarUi();
   const search = useSearchParams().toString();
-  const overrides = useShellOverrides();
   const [editingId, setEditingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    shellOverrides.clear();
-  }, [data]);
-
-  const { active: topics, archived: archivedTopics } = useMemo(
-    () =>
-      applyTopicOverrides(
-        data.topics,
-        data.archivedTopics,
-        overrides.topics,
-        (topic) => ({
-          id: topic.id,
-          title: topic.title,
-          archivedAt: new Date().toISOString(),
-        }),
-      ),
-    [data.topics, data.archivedTopics, overrides.topics],
-  );
-  const pins = overrides.pins ?? data.pins;
-  const recents = overrides.recents ?? data.recents;
+  const { topics, archivedTopics, pins, recents } = useShellView(data);
   const pinnedIds = useMemo(
     () => new Set(pins.map((pin) => pin.lessonId)),
     [pins],

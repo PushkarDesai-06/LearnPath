@@ -48,3 +48,31 @@ export const SHORTCUTS: ShortcutGroup[] = [
     ],
   },
 ];
+
+const CONNECTORS = new Set(["then", "or"]);
+
+export function isKeyConnector(token: string) {
+  return CONNECTORS.has(token);
+}
+
+const MAC_GLYPHS: Record<string, string> = { Ctrl: "⌘", Shift: "⇧" };
+
+/** The key as shown on this platform: the modifier is Cmd on macOS and Ctrl elsewhere. */
+export function displayKey(token: string, isMac: boolean) {
+  return isMac ? (MAC_GLYPHS[token] ?? token) : token;
+}
+
+export function filterShortcuts(groups: ShortcutGroup[], query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return groups;
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) =>
+        `${group.group} ${item.label} ${item.keys.join(" ")}`
+          .toLowerCase()
+          .includes(needle),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+}

@@ -7,11 +7,14 @@ import {
   useEffect,
   useMemo,
   useState,
+  Suspense,
   type CSSProperties,
   type ReactNode,
 } from "react";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { FocusModeProvider, useFocusMode } from "@/components/shell/FocusMode";
+import { ShellDataProvider } from "@/components/shell/ShellDataContext";
+import { ShortcutsProvider } from "@/components/shell/ShortcutsProvider";
 import { TimeZoneCookie } from "@/components/shell/TimeZoneCookie";
 import {
   clampSidebarWidth,
@@ -122,9 +125,14 @@ export function ShellFrame({
             } as CSSProperties
           }
         >
-          <ShellShortcuts />
-          <TimeZoneCookie />
-          {children}
+          <ShellDataProvider>
+            <ShellShortcuts />
+            <Suspense fallback={null}>
+              <ShortcutsProvider />
+            </Suspense>
+            <TimeZoneCookie />
+            {children}
+          </ShellDataProvider>
         </SidebarProvider>
       </SidebarWidthContext.Provider>
     </FocusModeProvider>

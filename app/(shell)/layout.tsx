@@ -15,6 +15,7 @@ import { ShellFrame } from "@/components/shell/ShellFrame";
 import { SidebarFrame } from "@/components/shell/SidebarFrame";
 import { SidebarSkeleton } from "@/components/shell/SidebarSkeleton";
 import { AppSidebarLoader } from "@/components/shell/AppSidebarLoader";
+import { ShellDataLoader } from "@/components/shell/ShellDataLoader";
 import {
   clampSidebarWidth,
   SIDEBAR_STATE_COOKIE,
@@ -57,6 +58,9 @@ export default async function ShellLayout({
           />
         </Suspense>
       </SidebarFrame>
+      <Suspense fallback={null}>
+        <ShellDataLoader userId={user._id.toHexString()} />
+      </Suspense>
       <SidebarInset className="min-w-0">{children}</SidebarInset>
     </ShellFrame>
   );

@@ -24,7 +24,7 @@ export function SidebarSearch() {
         <button
           type="button"
           aria-label="Search"
-          onClick={openCommandPalette}
+          onClick={() => openCommandPalette()}
           className={cn(
             "group/link group flex h-7 w-full min-w-0 items-center gap-2 overflow-hidden rounded-md bg-surface-1 pl-[10px] pr-1 text-left text-[13px] text-faint outline-none",
             "shadow-[inset_0_0_0_1px_var(--border)] transition-[box-shadow,color] duration-(--dur-fast) ease-(--ease-out)",
