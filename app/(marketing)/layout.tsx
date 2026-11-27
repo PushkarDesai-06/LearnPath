@@ -1,11 +1,13 @@
-/**
- * Layout for the signed-out marketing surface.
- *
- * Deliberately unconstrained: the landing page composes its own full-bleed
- * sections and sets its own rhythm, so no max-width or padding is imposed here.
- */
+import "./landing.css";
+import { LandingNav } from "./_components/LandingNav";
+
 export default function MarketingLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <main className="flex-1">{children}</main>;
+  return (
+    <div className="lp-landing flex min-h-full flex-1 flex-col overflow-x-clip">
+      <LandingNav />
+      <main className="flex-1">{children}</main>
+    </div>
+  );
 }
