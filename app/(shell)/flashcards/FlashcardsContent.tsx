@@ -57,6 +57,9 @@ export async function FlashcardsContent({
     );
 
   const pathHref = `/dashboard?id=${data.curriculumId}`;
+  const newCount = data.due.filter(
+    (c) => c.schedule.reps === 0 && c.schedule.lapses === 0,
+  ).length;
 
   return (
     <>
@@ -67,7 +70,17 @@ export async function FlashcardsContent({
         ]}
         actions={
           data.totalCount > 0 ? (
-            <Button variant="secondary" size="sm" asChild>
+            <>
+              <p className="mr-1 flex items-center gap-2 text-[12px] tabular-nums text-muted-foreground max-sm:hidden">
+                <span>
+                  <span className="text-foreground">{data.dueCount}</span> due
+                </span>
+                <span aria-hidden className="size-0.5 rounded-full bg-faint" />
+                <span>
+                  <span className="text-foreground">{newCount}</span> new
+                </span>
+              </p>
+              <Button variant="secondary" size="sm" asChild>
               {/* A file download, not a page: a plain link, never prefetched. */}
               <a
                 href={`/api/flashcards/export?id=${data.curriculumId}`}
@@ -77,29 +90,41 @@ export async function FlashcardsContent({
                 <span className="hidden sm:inline">Export to Anki</span>
                 <span className="sm:hidden">Anki</span>
               </a>
-            </Button>
+              </Button>
+            </>
           ) : undefined
         }
       />
       <PageContainer width="reading">
         <div className="flex w-full flex-col gap-8">
-          <header className="flex flex-col gap-3">
-            <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-              Flashcards
-            </p>
-            <h1 className="h-display min-w-0 text-3xl [overflow-wrap:anywhere] sm:text-4xl">
+          <header className="flex flex-col gap-2">
+            <h1 className="min-w-0 text-xl font-semibold tracking-tight [overflow-wrap:anywhere]">
               {data.title}
             </h1>
+            <p className="flex flex-wrap items-center gap-x-3 text-[12.5px] text-muted-foreground">
+              <span>
+                <span className="tabular-nums text-foreground">
+                  {data.dueCount}
+                </span>{" "}
+                due now
+              </span>
+              <span>
+                <span className="tabular-nums text-foreground">
+                  {data.totalCount}
+                </span>{" "}
+                cards
+              </span>
+              <span>
+                <span className="tabular-nums text-foreground">
+                  {data.lessons.length}
+                </span>{" "}
+                lessons
+              </span>
+            </p>
           </header>
 
-          <section className="border-border grid grid-cols-3 gap-x-6 border-y py-5">
-            <Stat label="Due now" value={String(data.dueCount)} />
-            <Stat label="Cards" value={String(data.totalCount)} />
-            <Stat label="Lessons" value={String(data.lessons.length)} />
-          </section>
-
           {data.totalCount === 0 ? (
-            <Empty className="border-border/60 border">
+            <Empty className="border border-border">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <Layers />
@@ -131,31 +156,30 @@ export async function FlashcardsContent({
           )}
 
           {data.lessons.length > 0 && (
-            <section className="flex flex-col gap-3">
-              <h2 className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+            <section className="flex flex-col gap-1">
+              <h2 className="px-2 pb-1 text-[11.5px] font-medium text-faint">
                 By lesson
               </h2>
               <ul className="flex flex-col">
                 {data.lessons.map((l) => (
-                  <li
-                    key={l.lessonRef}
-                    className="border-border/40 flex items-center justify-between gap-3 border-b py-2.5 last:border-b-0"
-                  >
+                  <li key={l.lessonRef}>
                     <Link
                       href={`/learn/${l.lessonRef}`}
-                      className="hover:text-primary min-w-0 text-sm [overflow-wrap:anywhere] transition-colors"
+                      className="flex min-h-9 items-center justify-between gap-3 rounded-md px-2 py-1.5 text-[13px] transition-colors duration-(--dur-fast) hover:bg-hover"
                     >
-                      {l.lessonTitle}
+                      <span className="min-w-0 [overflow-wrap:anywhere]">
+                        {l.lessonTitle}
+                      </span>
+                      <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
+                        {l.cardCount} card{l.cardCount === 1 ? "" : "s"}
+                        {l.dueCount > 0 && (
+                          <span className="font-medium text-foreground">
+                            {" "}
+                            {l.dueCount} due
+                          </span>
+                        )}
+                      </span>
                     </Link>
-                    <span className="text-muted-foreground shrink-0 font-mono text-[10px] tabular-nums">
-                      {l.cardCount} card{l.cardCount === 1 ? "" : "s"}
-                      {l.dueCount > 0 && (
-                        <span className="text-primary">
-                          {" "}
-                          · {l.dueCount} due
-                        </span>
-                      )}
-                    </span>
                   </li>
                 ))}
               </ul>
@@ -164,16 +188,5 @@ export async function FlashcardsContent({
         </div>
       </PageContainer>
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
-      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
-        {label}
-      </p>
-    </div>
   );
 }

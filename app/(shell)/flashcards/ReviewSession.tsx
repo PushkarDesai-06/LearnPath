@@ -5,10 +5,36 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
+import { ArrowUpRight, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Kbd } from "@/components/ui/kbd";
 import { LoadingRing } from "@/components/ui/loading-ring";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Markdown } from "@/components/Markdown";
+import { StatusIcon } from "@/components/StatusIcon";
+import { hasOpenOverlay } from "@/lib/client/keys";
 import { cn } from "@/lib/utils";
 import {
   FLASHCARD_GRADES,
@@ -30,7 +56,7 @@ const GRADE_LABELS: Record<FlashcardGrade, string> = {
  * the front, reveal the back, then grade it: the card leaves the queue at once
  * and the grade saves in the background. "Again" puts the card back at the end
  * of this sitting once that save lands. Keys: Space or Enter reveals (unless a
- * control has focus), 1 to 4 grade.
+ * control has focus), 1 to 4 grade. Keys are ignored while a menu or dialog is open.
  *
  * Once the queue is empty and every grade has saved, the server tree is
  * refreshed so the page's counts catch up. This island stays mounted through
@@ -145,10 +171,6 @@ export function ReviewSession({
 
   function remove() {
     if (!card) return;
-    if (!confirmRemove) {
-      setConfirmRemove(true);
-      return;
-    }
     advance(queue.slice(1));
     track(api(`/api/flashcards/${card.id}`, { method: "DELETE" }))
       .then(() => toast.success("Card removed."))
@@ -161,7 +183,7 @@ export function ReviewSession({
   // Keyboard review. Re-bound when the card or its side changes.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!card || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (!card || e.metaKey || e.ctrlKey || e.altKey || hasOpenOverlay()) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       // A focused control keeps its own Space/Enter (Show answer included).
@@ -184,9 +206,9 @@ export function ReviewSession({
   if (!card && saving) {
     // The last grades are still saving (an "again" card may be about to return).
     return (
-      <section className="border-border/60 bg-surface-1/60 text-muted-foreground flex min-h-72 items-center justify-center gap-2 rounded-2xl border text-sm">
-        <LoadingRing className="size-3.5" />
-        Saving…
+      <section className="flex min-h-72 items-center justify-center gap-2 rounded-xl border border-border bg-surface-1 text-[13px] text-muted-foreground">
+        <LoadingRing className="size-3.5 text-current" />
+        Saving
       </section>
     );
   }
@@ -194,11 +216,17 @@ export function ReviewSession({
   if (!card) {
     const sat = reviewed > 0;
     return (
-      <section className="border-border/60 bg-surface-1/60 flex flex-col items-center gap-3 rounded-2xl border px-6 py-12 text-center">
-        <p className="h-display text-2xl">{sat ? "Done for now" : "All caught up"}</p>
-        <p className="text-muted-foreground max-w-sm text-sm">
+      <section className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface-1 px-6 py-12 text-center animate-in fade-in-0 zoom-in-95 duration-(--dur-slow) ease-(--ease-out)">
+        <StatusIcon status="mastered" size={28} label="Done" />
+        <p className="text-lg font-semibold tracking-tight">
+          {sat ? "Done for now" : "All caught up"}
+        </p>
+        {sat && (
+          <p className="font-mono text-3xl tabular-nums">{reviewed}</p>
+        )}
+        <p className="max-w-sm text-[13px] text-muted-foreground">
           {sat
-            ? `You reviewed ${reviewed} card${reviewed === 1 ? "" : "s"}.` +
+            ? `You reviewed ${reviewed === 1 ? "a card" : "cards"}.` +
               (nextDue !== null && finishedAt !== null
                 ? ` The next one is due in ${formatInterval(nextDue - finishedAt)}.`
                 : "")
@@ -217,49 +245,94 @@ export function ReviewSession({
   return (
     <section className="flex flex-col gap-4" aria-label="Review">
       <div className="flex items-center gap-3">
-        <Progress value={(reviewed / total) * 100} className="flex-1" />
-        <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
-          {queue.length} left
+        <Progress
+          value={(reviewed / total) * 100}
+          aria-label="Session progress"
+          className="flex-1"
+        />
+        <span className="font-mono text-[11px] tabular-nums text-faint">
+          {reviewed}/{total}
         </span>
       </div>
 
-      <div className="border-border/60 bg-surface-1/60 flex min-h-72 flex-col rounded-2xl border">
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-10 text-center">
-          <Markdown className="prose-p:my-0 text-lg sm:prose-base max-w-xl text-pretty [overflow-wrap:anywhere]">
-            {card.front}
-          </Markdown>
-          {revealed && (
-            <>
-              <div className="bg-border h-px w-16" />
-              <Markdown className="text-foreground/85 animate-in fade-in-0 prose-p:my-0 max-w-xl text-pretty [overflow-wrap:anywhere] duration-200">
-                {card.back}
-              </Markdown>
-            </>
-          )}
+      <div className="relative">
+        <div className="absolute top-2 right-2 z-10">
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Card options">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Card options</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href={`/learn/${card.lessonRef}`}>
+                  <ArrowUpRight />
+                  Open source lesson
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onSelect={() => setConfirmRemove(true)}
+              >
+                <Trash2 />
+                Delete card
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-        <div className="border-border/60 text-muted-foreground flex items-center justify-between gap-3 border-t px-4 py-2.5 text-xs">
-          <Link
-            href={`/learn/${card.lessonRef}`}
-            className="hover:text-foreground min-w-0 truncate transition-colors"
-          >
-            From {card.lessonTitle}
-          </Link>
-          <button
-            type="button"
-            onClick={remove}
-            onBlur={() => setConfirmRemove(false)}
+
+        <div className="[perspective:1400px]">
+          <div
             className={cn(
-              "shrink-0 transition-colors",
-              confirmRemove ? "text-destructive" : "hover:text-foreground",
+              "grid min-h-72 [transform-style:preserve-3d] transition-transform duration-500 ease-(--ease-out) motion-reduce:transition-none",
+              revealed && "motion-safe:[transform:rotateY(180deg)]",
             )}
           >
-            {confirmRemove ? "Remove this card?" : "Remove card"}
-          </button>
+            <div
+              aria-hidden={revealed}
+              className={cn(
+                "col-start-1 row-start-1 flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-surface-1 px-8 py-12 text-center [backface-visibility:hidden] motion-reduce:transition-opacity motion-reduce:duration-200",
+                revealed && "motion-reduce:opacity-0",
+              )}
+            >
+              <Markdown className="max-w-xl text-pretty prose-p:my-0 sm:prose-base [overflow-wrap:anywhere]">
+                {card.front}
+              </Markdown>
+            </div>
+            <div
+              aria-hidden={!revealed}
+              className={cn(
+                "col-start-1 row-start-1 flex flex-col items-center justify-center gap-4 rounded-xl border border-border-strong bg-surface-2 px-8 py-12 text-center [backface-visibility:hidden] [transform:rotateY(180deg)] motion-reduce:opacity-100 motion-reduce:transition-opacity motion-reduce:duration-200 motion-reduce:[transform:none]",
+                !revealed && "motion-reduce:opacity-0",
+              )}
+            >
+              <Markdown className="max-w-xl text-[13px] text-pretty text-muted-foreground prose-p:my-0 [overflow-wrap:anywhere]">
+                {card.front}
+              </Markdown>
+              <div className="h-px w-12 bg-border-strong" />
+              <Markdown className="max-w-xl text-pretty prose-p:my-0 sm:prose-base [overflow-wrap:anywhere]">
+                {card.back}
+              </Markdown>
+            </div>
+          </div>
         </div>
       </div>
 
+      <Link
+        href={`/learn/${card.lessonRef}`}
+        className="min-w-0 self-center truncate text-[12px] text-faint transition-colors duration-(--dur-fast) hover:text-foreground"
+      >
+        From {card.lessonTitle}
+      </Link>
+
       {revealed ? (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {FLASHCARD_GRADES.map((g, i) => (
             <Button
               key={g}
@@ -267,20 +340,44 @@ export function ReviewSession({
               onClick={() => grade(g)}
               className="h-auto flex-col gap-0.5 py-2"
             >
-              <span>{GRADE_LABELS[g]}</span>
-              <span className="font-mono text-[10px] font-normal opacity-70">
+              <span className="flex items-center gap-1.5">
+                {GRADE_LABELS[g]}
+                <Kbd className="hidden sm:inline-flex">{i + 1}</Kbd>
+              </span>
+              <span className="font-mono text-[10.5px] font-normal opacity-70">
                 {intervals[g]}
-                <span className="hidden sm:inline"> · {i + 1}</span>
               </span>
             </Button>
           ))}
         </div>
       ) : (
-        <Button onClick={() => setRevealed(true)} className="h-auto py-3">
+        <Button
+          onClick={() => setRevealed(true)}
+          variant="secondary"
+          className="h-auto gap-2 py-2.5"
+        >
           Show answer
-          <span className="hidden font-mono text-[10px] font-normal opacity-70 sm:inline">Space</span>
+          <Kbd className="hidden sm:inline-flex">Space</Kbd>
         </Button>
       )}
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It leaves your deck for good. The lesson it came from is not
+              affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={remove}>
+              Delete card
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

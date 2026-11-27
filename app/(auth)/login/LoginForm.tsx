@@ -1,28 +1,21 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { CircleAlert, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { loginAction, signupAction, type AuthFormState } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { LoadingRing } from "@/components/ui/loading-ring";
 
 const IDLE: AuthFormState = { error: null };
 
 /**
  * Login / signup form. Submits to the auth Server Actions, which set the
- * session cookie and redirect (signup → onboarding, login → topics) in the
- * same round trip — the redirect also re-renders the root layout, so the Nav
+ * session cookie and redirect (signup to onboarding, login to topics) in the
+ * same round trip. The redirect also re-renders the root layout, so the Nav
  * already shows the new identity when the destination paints.
  */
 export function LoginForm() {
@@ -38,7 +31,7 @@ export function LoginForm() {
 
   const isLogin = mode === "login";
   // `pending` stays true through the redirect's navigation, so the button
-  // keeps its busy label until the destination lands.
+  // keeps its spinner until the destination lands.
   const busy = loggingIn || signingUp;
   const error = isLogin ? loginState.error : signupState.error;
 
@@ -57,23 +50,30 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="mx-auto max-w-sm">
-      <CardHeader>
-        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-          LearnPath
-        </p>
-        <CardTitle className="h-display text-3xl">
-          {isLogin ? "Welcome back." : "Start something."}
+    <Card className="mx-auto max-w-sm gap-4 py-5 shadow-(--shadow-pop)">
+      <CardHeader className="px-5">
+        <Tabs value={mode} onValueChange={() => toggleMode()} className="mb-3">
+          <TabsList className="w-full">
+            <TabsTrigger value="login" disabled={busy}>
+              Sign in
+            </TabsTrigger>
+            <TabsTrigger value="signup" disabled={busy}>
+              Sign up
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <CardTitle className="text-lg font-semibold tracking-tight">
+          {isLogin ? "Welcome back" : "Create your account"}
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-[13px]">
           {isLogin
             ? "Pick up where you left off."
-            : "Personalized paths begin with a sign-up."}
+            : "Personalized paths begin with a sign up."}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-5">
         <form action={isLogin ? login : signup}>
-          <FieldGroup>
+          <FieldGroup className="gap-3.5">
             {!isLogin && (
               <Field>
                 <FieldLabel htmlFor="displayName">Display name</FieldLabel>
@@ -114,64 +114,39 @@ export function LoginForm() {
                   disabled={busy}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  aria-invalid={error ? true : undefined}
                   className="pr-9"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  // Sits inside the field's padding gutter; the input keeps the
-                  // focus ring, so keep this one visually quiet.
-                  className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-1 my-auto"
+                  className="absolute inset-y-0 right-1 my-auto text-muted-foreground hover:text-foreground"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
                   aria-controls="password"
                   disabled={busy}
                   onClick={() => setShowPassword((v) => !v)}
                 >
-                  {showPassword ? (
-                    <EyeOff className="size-3.5" />
-                  ) : (
-                    <Eye className="size-3.5" />
-                  )}
+                  {showPassword ? <EyeOff /> : <Eye />}
                 </Button>
               </div>
             </Field>
             {error && (
-              <p role="alert" className="text-destructive text-sm">
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-md bg-destructive/10 px-2.5 py-2 text-[12.5px] text-destructive"
+              >
+                <CircleAlert className="mt-px size-3.5 shrink-0" aria-hidden />
                 {error}
               </p>
             )}
-            <Button type="submit" disabled={busy} aria-busy={busy}>
-              {/* Inherit the button's foreground — the ring's default text-primary
-                  is invisible against a primary-filled button. */}
-              {busy && (
-                <LoadingRing data-icon="inline-start" className="text-current" />
-              )}
-              {busy
-                ? isLogin
-                  ? "Logging in…"
-                  : "Creating account…"
-                : isLogin
-                  ? "Log in"
-                  : "Sign up"}
+            <Button type="submit" size="lg" loading={busy} className="w-full">
+              {isLogin ? "Sign in" : "Create account"}
             </Button>
           </FieldGroup>
         </form>
       </CardContent>
-      <CardFooter className="justify-center">
-        <p className="text-muted-foreground text-sm">
-          {isLogin ? "No account?" : "Have an account?"}{" "}
-          <button
-            type="button"
-            className="text-primary font-medium hover:underline disabled:pointer-events-none disabled:opacity-50"
-            disabled={busy}
-            onClick={toggleMode}
-          >
-            {isLogin ? "Sign up" : "Log in"}
-          </button>
-        </p>
-      </CardFooter>
     </Card>
   );
 }

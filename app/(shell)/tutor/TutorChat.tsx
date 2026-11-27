@@ -1,23 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Send } from "lucide-react";
+import { BookOpen, MessageSquarePlus, MoreHorizontal, PanelLeft } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { LoadingRing } from "@/components/ui/loading-ring";
 import { Markdown } from "@/components/Markdown";
+import {
+  AssistantAvatar,
+  AssistantTurn,
+  ChatComposer,
+  TypingBars,
+  UserBubble,
+} from "@/components/chat/ChatParts";
+import { CopyCheckIcon } from "@/components/icons/animated";
+import { PageHeader, type Crumb } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/utils";
 import type { ChatMessageDTO, ConversationSummary } from "@/lib/data/types";
 import { loadConversationAction } from "./actions";
-import { TranscriptSkeleton, TutorDot, TutorHeader } from "./TutorParts";
+import { TranscriptSkeleton, TUTOR_FRAME } from "./TutorParts";
 
 type Msg = { role: "user" | "assistant"; text: string };
 
+const COPIED_HOLD_MS = 700;
+
 const toMsgs = (m: ChatMessageDTO[]): Msg[] =>
   m.map((x) => ({ role: x.role, text: x.content }));
+
+const toTranscript = (messages: Msg[]) =>
+  messages
+    .map((m) => `${m.role === "user" ? "You" : "Tutor"}: ${m.text}`)
+    .join("\n\n");
 
 /**
  * The tutor workspace. The thread list and the newest thread arrive
@@ -27,12 +60,16 @@ const toMsgs = (m: ChatMessageDTO[]): Msg[] =>
  * topic switch remounts this with fresh props.
  */
 export function TutorChat({
+  breadcrumbs,
   curriculumId,
+  lesson,
   initialConversations,
   initialActiveId,
   initialMessages,
 }: {
+  breadcrumbs: Crumb[];
   curriculumId: string | null;
+  lesson: { id: string; title: string } | null;
   initialConversations: ConversationSummary[];
   initialActiveId: string | null;
   initialMessages: ChatMessageDTO[];
@@ -47,10 +84,25 @@ export function TutorChat({
   const [busy, setBusy] = useState(false);
   // Id of the thread whose transcript is loading, if any.
   const [switching, setSwitching] = useState<string | null>(null);
+  const [threadsOpen, setThreadsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const locked = busy || switching !== null;
+
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, busy, switching]);
 
   async function selectConversation(id: string) {
     if (id === activeId || locked) return;
+    setThreadsOpen(false);
     setSwitching(id);
     try {
       const convo = await loadConversationAction(id);
@@ -69,9 +121,25 @@ export function TutorChat({
 
   function newConversation() {
     if (locked) return;
+    setThreadsOpen(false);
     setActiveId(null);
     setMessages([]);
     toast.message("New thread started");
+  }
+
+  async function copyTranscript() {
+    try {
+      await navigator.clipboard.writeText(toTranscript(messages));
+      setCopied(true);
+      toast.success("Transcript copied");
+    } catch {
+      toast.error("Could not copy the transcript");
+    }
+    clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => {
+      setMenuOpen(false);
+      setCopied(false);
+    }, COPIED_HOLD_MS);
   }
 
   async function send() {
@@ -91,6 +159,7 @@ export function TutorChat({
           message,
           curriculumId: curriculumId ?? undefined,
           conversationId: activeId ?? undefined,
+          lessonRef: lesson?.id,
         },
       });
       setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
@@ -118,136 +187,207 @@ export function TutorChat({
     }
   }
 
+  const threadList = (
+    <ThreadList
+      conversations={conversations}
+      activeId={activeId}
+      switching={switching}
+      locked={locked}
+      onSelect={(id) => void selectConversation(id)}
+      onNew={newConversation}
+    />
+  );
+
   return (
-    <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-      {/* Conversation rail */}
-      <aside className="flex flex-col gap-1">
-        <Button
-          onClick={newConversation}
-          disabled={locked}
-          variant="outline"
-          size="sm"
-          className="mb-2 justify-start"
-        >
-          <Plus data-icon="inline-start" />
-          New chat
-        </Button>
-        <p className="text-muted-foreground/80 mb-1 px-2 font-mono text-[10px] uppercase tracking-[0.16em]">
-          Threads
-        </p>
-        {conversations.length === 0 ? (
-          <p className="text-muted-foreground/70 px-2 text-xs">
-            No threads yet.
-          </p>
-        ) : (
-          conversations.map((c) => (
-            <Button
-              key={c.id}
-              variant={activeId === c.id ? "secondary" : "ghost"}
-              size="sm"
-              className="h-auto min-h-9 justify-start py-2 text-left"
-              onClick={() => void selectConversation(c.id)}
-              disabled={locked}
-              title={c.title}
-            >
-              <span className="truncate text-left text-sm font-normal">
-                {c.title}
-              </span>
-              {switching === c.id && (
-                <LoadingRing className="ml-auto size-3 shrink-0" />
-              )}
-            </Button>
-          ))
-        )}
-      </aside>
+    <div className={TUTOR_FRAME}>
+      <PageHeader
+        breadcrumbs={breadcrumbs}
+        actions={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Threads"
+                className="md:hidden"
+                onClick={() => setThreadsOpen(true)}
+              >
+                <PanelLeft />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Threads</TooltipContent>
+          </Tooltip>
+        }
+        menu={
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Tutor options">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Tutor options</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                disabled={messages.length === 0}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  void copyTranscript();
+                }}
+              >
+                <CopyCheckIcon copied={copied} />
+                Copy transcript
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={locked} onSelect={newConversation}>
+                <MessageSquarePlus />
+                Start new conversation
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
-      {/* Chat column — capped for reading comfort */}
-      <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-6">
-        <TutorHeader />
+      <Sheet open={threadsOpen} onOpenChange={setThreadsOpen}>
+        <SheetContent side="left" className="w-72 gap-0 p-2 md:hidden">
+          <SheetTitle className="px-2 pt-1.5 pb-2 text-[13px] font-medium">
+            Threads
+          </SheetTitle>
+          <SheetDescription className="sr-only">
+            Switch between your tutor conversations.
+          </SheetDescription>
+          {threadList}
+        </SheetContent>
+      </Sheet>
 
-        <div className="flex flex-col gap-6 pb-4">
-          {switching && <TranscriptSkeleton />}
-          {!switching && messages.length === 0 && (
-            <div className="flex gap-3">
-              <TutorDot />
-              <div className="flex flex-col gap-1 pt-0.5">
-                <p className="text-sm">
-                  Ask whatever you&apos;re stuck on. I&apos;ll ask back.
-                </p>
-                <p className="text-muted-foreground text-xs">
-                  Each chat is its own thread.
-                </p>
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-56 shrink-0 border-r border-border p-2 md:flex md:flex-col">
+          {threadList}
+        </aside>
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative min-h-0 flex-1">
+            <div ref={scrollRef} className="h-full overflow-y-auto">
+              <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 pt-6 pb-10 sm:px-6">
+                {lesson && (
+                  <Link
+                    href={`/learn/${lesson.id}`}
+                    className="inline-flex max-w-full items-center gap-1.5 self-start rounded-md border border-border-strong px-2 py-1 text-[12px] text-fg-2 transition-colors duration-(--dur-fast) hover:bg-hover hover:text-foreground"
+                  >
+                    <BookOpen className="size-3 shrink-0" />
+                    <span className="truncate">{lesson.title}</span>
+                  </Link>
+                )}
+                {switching && <TranscriptSkeleton />}
+                {!switching && messages.length === 0 && (
+                  <AssistantTurn>
+                    <p>Ask whatever you&apos;re stuck on. I&apos;ll ask back.</p>
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      I guide you toward answers and don&apos;t hand them over.
+                      Each chat is its own thread.
+                    </p>
+                  </AssistantTurn>
+                )}
+                {!switching &&
+                  messages.map((m, i) =>
+                    m.role === "user" ? (
+                      <UserBubble key={i}>{m.text}</UserBubble>
+                    ) : (
+                      <AssistantTurn key={i}>
+                        <Markdown className="prose-p:my-2 prose-p:first:mt-0 prose-pre:my-2">
+                          {m.text}
+                        </Markdown>
+                      </AssistantTurn>
+                    ),
+                  )}
+                {busy && (
+                  <div className="flex items-center gap-3">
+                    <AssistantAvatar className="mt-0" />
+                    <TypingBars label="Tutor is thinking" />
+                  </div>
+                )}
               </div>
             </div>
-          )}
-          {!switching &&
-            messages.map((m, i) => (
-              <div
-                key={i}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-linear-to-t from-background to-transparent"
+            />
+          </div>
+
+          <div className="shrink-0 px-4 pb-4 sm:px-6">
+            <ChatComposer
+              className="mx-auto w-full max-w-2xl"
+              label="Message the tutor"
+              placeholder="What are you stuck on?"
+              value={input}
+              onChange={setInput}
+              onSubmit={() => void send()}
+              busy={busy}
+              disabled={locked}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThreadList({
+  conversations,
+  activeId,
+  switching,
+  locked,
+  onSelect,
+  onNew,
+}: {
+  conversations: ConversationSummary[];
+  activeId: string | null;
+  switching: string | null;
+  locked: boolean;
+  onSelect: (id: string) => void;
+  onNew: () => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-0.5">
+      <Button
+        onClick={onNew}
+        disabled={locked}
+        variant="outline"
+        size="sm"
+        className="mb-2 justify-start"
+      >
+        <MessageSquarePlus data-icon="inline-start" />
+        New chat
+      </Button>
+      <p className="px-2 pb-1 text-[11.5px] font-medium text-faint">Threads</p>
+      {conversations.length === 0 ? (
+        <p className="px-2 text-[12px] text-faint">No threads yet.</p>
+      ) : (
+        <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+          {conversations.map((c) => (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => onSelect(c.id)}
+                disabled={locked}
+                title={c.title}
+                aria-current={activeId === c.id ? "true" : undefined}
                 className={cn(
-                  "flex gap-3",
-                  m.role === "user" && "flex-row-reverse",
+                  "flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px] text-fg-2 transition-colors duration-(--dur-fast) outline-none hover:bg-hover hover:text-foreground focus-visible:outline-2 focus-visible:outline-foreground disabled:pointer-events-none disabled:opacity-60",
+                  activeId === c.id && "bg-active text-foreground",
                 )}
               >
-                {m.role === "assistant" && <TutorDot />}
-                {m.role === "user" ? (
-                  <div className="bg-surface-2/80 max-w-[85%] rounded-xl rounded-tr-sm px-3.5 py-2 text-sm whitespace-pre-wrap">
-                    {m.text}
-                  </div>
-                ) : (
-                  <div className="min-w-0 flex-1 pt-0.5 text-sm bg-white/10 rounded-md p-2 px-4">
-                    <Markdown className="prose-p:my-2 prose-pre:my-2 prose-code:text-foreground">
-                      {m.text}
-                    </Markdown>
-                  </div>
+                <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                {switching === c.id && (
+                  <LoadingRing className="size-3 shrink-0" />
                 )}
-              </div>
-            ))}
-          {busy && (
-            <div className="flex items-center gap-3">
-              <TutorDot className="mt-0 animate-pulse" />
-              <span className="text-muted-foreground text-xs">Thinking…</span>
-            </div>
-          )}
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send();
-          }}
-          className="bg-surface-1 border-border focus-within:border-primary/30 sticky bottom-4 flex flex-col gap-1 rounded-xl border p-3 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)] transition-colors"
-        >
-          <Textarea
-            rows={2}
-            placeholder="What are you stuck on?"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="min-h-[60px] resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0 px-2.5 py-1.5"
-            onKeyDown={(e) => {
-              // Ignore Enter while an IME is composing a character.
-              if (e.nativeEvent.isComposing) return;
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-          />
-          <div className="flex items-center justify-between gap-2 mt-1">
-            <span className="text-muted-foreground/60 font-inter text-[10px] uppercase tracking-tight">
-              ↵ to send · ⇧↵ for newline
-            </span>
-            <Button type="submit" size="sm" disabled={locked || !input.trim()}>
-              {busy ? (
-                <LoadingRing data-icon="inline-start" />
-              ) : (
-                <Send data-icon="inline-start" />
-              )}
-              Ask
-            </Button>
-          </div>
-        </form>
-      </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

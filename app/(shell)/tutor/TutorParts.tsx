@@ -3,39 +3,11 @@
  * and the client chat island. No directive: safe in both environments.
  */
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageContainer } from "@/components/shell/PageContainer";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/utils";
 
-/** Mint dot prefix for assistant turns — matches the logo + trail-rail mark. */
-export function TutorDot({ className }: { className?: string }) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        "bg-primary shadow-primary/40 mt-2 size-1.5 shrink-0 rounded-full shadow-[0_0_6px]",
-        className,
-      )}
-    />
-  );
-}
+export const TUTOR_FRAME = "flex h-svh min-h-0 flex-col";
 
-export function TutorHeader() {
-  return (
-    <header className="flex flex-col gap-2">
-      <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-        Socratic tutor
-      </p>
-      <h1 className="h-display text-3xl">Think it through.</h1>
-      <p className="text-muted-foreground text-sm">
-        I guide you toward answers. I won&apos;t hand them over.
-      </p>
-    </header>
-  );
-}
-
-// Layout-matched loading state for a thread transcript — alternating user
-// bubbles and assistant blocks, sized like the real turns they stand in for.
 const SKELETON_TURNS = [
   { role: "user", lines: ["w-36"] },
   { role: "assistant", lines: ["w-full", "w-11/12", "w-2/3"] },
@@ -43,6 +15,7 @@ const SKELETON_TURNS = [
   { role: "assistant", lines: ["w-full", "w-3/4"] },
 ] as const;
 
+/** Layout-matched loading state for a thread transcript. */
 export function TranscriptSkeleton() {
   return (
     <div
@@ -52,8 +25,8 @@ export function TranscriptSkeleton() {
     >
       {SKELETON_TURNS.map((turn, i) =>
         turn.role === "user" ? (
-          <div key={i} className="flex flex-row-reverse gap-3">
-            <div className="bg-surface-2/80 flex max-w-[85%] flex-col gap-2 rounded-xl rounded-tr-sm px-3.5 py-2.5">
+          <div key={i} className="flex justify-end">
+            <div className="flex max-w-[85%] flex-col gap-2 rounded-xl rounded-tr-sm bg-surface-2 px-3 py-2.5">
               {turn.lines.map((w, j) => (
                 <Skeleton key={j} className={cn("h-3", w)} />
               ))}
@@ -61,8 +34,8 @@ export function TranscriptSkeleton() {
           </div>
         ) : (
           <div key={i} className="flex gap-3">
-            <Skeleton className="mt-2 size-1.5 shrink-0 rounded-full" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2 rounded-md bg-white/10 p-3 px-4">
+            <Skeleton className="size-5 shrink-0 rounded-md" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
               {turn.lines.map((w, j) => (
                 <Skeleton key={j} className={cn("h-3", w)} />
               ))}
@@ -74,30 +47,22 @@ export function TranscriptSkeleton() {
   );
 }
 
-/** Whole-page loading state: rail + header + transcript. */
+/** Whole-page loading state: header, rail and transcript. */
 export function TutorSkeleton() {
   return (
-    <>
+    <div className={TUTOR_FRAME}>
       <PageHeader breadcrumbs={[{ label: "Tutor" }]} />
-      <PageContainer>
-        <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
-          <aside className="flex flex-col gap-1">
-            <Skeleton className="mb-2 h-8 w-full rounded-lg" />
-            <Skeleton className="mb-1 h-3 w-16" />
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-9 w-full rounded-lg" />
-            ))}
-          </aside>
-          <div className="mx-auto flex w-full max-w-2xl min-w-0 flex-col gap-6">
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-3 w-28" />
-              <Skeleton className="h-9 w-64 max-w-full" />
-              <Skeleton className="h-4 w-80 max-w-full" />
-            </div>
-            <TranscriptSkeleton />
-          </div>
+      <div className="flex min-h-0 flex-1">
+        <aside className="hidden w-56 shrink-0 flex-col gap-1 border-r border-border p-2 md:flex">
+          <Skeleton className="mb-2 h-7 w-full rounded-lg" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-full rounded-md" />
+          ))}
+        </aside>
+        <div className="mx-auto w-full max-w-2xl min-w-0 flex-1 px-4 py-6">
+          <TranscriptSkeleton />
         </div>
-      </PageContainer>
-    </>
+      </div>
+    </div>
   );
 }

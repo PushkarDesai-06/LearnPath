@@ -5,17 +5,13 @@ import { listTopics } from "@/lib/data/topics";
 import { initials } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Kbd } from "@/components/ui/kbd";
 import { LogoutButton } from "@/components/LogoutButton";
 import { PageContainer } from "@/components/shell/PageContainer";
 import { PageHeader } from "@/components/shell/PageHeader";
+import { SHORTCUTS } from "@/components/shell/shortcuts";
+import { AccountNav } from "./AccountNav";
+import { AppearanceSection } from "./AppearanceSection";
 
 // Rendered on the server, so pin locale and zone: the output must not depend
 // on where the server happens to run.
@@ -24,6 +20,8 @@ const MEMBER_SINCE = new Intl.DateTimeFormat("en-US", {
   year: "numeric",
   timeZone: "UTC",
 });
+
+const KEY_CONNECTORS = new Set(["then", "or"]);
 
 export default async function AccountPage() {
   const user = await requireUserOrRedirect();
@@ -49,7 +47,7 @@ export default async function AccountPage() {
       mastery: 0,
     },
   );
-  // Mean of the per-topic averages — every topic counts the same, regardless of
+  // Mean of the per-topic averages: every topic counts the same, regardless of
   // how many lessons it happens to hold.
   const avgMastery =
     topics.length > 0 ? Math.round((totals.mastery / topics.length) * 100) : 0;
@@ -57,141 +55,172 @@ export default async function AccountPage() {
   return (
     <>
       <PageHeader breadcrumbs={[{ label: "Account" }]} />
-      <PageContainer width="reading">
-        <div className="flex flex-col gap-10">
-          {/* Hero */}
-          <header className="flex items-center gap-4">
-            <Avatar size="lg">
-              <AvatarFallback className="font-medium">
-                {initials(email, displayName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-col gap-1">
-              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
-                Account
-              </p>
-              <h1 className="h-display truncate text-3xl sm:text-4xl">
-                {displayName || email.split("@")[0]}
-              </h1>
-            </div>
-          </header>
+      <PageContainer>
+        <div className="grid gap-6 md:grid-cols-[160px_minmax(0,1fr)] md:gap-12">
+          <AccountNav />
 
-          {/* Instrument-panel stats — same strip the dashboard uses, across topics */}
-          <section className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 sm:grid-cols-4">
-            <Stat label="Topics" value={String(topics.length)} />
-            <Stat
-              label="Lessons mastered"
-              value={`${totals.lessonsMastered}/${totals.lessonsTotal}`}
-            />
-            <Stat
-              label="Modules done"
-              value={`${totals.modulesCompleted}/${totals.modulesTotal}`}
-            />
-            <Stat label="Avg mastery" value={`${avgMastery}%`} />
-          </section>
-
-          {/* Identity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Details</CardTitle>
-              <CardDescription>
-                How LearnPath knows you. Get in touch to change your email.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <Detail label="Email" value={email} mono />
-              <Detail label="Display name" value={displayName || "Not set"} />
-              <div className="flex flex-col gap-0.5">
-                <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
-                  Member since
-                </p>
-                <time
-                  dateTime={createdAt.toISOString()}
-                  className="truncate text-sm"
-                >
-                  {MEMBER_SINCE.format(createdAt)}
-                </time>
+          <div className="flex min-w-0 max-w-[680px] flex-col gap-12">
+            <Section id="profile" title="Profile">
+              <div className="mb-4 flex items-center gap-3">
+                <Avatar size="lg">
+                  <AvatarFallback className="font-medium">
+                    {initials(email, displayName)}
+                  </AvatarFallback>
+                </Avatar>
+                <h1 className="truncate text-lg font-semibold tracking-tight">
+                  {displayName || email.split("@")[0]}
+                </h1>
               </div>
-            </CardContent>
-          </Card>
+              <dl>
+                <Row label="Name" value={displayName || "Not set"} />
+                <Row label="Email" value={email} mono />
+                <Row
+                  label="Member since"
+                  value={
+                    <time dateTime={createdAt.toISOString()}>
+                      {MEMBER_SINCE.format(createdAt)}
+                    </time>
+                  }
+                />
+                <Row label="Topics" value={String(topics.length)} />
+                <Row
+                  label="Lessons mastered"
+                  value={`${totals.lessonsMastered}/${totals.lessonsTotal}`}
+                />
+                <Row
+                  label="Modules done"
+                  value={`${totals.modulesCompleted}/${totals.modulesTotal}`}
+                />
+                <Row label="Average mastery" value={`${avgMastery}%`} />
+              </dl>
+              <div className="mt-4">
+                {topics.length === 0 ? (
+                  <Button asChild size="sm">
+                    <Link href="/onboarding?new=1">
+                      <Plus data-icon="inline-start" />
+                      New topic
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button asChild variant="secondary" size="sm">
+                    <Link href="/topics">
+                      All topics
+                      <ArrowRight data-icon="inline-end" />
+                    </Link>
+                  </Button>
+                )}
+              </div>
+            </Section>
 
-          {/* Studies */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">
-                Your studies
-              </CardTitle>
-              <CardDescription>
-                {topics.length === 0
-                  ? "No topics yet — describe a goal and LearnPath builds the path."
-                  : `${topics.length} ${topics.length === 1 ? "topic" : "topics"} on your shelf.`}
-              </CardDescription>
-            </CardHeader>
-            <CardFooter className="flex gap-1">
-              {topics.length === 0 ? (
-                <Button asChild>
-                  <Link href="/onboarding?new=1">
-                    <Plus data-icon="inline-start" />
-                    New topic
-                  </Link>
-                </Button>
-              ) : (
-                <Button variant="secondary" asChild>
-                  <Link href="/topics">
-                    All topics
-                    <ArrowRight data-icon="inline-end" />
-                  </Link>
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
+            <Section
+              id="appearance"
+              title="Appearance"
+              description="System follows your device."
+            >
+              <AppearanceSection />
+            </Section>
 
-          {/* Session */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Session</CardTitle>
-              <CardDescription>
-                Signing out ends this session on this device.
-              </CardDescription>
-            </CardHeader>
-            <CardFooter>
+            <Section
+              id="shortcuts"
+              title="Shortcuts"
+              description="Single key shortcuts are ignored while you type."
+            >
+              <div className="flex flex-col gap-6">
+                {SHORTCUTS.map((group) => (
+                  <div key={group.group}>
+                    <h3 className="pb-1 text-[11.5px] font-medium text-faint">
+                      {group.group}
+                    </h3>
+                    <table className="w-full text-[13px]">
+                      <tbody>
+                        {group.items.map((item) => (
+                          <tr
+                            key={item.label}
+                            className="h-9 border-b border-border last:border-b-0"
+                          >
+                            <td className="text-fg-2">{item.label}</td>
+                            <td className="text-right">
+                              <span className="inline-flex items-center gap-1">
+                                {item.keys.map((key, i) =>
+                                  KEY_CONNECTORS.has(key) ? (
+                                    <span
+                                      key={`${key}-${i}`}
+                                      className="px-0.5 text-[12px] text-faint"
+                                    >
+                                      {key}
+                                    </span>
+                                  ) : (
+                                    <Kbd key={`${key}-${i}`}>{key}</Kbd>
+                                  ),
+                                )}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section
+              id="account"
+              title="Account"
+              description="Signing out ends this session on this device."
+            >
               <LogoutButton />
-            </CardFooter>
-          </Card>
+            </Section>
+          </div>
         </div>
       </PageContainer>
     </>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Section({
+  id,
+  title,
+  description,
+  children,
+}: {
+  id: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
-      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
-        {label}
-      </p>
-    </div>
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-16">
+      <div className="mb-4 border-b border-border pb-2">
+        <h2 id={`${id}-title`} className="text-[15px] font-semibold tracking-tight">
+          {title}
+        </h2>
+        {description && (
+          <p className="mt-0.5 text-[12.5px] text-muted-foreground">
+            {description}
+          </p>
+        )}
+      </div>
+      {children}
+    </section>
   );
 }
 
-function Detail({
+function Row({
   label,
   value,
   mono,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   mono?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
-        {label}
-      </p>
-      <p className={mono ? "truncate font-mono text-sm" : "truncate text-sm"}>
+    <div className="flex h-10 items-center justify-between gap-4 border-b border-border text-[13px] last:border-b-0">
+      <dt className="text-fg-2">{label}</dt>
+      <dd className={mono ? "truncate font-mono text-[12.5px]" : "truncate"}>
         {value}
-      </p>
+      </dd>
     </div>
   );
 }
