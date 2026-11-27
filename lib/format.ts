@@ -19,8 +19,7 @@ const LABELS: Record<string, string> = {
   completed: "Completed",
   complete: "Completed",
   in_progress: "In progress",
-  // Open but untouched. "Up next" is reserved for the one recommended lesson.
-  available: "Not started",
+  available: "Ready",
   ready: "Ready",
   needs_review: "Needs review",
   locked: "Locked",

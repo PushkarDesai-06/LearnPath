@@ -24,8 +24,6 @@ import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
 import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
 import { loadLearnerContext } from "@/lib/jobs/learnerContext";
-import { shufflePracticeChoices } from "@/lib/domain/shuffle";
-import { normalizeLessonBlocks } from "@/lib/domain/lessonContent";
 
 const CONCURRENCY = 3;
 const POLL_MS = 2000;
@@ -124,10 +122,7 @@ export async function generate(doc: LessonDoc): Promise<void> {
       ...learner,
     });
 
-    const blocks = normalizeLessonBlocks(
-      assignBlockIds(content.blocks.map(stripNullFields)).map(shufflePracticeChoices),
-      lesson.title,
-    );
+    const blocks = assignBlockIds(content.blocks.map(stripNullFields));
     const hasArtifacts = blocks.some((b) => b.kind === "interactive");
 
     const saved = await lessons.updateOne(

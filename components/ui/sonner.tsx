@@ -33,12 +33,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
         } as React.CSSProperties
       }
       toastOptions={{
-        // Monochrome like the rest of the app: tone shows in the icon only,
-        // in the same warm "review" tint the status badges use.
         classNames: {
           toast: "cn-toast",
-          error: "[&_[data-icon]]:text-tone-review",
-          warning: "[&_[data-icon]]:text-tone-review",
         },
       }}
       {...props}

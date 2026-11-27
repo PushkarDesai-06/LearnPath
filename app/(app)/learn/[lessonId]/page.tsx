@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { requireUserOrRedirect } from "@/lib/auth/current";
 import { readLessonView } from "@/lib/data/lesson";
 import type { LessonBlockDTO, LessonDTO } from "@/lib/data/types";
@@ -14,19 +14,7 @@ import { BlockVariants } from "./BlockVariants";
 import { LessonFooter } from "./LessonFooter";
 import { LessonFlashcards } from "./LessonFlashcards";
 import { LessonPoller } from "./LessonPoller";
-import { EmptyState } from "@/components/EmptyState";
-import { PageHeader } from "@/components/PageHeader";
-
-import type { Metadata } from "next";
-import { lessonPageMetadata } from "@/lib/data/metadata";
-
-export function generateMetadata({
-  params,
-}: {
-  params: Promise<{ lessonId: string }>;
-}): Promise<Metadata> {
-  return lessonPageMetadata(params);
-}
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const BLOCK_LABELS: Record<string, string> = {
   analogy: "Analogy",
@@ -56,24 +44,18 @@ function LessonGenerating({ curriculumId }: { curriculumId: string }) {
   );
 }
 
-/**
- * A structured code block, rendered as a markdown fence so it gets the same
- * chrome (language label, copy, highlighting) as code inside prose. The fence
- * is longer than any backtick run in the code, so the code can't close it.
- */
 function CodeBlock({ block }: { block: LessonBlockDTO }) {
-  const code = block.code ?? "";
-  const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map((m) => m[0].length + 1)));
-  const language = (block.language ?? "").replace(/[^\w+#.-]/g, "");
   return (
-    <figure className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1">
       {block.caption && (
-        <figcaption className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.14em]">
           {block.caption}
-        </figcaption>
+        </p>
       )}
-      <Markdown>{`${fence}${language}\n${code}\n${fence}`}</Markdown>
-    </figure>
+      <pre className="bg-surface-1 border-border/60 overflow-x-auto rounded-xl border p-4 font-mono text-xs leading-relaxed">
+        <code>{block.code}</code>
+      </pre>
+    </div>
   );
 }
 
@@ -106,17 +88,12 @@ function LessonArticle({ lesson }: { lesson: LessonDTO }) {
           Back to path
         </Link>
       </Button>
-      <PageHeader
-        eyebrow={
-          <>
-            Lesson {lesson.context.position} of {lesson.context.moduleLessonCount}
-            <span aria-hidden> · </span>
-            {lesson.context.moduleTitle}
-            <span aria-hidden> · </span>~{lesson.context.estMinutes} min
-          </>
-        }
-        title={lesson.title}
-      />
+      <header className="flex flex-col gap-2">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Lesson
+        </p>
+        <h1 className="h-display text-3xl sm:text-4xl">{lesson.title}</h1>
+      </header>
 
       {lesson.blocks.map((b, i) => {
         if (b.kind === "practice")
@@ -156,12 +133,7 @@ function LessonArticle({ lesson }: { lesson: LessonDTO }) {
         initial={lesson.flashcards ?? { made: false, cardCount: 0 }}
       />
 
-      <LessonFooter
-        curriculumId={lesson.curriculumId}
-        lessonRef={lesson.id}
-        initiallyCompleted={lesson.completed}
-        initialNext={lesson.next}
-      />
+      <LessonFooter curriculumId={lesson.curriculumId} lessonRef={lesson.id} />
     </article>
   );
 }
@@ -186,14 +158,14 @@ export default async function LessonPage({
     <>
       <ActiveTopicMarker curriculumId={curriculumId} />
       {view.status === "locked" ? (
-        <div className="mx-auto w-full max-w-2xl py-12">
-          <EmptyState
-            headingLevel={1}
-            icon={Lock}
-            title="This lesson is locked"
-            description="Finish the open modules on your path and this one unlocks."
-            action={{ href: `/dashboard?id=${curriculumId}`, label: "Back to path", variant: "secondary" }}
-          />
+        <div className="mx-auto flex max-w-md flex-col items-start gap-4 py-12">
+          <Alert>
+            <AlertTitle>This module is locked</AlertTitle>
+            <AlertDescription>Complete earlier modules on your path to unlock this lesson.</AlertDescription>
+          </Alert>
+          <Button asChild variant="secondary">
+            <Link href={`/dashboard?id=${curriculumId}`}>Back to path</Link>
+          </Button>
         </div>
       ) : view.status === "ready" ? (
         <LessonArticle lesson={view.lesson} />
