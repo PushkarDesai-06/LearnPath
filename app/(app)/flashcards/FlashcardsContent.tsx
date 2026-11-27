@@ -3,10 +3,14 @@ import { Download, Layers } from "lucide-react";
 import { getFlashcardsPage } from "@/lib/data/flashcards";
 import { formatInterval } from "@/lib/domain/flashcards";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/EmptyState";
-import { NoTopicState } from "@/components/NoTopicState";
-import { PageHeader } from "@/components/PageHeader";
-import { StatRow } from "@/components/StatRow";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ReviewSession } from "./ReviewSession";
 
 /** "in 3d" from now; the page is rendered per request, so the clock is fine here. */
@@ -29,48 +33,74 @@ export async function FlashcardsContent({
   const data = await getFlashcardsPage(userId, curriculumId);
 
   if (!data.hasCurriculum)
-    return <NoTopicState userId={userId} requestedId={curriculumId} />;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Nothing here yet</EmptyTitle>
+          <EmptyDescription>This topic doesn&apos;t have a learning path yet.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button asChild>
+            <Link href="/topics">Go to topics</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
 
   const pathHref = `/dashboard?id=${data.curriculumId}`;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-      <PageHeader
-        eyebrow="Flashcards"
-        title={data.title}
-        actions={
-          data.totalCount > 0 && (
+      <header className="flex flex-col gap-3">
+        <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+          Flashcards
+        </p>
+        <div className="flex items-end justify-between gap-4">
+          <h1 className="h-display min-w-0 text-3xl [overflow-wrap:anywhere] sm:text-4xl">
+            {data.title}
+          </h1>
+          <div className="flex shrink-0 gap-2">
             <Button variant="ghost" size="sm" asChild>
-              {/* A file download, not a page: a plain link, never prefetched. */}
-              <a href={`/api/flashcards/export?id=${data.curriculumId}`} download>
-                <Download data-icon="inline-start" />
-                Export to Anki
-              </a>
+              <Link href={pathHref}>Path</Link>
             </Button>
-          )
-        }
-      />
+            {data.totalCount > 0 && (
+              <Button variant="ghost" size="sm" asChild>
+                {/* A file download, not a page: a plain link, never prefetched. */}
+                <a href={`/api/flashcards/export?id=${data.curriculumId}`} download>
+                  <Download data-icon="inline-start" />
+                  <span className="hidden sm:inline">Export to Anki</span>
+                  <span className="sm:hidden">Anki</span>
+                </a>
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
 
-      <StatRow
-        stats={[
-          { label: "Due now", value: String(data.dueCount) },
-          { label: "Cards", value: String(data.totalCount) },
-          { label: "Lessons", value: String(data.lessons.length) },
-        ]}
-      />
+      <section className="border-border grid grid-cols-3 gap-x-6 border-y py-5">
+        <Stat label="Due now" value={String(data.dueCount)} />
+        <Stat label="Cards" value={String(data.totalCount)} />
+        <Stat label="Lessons" value={String(data.lessons.length)} />
+      </section>
 
       {data.totalCount === 0 ? (
-        <EmptyState
-          icon={Layers}
-          title="No flashcards yet"
-          description={
-            <>
+        <Empty className="border-border/60 border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Layers />
+            </EmptyMedia>
+            <EmptyTitle>No flashcards yet</EmptyTitle>
+            <EmptyDescription>
               At the end of any lesson, choose <strong>Make flashcards</strong>. The cards
               show up here, and come back for review just before you&apos;d forget them.
-            </>
-          }
-          action={{ href: pathHref, label: "Go to your path", variant: "secondary" }}
-        />
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button asChild variant="secondary">
+              <Link href={pathHref}>Go to your path</Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
         <ReviewSession
           curriculumId={data.curriculumId}
@@ -108,6 +138,17 @@ export async function FlashcardsContent({
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
+      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
+        {label}
+      </p>
     </div>
   );
 }

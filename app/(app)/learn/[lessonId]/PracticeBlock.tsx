@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { InlineMarkdown, Markdown } from "@/components/Markdown";
+import { Markdown } from "@/components/Markdown";
 import { gradeMcq } from "@/lib/domain/grade";
 import { cn } from "@/lib/utils";
 import type { LessonBlockDTO } from "@/lib/data/types";
@@ -65,7 +65,6 @@ export function PracticeBlock({
   lessonId: string;
 }) {
   const isMcq = block.type === "mcq" && !!block.choices;
-  const promptId = `${block.questionId}-prompt`;
   const [answer, setAnswer] = useState("");
   const [grading, setGrading] = useState(false);
   const [result, setResult] = useState<Attempt | null>(null);
@@ -82,6 +81,11 @@ export function PracticeBlock({
         countsTowardMastery: counts,
       },
     });
+
+  function announce(correct: boolean) {
+    if (correct) toast.success("Correct.");
+    else toast.warning("Not quite. Read the explanation.");
+  }
 
   async function submit() {
     const value = answer.trim();
@@ -103,6 +107,7 @@ export function PracticeBlock({
         explanation: block.explanation ?? null,
         counted,
       });
+      announce(correct);
       // A replay needs no round trip at all — nothing to record, and the key is
       // already here.
       if (counted) {
@@ -120,6 +125,7 @@ export function PracticeBlock({
       const res = await record(value, counted);
       setResult(res);
       if (counted) setSpent(true);
+      announce(res.correct);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not grade answer",
@@ -162,18 +168,12 @@ export function PracticeBlock({
         />
       )}
       <CardContent className="flex flex-col gap-3">
-        <p role="status" className="sr-only">
-          {result ? (result.correct ? "Correct" : "Not quite") : ""}
-        </p>
         <p className="text-primary font-mono text-[10px] uppercase tracking-[0.18em]">
           Practice
         </p>
-        <p id={promptId} className="font-medium">
-          <InlineMarkdown>{block.prompt ?? ""}</InlineMarkdown>
-        </p>
+        <p className="font-medium">{block.prompt}</p>
         {isMcq ? (
           <RadioGroup
-            aria-labelledby={promptId}
             value={answer}
             onValueChange={setAnswer}
             disabled={!!result}
@@ -199,9 +199,7 @@ export function PracticeBlock({
                     value={key}
                     id={`${block.questionId}-${i}`}
                   />
-                  <span className="min-w-0 [overflow-wrap:anywhere]">
-                    <InlineMarkdown>{c}</InlineMarkdown>
-                  </span>
+                  {c}
                   {isCorrect && (
                     <Check className="text-primary animate-in zoom-in-50 ml-auto size-4 shrink-0 duration-300 ease-out" />
                   )}
@@ -214,7 +212,6 @@ export function PracticeBlock({
           </RadioGroup>
         ) : (
           <Textarea
-            aria-labelledby={promptId}
             rows={2}
             value={answer}
             disabled={!!result || grading}
@@ -245,9 +242,7 @@ export function PracticeBlock({
             </div>
           )
         ) : (
-          <div
-            className="animate-in fade-in-0 slide-in-from-bottom-2 flex flex-col gap-2 text-sm duration-300 ease-out"
-          >
+          <div className="animate-in fade-in-0 slide-in-from-bottom-2 flex flex-col gap-2 text-sm duration-300 ease-out">
             <Badge
               variant="status"
               tone={result.correct ? "mastered" : "review"}

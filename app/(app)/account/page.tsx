@@ -14,12 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { LogoutButton } from "@/components/LogoutButton";
-import { DisplayNameForm } from "./DisplayNameForm";
-import { StatRow } from "@/components/StatRow";
-
-import type { Metadata } from "next";
-
-export const metadata: Metadata = { title: "Account" };
 
 // Rendered on the server, so pin locale and zone: the output must not depend
 // on where the server happens to run.
@@ -59,7 +53,7 @@ export default async function AccountPage() {
     topics.length > 0 ? Math.round((totals.mastery / topics.length) * 100) : 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-10">
+    <div className="flex flex-col gap-10">
       {/* Hero */}
       <header className="flex items-center gap-4">
         <Avatar size="lg">
@@ -77,25 +71,31 @@ export default async function AccountPage() {
         </div>
       </header>
 
-      {/* Same strip the path page uses, rolled up across topics. */}
-      <StatRow
-        stats={[
-          { label: "Topics", value: String(topics.length) },
-          { label: "Lessons mastered", value: `${totals.lessonsMastered}/${totals.lessonsTotal}` },
-          { label: "Modules done", value: `${totals.modulesCompleted}/${totals.modulesTotal}` },
-          { label: "Avg mastery", value: `${avgMastery}%` },
-        ]}
-      />
+      {/* Instrument-panel stats — same strip the dashboard uses, across topics */}
+      <section className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 sm:grid-cols-4">
+        <Stat label="Topics" value={String(topics.length)} />
+        <Stat
+          label="Lessons mastered"
+          value={`${totals.lessonsMastered}/${totals.lessonsTotal}`}
+        />
+        <Stat
+          label="Modules done"
+          value={`${totals.modulesCompleted}/${totals.modulesTotal}`}
+        />
+        <Stat label="Avg mastery" value={`${avgMastery}%`} />
+      </section>
 
       {/* Identity */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg font-medium">Details</CardTitle>
-          <CardDescription>How LearnPath knows you.</CardDescription>
+          <CardDescription>
+            How LearnPath knows you. Get in touch to change your email.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <Detail label="Email" value={email} mono />
-          <DisplayNameForm initial={displayName ?? ""} />
+          <Detail label="Display name" value={displayName || "Not set"} />
           <div className="flex flex-col gap-0.5">
             <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
               Member since
@@ -113,7 +113,7 @@ export default async function AccountPage() {
           <CardTitle className="text-lg font-medium">Your studies</CardTitle>
           <CardDescription>
             {topics.length === 0
-              ? "No topics yet. Describe a goal and LearnPath builds the path."
+              ? "No topics yet — describe a goal and LearnPath builds the path."
               : `${topics.length} ${topics.length === 1 ? "topic" : "topics"} on your shelf.`}
           </CardDescription>
         </CardHeader>
@@ -148,6 +148,17 @@ export default async function AccountPage() {
           <LogoutButton />
         </CardFooter>
       </Card>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
+      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
+        {label}
+      </p>
     </div>
   );
 }

@@ -3,17 +3,6 @@ import { requireUserOrRedirect } from "@/lib/auth/current";
 import { DashboardContent } from "./DashboardContent";
 import { DashboardSkeleton } from "./DashboardSkeleton";
 
-import type { Metadata } from "next";
-import { topicPageMetadata } from "@/lib/data/metadata";
-
-export function generateMetadata({
-  searchParams,
-}: {
-  searchParams: Promise<{ id?: string | string[] }>;
-}): Promise<Metadata> {
-  return topicPageMetadata("Path", searchParams);
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {

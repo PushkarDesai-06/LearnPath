@@ -1,7 +1,6 @@
 import type { ObjectId } from "mongodb";
 import { progressEventsCollection } from "@/lib/db/collections";
-import { adaptCurriculum, gateModuleStatuses } from "@/lib/domain/adapt";
-import { recommendNext } from "@/lib/domain/next";
+import { adaptCurriculum } from "@/lib/domain/adapt";
 import { lessonStatusFor, updateMastery } from "@/lib/domain/mastery";
 import { requireLessonAccess } from "@/lib/server/lessonAccess";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
@@ -30,15 +29,11 @@ export async function completeLesson(params: {
     const adapted = adaptCurriculum(doc);
     doc.modules = adapted.modules;
     if (adapted.changed) doc.version += 1;
-    // Read from the ADAPTED, gated path: completion can reorder lessons and
-    // open the next module, so "what's next" is only known now.
-    const next = recommendNext(gateModuleStatuses(doc.modules), lessonRef);
     return {
       changed: firstCompletion || adapted.changed,
       value: { status: lesson.status, masteryScore: lesson.masteryScore,
         reordered: adapted.changed, version: doc.version, topics: lesson.topics,
-        completion: lesson.completion!,
-        next: next ? { lessonId: next.lesson.id, lessonTitle: next.lesson.title, moduleTitle: next.moduleTitle } : null },
+        completion: lesson.completion! },
     };
   });
 
@@ -57,5 +52,5 @@ export async function completeLesson(params: {
     );
   }
   return { lessonRef, status: result.status, masteryScore: Number(result.masteryScore.toFixed(3)),
-    reordered: result.reordered, version: result.version, next: result.next };
+    reordered: result.reordered, version: result.version };
 }

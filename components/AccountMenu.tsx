@@ -8,6 +8,7 @@
 import { useTransition } from "react";
 import Link from "next/link";
 import { LogOut, UserRound } from "lucide-react";
+import { toast } from "sonner";
 import { initials } from "@/lib/format";
 import { logoutAction } from "@/lib/auth/actions";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ export function AccountMenu({
   const [pending, startTransition] = useTransition();
 
   function logout() {
+    toast.success("Logged out");
     // The action clears the cookie and redirects to /login in one round trip;
     // the cookie write re-renders the root layout, so the Nav goes bare.
     startTransition(() => logoutAction());
