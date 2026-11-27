@@ -35,7 +35,10 @@ export async function resolveCurriculum(
       .findOne({ _id: new ObjectId(curriculumId), userId })
       .lean();
   }
-  return curricula.findOne({ userId }).sort({ createdAt: -1 }).lean();
+  return curricula
+    .findOne({ userId, archivedAt: null })
+    .sort({ createdAt: -1 })
+    .lean();
 }
 
 export async function locateLesson(

@@ -22,7 +22,7 @@ import { locateLesson } from "@/lib/server/curriculumLocate";
 import { mutateCurriculum } from "@/lib/server/curriculumMutation";
 import { ObjectId } from "mongodb";
 import { createJobPump } from "@/lib/jobs/pump";
-import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
+import { MAX_LESSON_ATTEMPTS, LessonGoneError, isLessonGone } from "@/lib/jobs/lessonPolicy";
 import { loadLearnerContext } from "@/lib/jobs/learnerContext";
 
 const CONCURRENCY = 3;
@@ -108,7 +108,7 @@ export async function generate(doc: LessonDoc): Promise<void> {
   const lessons = await lessonsCollection();
   try {
     const located = await locateLesson(doc.userId, doc.lessonRef);
-    if (!located) throw new Error("Lesson no longer exists in any curriculum");
+    if (!located) throw new LessonGoneError("Lesson no longer exists in any curriculum");
     const { curriculum, lesson } = located;
 
     const learner = await loadLearnerContext(curriculum, lesson);
@@ -151,7 +151,7 @@ export async function generate(doc: LessonDoc): Promise<void> {
     // available -> in_progress, log the start event.
     await mutateCurriculum(doc.userId, curriculum._id, (current) => {
       const target = current.modules.flatMap((m) => m.lessons).find((l) => l.id === doc.lessonRef);
-      if (!target) throw new Error("Lesson no longer exists in curriculum");
+      if (!target) throw new LessonGoneError("Lesson no longer exists in curriculum");
       target.contentGenerated = true;
       if (target.status === "available") target.status = "in_progress";
       return { changed: true, value: undefined };
@@ -171,7 +171,7 @@ export async function generate(doc: LessonDoc): Promise<void> {
     console.log("[worker] lesson ready:", lesson.title);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[worker] lesson generation failed:", doc.lessonRef, message);
+    if (!isLessonGone(err)) console.error("[worker] lesson generation failed:", doc.lessonRef, message);
     await lessons.updateOne(
       { _id: doc._id, claimToken: doc.claimToken, genStatus: "generating" },
       { $set: { genStatus: "failed", genError: message, failedAt: new Date(), claimedAt: null, claimToken: null } },

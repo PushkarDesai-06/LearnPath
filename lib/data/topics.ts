@@ -10,17 +10,36 @@ import {
   onboardingCollection,
 } from "@/lib/db/collections";
 import { topicListItem } from "@/lib/server/curriculumView";
-import type { InProgressFunnel, TopicListItem } from "@/lib/data/types";
+import type { InProgressFunnel, ShellArchivedTopic, TopicListItem } from "@/lib/data/types";
 
-/** Generated curricula, newest first. Shared by the Nav, /topics and /account. */
+/** Generated, unarchived curricula, newest first. Shared by the Nav, /topics and /account. */
 export const listTopics = cache(
   async (userId: string): Promise<TopicListItem[]> => {
     const curricula = await curriculaCollection();
     const docs = await curricula
-      .find({ userId: new ObjectId(userId) })
+      .find({ userId: new ObjectId(userId), archivedAt: null })
       .sort({ createdAt: -1 })
       .lean();
     return docs.map(topicListItem);
+  },
+);
+
+/** Archived topics, most recently archived first. */
+export const listArchivedTopics = cache(
+  async (userId: string): Promise<ShellArchivedTopic[]> => {
+    const curricula = await curriculaCollection();
+    const docs = await curricula
+      .find(
+        { userId: new ObjectId(userId), archivedAt: { $ne: null } },
+        { title: 1, archivedAt: 1 },
+      )
+      .sort({ archivedAt: -1 })
+      .lean();
+    return docs.map((doc) => ({
+      id: doc._id.toHexString(),
+      title: doc.title,
+      archivedAt: doc.archivedAt!.toISOString(),
+    }));
   },
 );
 

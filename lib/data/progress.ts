@@ -14,6 +14,14 @@ import { gateModuleStatuses } from "@/lib/domain/adapt";
 import type { DashboardData } from "@/lib/data/types";
 import { flashcardCounts } from "@/lib/data/flashcards";
 
+function lastPracticedAt(lesson: CurriculumLesson): string | null {
+  const times = [
+    ...(lesson.practiceAttempts ?? []).map((a) => a.at.getTime()),
+    ...(lesson.completion ? [lesson.completion.at.getTime()] : []),
+  ];
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
+
 type Pick = { moduleId: string; moduleTitle: string; lesson: CurriculumLesson };
 
 /**
@@ -79,6 +87,8 @@ export async function getDashboard(
           estMinutes: l.estMinutes,
           masteryScore: Number(l.masteryScore.toFixed(3)),
           generated: generated.has(l.id),
+          objectives: l.objectives,
+          lastPracticedAt: lastPracticedAt(l),
         })),
     };
   });

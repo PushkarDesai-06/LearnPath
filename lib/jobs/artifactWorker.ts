@@ -18,7 +18,7 @@ import type { LessonBlock, LessonDoc } from "@/lib/db/models";
 import { runArtifactAgent } from "@/lib/ai/agents/artifact";
 import { locateLesson } from "@/lib/server/curriculumLocate";
 import { createJobPump } from "@/lib/jobs/pump";
-import { MAX_LESSON_ATTEMPTS } from "@/lib/jobs/lessonPolicy";
+import { MAX_LESSON_ATTEMPTS, LessonGoneError, isLessonGone } from "@/lib/jobs/lessonPolicy";
 import { loadLearnerContext } from "@/lib/jobs/learnerContext";
 
 // One at a time: artifacts are a nice-to-have and must not starve lessons.
@@ -108,7 +108,7 @@ export async function generateArtifacts(doc: LessonDoc): Promise<void> {
   for (const { block, index } of pending) {
     const blockId = block.blockId!;
     try {
-      if (!located) throw new Error("Lesson no longer exists in any curriculum");
+      if (!located) throw new LessonGoneError("Lesson no longer exists in any curriculum");
       if (!block.spec?.trim()) throw new Error("Interactive block has no spec");
       const learner = await loadLearnerContext(located.curriculum, located.lesson);
 
@@ -125,7 +125,7 @@ export async function generateArtifacts(doc: LessonDoc): Promise<void> {
       console.log("[artifacts] ready:", block.caption ?? blockId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("[artifacts] failed:", doc.lessonRef, blockId, message);
+      if (!isLessonGone(err)) console.error("[artifacts] failed:", doc.lessonRef, blockId, message);
       if (!(await setBlock(blockId, { artifactStatus: "failed", artifactError: message }))) return;
     }
   }

@@ -191,6 +191,8 @@ export interface CurriculumDoc {
   version: number;
   /** Write revision, separate from the user-visible adaptation version. */
   revision?: number;
+  /** Set while the topic is archived: hidden from lists and fallbacks. */
+  archivedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -400,6 +402,39 @@ export interface FlashcardDoc extends FlashcardSchedule {
   /** Every grade ever given; also fences concurrent reviews of one card. */
   reviewCount: number;
   lastReviewedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
+// userPrefs (pins, recents and UI preferences, synced across devices)
+// ---------------------------------------------------------------------------
+
+export interface LessonRefEntry {
+  curriculumId: ObjectId;
+  lessonId: string;
+  at: Date;
+}
+
+export type DashboardGroupBy = "module" | "status";
+
+export interface DashboardPrefs {
+  groupBy: DashboardGroupBy;
+  hideMastered: boolean;
+  hideLocked: boolean;
+  showSummaries: boolean;
+}
+
+export interface UserPrefsDoc {
+  _id: ObjectId;
+  userId: ObjectId; // unique
+  /** Ordered, at most MAX_PINS. */
+  pinnedLessons: LessonRefEntry[];
+  /** Newest first, deduped, at most MAX_RECENTS. */
+  recentLessons: LessonRefEntry[];
+  dashboard: DashboardPrefs;
+  collapsedGroups: string[];
+  focusLessons: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

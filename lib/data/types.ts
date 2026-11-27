@@ -5,7 +5,7 @@
  * Component: ids are hex strings, dates are ISO strings, no ObjectIds. Client
  * islands `import type` from this file; it has no runtime code.
  */
-import type { FlashcardSchedule, VariantStyle } from "@/lib/db/models";
+import type { DashboardPrefs, FlashcardSchedule, VariantStyle } from "@/lib/db/models";
 
 export interface CurriculumSummary {
   modulesTotal: number;
@@ -44,6 +44,9 @@ export interface DashboardLesson {
   masteryScore: number;
   /** Content already written. */
   generated: boolean;
+  objectives: string[];
+  /** Newest counted practice attempt or completion, ISO; null if never practiced. */
+  lastPracticedAt: string | null;
 }
 
 export interface DashboardModule {
@@ -79,6 +82,72 @@ export type DashboardData =
       recommendedNext: RecommendedNext | null;
       flashcards: { total: number; due: number };
     };
+
+// ── Shell (sidebar, command palette) ────────────────────────────────────────
+
+export interface ShellLesson {
+  id: string;
+  title: string;
+  status: string;
+  masteryScore: number;
+}
+
+export interface ShellModule {
+  id: string;
+  title: string;
+  status: string;
+  lessonsTotal: number;
+  lessonsMastered: number;
+  lessons: ShellLesson[];
+}
+
+export interface ShellTopic {
+  id: string;
+  title: string;
+  mastery: number;
+  dueCards: number;
+  modules: ShellModule[];
+}
+
+export interface ShellArchivedTopic {
+  id: string;
+  title: string;
+  archivedAt: string;
+}
+
+/** A pinned or recent lesson, resolved against the live curriculum. */
+export interface ShellLessonLink {
+  curriculumId: string;
+  lessonId: string;
+  title: string;
+  topicTitle: string;
+  moduleTitle: string;
+  /** The module's gated status, so the UI can mark links into locked modules. */
+  moduleStatus: string;
+  status: string;
+  masteryScore: number;
+}
+
+export interface UserPrefsDTO {
+  dashboard: DashboardPrefs;
+  collapsedGroups: string[];
+  focusLessons: boolean;
+}
+
+export interface ShellData {
+  topics: ShellTopic[];
+  archivedTopics: ShellArchivedTopic[];
+  pins: ShellLessonLink[];
+  recents: ShellLessonLink[];
+  dueCardsTotal: number;
+  prefs: UserPrefsDTO;
+}
+
+export interface ActivityData {
+  days: { date: string; lessons: number; answers: number; total: number }[];
+  currentStreak: number;
+  bestStreak: number;
+}
 
 // ── Lessons ─────────────────────────────────────────────────────────────────
 
