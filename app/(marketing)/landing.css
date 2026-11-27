@@ -1,0 +1,141 @@
+html:has(.lp-landing) {
+  scroll-behavior: smooth;
+}
+
+.lp-anchor {
+  scroll-margin-top: 4.5rem;
+}
+
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.lp-rise {
+  animation: lp-rise 700ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+@keyframes lp-frame-in {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) rotateX(12deg) translateY(28px);
+  }
+}
+.lp-frame {
+  transform-origin: 50% 0;
+  animation: lp-frame-in 1100ms var(--ease-out) 480ms both;
+}
+
+.lp-hero-glow {
+  background: radial-gradient(
+    60% 55% at 50% 0%,
+    var(--active),
+    transparent 72%
+  );
+}
+.lp-hero-grid {
+  background-image:
+    linear-gradient(to right, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.45;
+  mask-image: radial-gradient(60% 70% at 50% 0%, #000 10%, transparent 75%);
+}
+
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity 600ms var(--ease-out) var(--lp-delay, 0ms),
+    transform 600ms var(--ease-out) var(--lp-delay, 0ms);
+}
+.lp-reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+.lp-line {
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 1100ms var(--ease-in-out) 150ms;
+}
+@media (min-width: 768px) {
+  .lp-line {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+}
+[data-shown="true"] .lp-line {
+  transform: none;
+}
+
+.lp-cell {
+  opacity: 0;
+  transition: opacity 400ms var(--ease-out) calc(var(--c) * 45ms);
+}
+[data-shown="true"] .lp-cell {
+  opacity: var(--o);
+}
+
+.lp-flip {
+  perspective: 900px;
+}
+.lp-flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 600ms var(--ease-out);
+}
+.lp-flip[data-flipped="true"] .lp-flip-inner {
+  transform: rotateY(180deg);
+}
+.lp-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.lp-face-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-rise,
+  .lp-frame {
+    animation: none;
+  }
+  .lp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lp-line {
+    transform: none;
+    transition: none;
+  }
+  .lp-cell {
+    opacity: var(--o);
+    transition: none;
+  }
+  .lp-flip-inner,
+  .lp-flip[data-flipped="true"] .lp-flip-inner {
+    transform: none;
+    transition: none;
+  }
+  .lp-face {
+    backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transition: opacity 150ms linear;
+  }
+  .lp-face-back {
+    transform: none;
+    opacity: 0;
+  }
+  .lp-flip[data-flipped="true"] .lp-face-back {
+    opacity: 1;
+  }
+  .lp-flip[data-flipped="true"] .lp-face-front {
+    opacity: 0;
+  }
+}

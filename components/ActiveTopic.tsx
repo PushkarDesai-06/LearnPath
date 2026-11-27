@@ -3,14 +3,14 @@
 /**
  * Lets a route announce which topic it belongs to when the URL can't say.
  *
- * Topic-scoped pages carry `?id=`, so `TopicSwitcher` reads the active topic
+ * Topic-scoped pages carry `?id=`, so the sidebar reads the active topic
  * straight off the URL. A lesson doesn't: `/learn/<lessonId>` only identifies
  * the lesson, and the curriculum it belongs to is known solely to the server
- * render. The topbar lives in the root layout, which does NOT re-render on
- * client navigation, so it can't be told server-side either.
+ * render. The shell layout does NOT re-render on client navigation, so it can't
+ * be told server-side either.
  *
  * So the page announces it from the client instead: `<ActiveTopicMarker>` sits
- * in the page and writes the id into a context the topbar reads. The marker
+ * in the page and writes the id into a context the sidebar reads. The marker
  * clears on unmount, so navigating off a lesson drops the selection.
  */
 
@@ -44,7 +44,7 @@ export function useActiveTopic() {
 }
 
 /**
- * Renders nothing — it only publishes `curriculumId` to the topbar for as long
+ * Renders nothing — it only publishes `curriculumId` to the sidebar for as long
  * as the page is mounted.
  */
 export function ActiveTopicMarker({ curriculumId }: { curriculumId: string }) {

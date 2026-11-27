@@ -26,6 +26,7 @@ import type {
   ProgressEventDoc,
   SessionDoc,
   UserDoc,
+  UserPrefsDoc,
 } from "@/lib/db/models";
 
 const subOpts = { _id: false } as const;
@@ -218,6 +219,7 @@ const curriculumSchema = new Schema<CurriculumDoc>({
   modules: { type: [curriculumModuleSchema], default: [] },
   version: { type: Number, default: 1 },
   revision: { type: Number, default: 0 },
+  archivedAt: { type: Date },
   createdAt: { type: Date, required: true },
   updatedAt: { type: Date, required: true },
 });
@@ -260,6 +262,8 @@ const progressEventSchema = new Schema<ProgressEventDoc>({
 });
 progressEventSchema.index({ userId: 1, at: -1 });
 progressEventSchema.index({ userId: 1, curriculumId: 1 });
+// Activity heatmap and streaks: one topic's events over time.
+progressEventSchema.index({ userId: 1, curriculumId: 1, at: 1 });
 
 const chatSchema = new Schema<ChatDoc>({
   userId: { type: Schema.Types.ObjectId, required: true },
@@ -351,6 +355,31 @@ flashcardSchema.index({ userId: 1, curriculumId: 1, due: 1 });
 // A lesson's cards (lesson page count, deck list).
 flashcardSchema.index({ userId: 1, curriculumId: 1, lessonRef: 1 });
 
+const lessonRefEntrySchema = new Schema(
+  {
+    curriculumId: { type: Schema.Types.ObjectId, required: true },
+    lessonId: { type: String, required: true },
+    at: { type: Date, required: true },
+  },
+  subOpts,
+);
+
+const userPrefsSchema = new Schema<UserPrefsDoc>({
+  userId: { type: Schema.Types.ObjectId, required: true, unique: true },
+  pinnedLessons: { type: [lessonRefEntrySchema], default: [] },
+  recentLessons: { type: [lessonRefEntrySchema], default: [] },
+  dashboard: {
+    groupBy: { type: String, enum: ["module", "status"], default: "module" },
+    hideMastered: { type: Boolean, default: false },
+    hideLocked: { type: Boolean, default: false },
+    showSummaries: { type: Boolean, default: true },
+  },
+  collapsedGroups: { type: [String], default: [] },
+  focusLessons: { type: Boolean, default: false },
+  createdAt: { type: Date, required: true },
+  updatedAt: { type: Date, required: true },
+});
+
 // --- model registration (HMR-safe) ----------------------------------------
 // `mongoose.models.X || mongoose.model(...)` avoids OverwriteModelError when
 // Next dev re-imports this module on hot reload. The collection name is pinned
@@ -404,6 +433,7 @@ const FlashcardDeck = model<FlashcardDeckDoc>(
   "flashcardDecks",
 );
 const Flashcard = model<FlashcardDoc>("Flashcard", flashcardSchema, "flashcards");
+const UserPrefs = model<UserPrefsDoc>("UserPrefs", userPrefsSchema, "userPrefs");
 
 // --- accessors (ensure connection, return the model) -----------------------
 
@@ -423,3 +453,4 @@ export const chatsCollection = () => ready(Chat);
 export const blockVariantsCollection = () => ready(BlockVariant);
 export const flashcardDecksCollection = () => ready(FlashcardDeck);
 export const flashcardsCollection = () => ready(Flashcard);
+export const userPrefsCollection = () => ready(UserPrefs);

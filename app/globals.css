@@ -8,17 +8,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  /* Sampler — use these as Tailwind classes (`font-inter`, `font-dm`, …).
-     Each variable is loaded in app/layout.tsx via next/font/google. */
-  --font-inter: var(--font-inter);
-  --font-dm: var(--font-dm);
-  --font-manrope: var(--font-manrope);
-  --font-space: var(--font-space);
-  --font-jakarta: var(--font-jakarta);
-  --font-instrument: var(--font-instrument);
-  --font-jetbrains: var(--font-jetbrains);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -55,7 +46,14 @@
   --color-tone-review: var(--tone-review);
   --color-tone-locked: var(--tone-locked);
   --color-tone-generating: var(--tone-generating);
-  --font-heading: var(--font-dm);
+  --font-heading: var(--font-sans);
+  --font-display: var(--font-sans);
+  --color-surface-3: var(--surface-3);
+  --color-border-strong: var(--border-strong);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-faint: var(--faint);
+  --color-fg-2: var(--fg-2);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -68,7 +66,7 @@
   --animate-sweep: sweep 1.6s ease-in-out infinite;
 }
 
-/* Sweep — a highlight travelling across an element's width. Pair with an
+/* Sweep: a highlight travelling across an element's width. Pair with an
    absolutely-positioned overlay inside an `overflow-hidden` container. */
 @keyframes sweep {
   0% {
@@ -79,258 +77,143 @@
   }
 }
 
-/* --------------------------------------------------------------------------
-   Landing-page motion. Both are decorative and both are disabled under
-   `prefers-reduced-motion` at the bottom of this file.
-   -------------------------------------------------------------------------- */
-
-/* Scroll reveal. `Reveal` (app/(marketing)/_components) flips `data-shown` via
-   IntersectionObserver; the transition lives here so it costs no re-render. */
-.reveal {
-  opacity: 0;
-  transform: translateY(0.75rem);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.reveal[data-shown="true"] {
-  opacity: 1;
-  transform: none;
-}
-
-/* Hero underline that draws itself once, just after the headline lands. */
-.underline-draw {
-  stroke-dasharray: 320;
-  stroke-dashoffset: 320;
-  animation: draw-underline 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.5s forwards;
-}
-@keyframes draw-underline {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* --------------------------------------------------------------------------
-   "New topic" CTA (/topics). Hover traces a path across the button: a hairline
-   drawn left-to-right with a dot riding its head — the trail-rail signature,
-   scaled down — while the button lifts off the page. The mark's quarter-turn
-   is a Tailwind utility on the icon itself. Decorative; the motion is stripped
-   under `prefers-reduced-motion` at the bottom of this file.
-   -------------------------------------------------------------------------- */
-.cta-path {
-  position: relative;
-  transition:
-    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 0.25s ease;
-}
-.cta-path:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px -8px
-    color-mix(in oklch, var(--primary), transparent 45%);
-}
-/* Wins over the lift, so a press still reads as a press. */
-.cta-path:active {
-  transform: translateY(1px);
-}
-
-/* The trail. Sized by `width` rather than `scaleX` so the head dot rides the
-   line's end at its true size instead of being stretched with it. */
-.cta-trail {
-  position: absolute;
-  right: 0.5rem;
-  bottom: 0.25rem;
-  left: 0.5rem;
-  height: 1px;
-  pointer-events: none;
-}
-.cta-trail::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0;
-  background: currentColor;
-  opacity: 0.4;
-  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.cta-trail::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 0;
-  width: 3px;
-  height: 3px;
-  margin-top: -1.5px;
-  margin-left: -1.5px;
-  border-radius: 999px;
-  background: currentColor;
-  opacity: 0;
-  transition:
-    left 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.2s ease;
-}
-.cta-path:hover .cta-trail::before,
-.cta-path:focus-visible .cta-trail::before {
-  width: 100%;
-}
-.cta-path:hover .cta-trail::after,
-.cta-path:focus-visible .cta-trail::after {
-  left: 100%;
-  opacity: 0.75;
-}
-
-/* --------------------------------------------------------------------------
-   Nav logo lockup. Hover sends a ring out from behind the mark — the trail-rail
-   dot at lockup scale — and runs a sweep across the wordmark. The mark is an
-   <Image>, so everything here works on the frame around it rather than on the
-   artwork. Decorative; stripped under `prefers-reduced-motion` below.
-   -------------------------------------------------------------------------- */
-.logo-mark {
-  position: relative;
-  display: inline-flex;
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.logo-lockup:hover .logo-mark,
-.logo-lockup:focus-visible .logo-mark {
-  transform: scale(1.12);
-}
-
-/* The ring. Keyed off an animation rather than a transition so it fires once
-   per hover and clears itself, instead of reversing on the way out. */
-.logo-mark::after {
-  content: "";
-  position: absolute;
-  inset: -0.375rem;
-  border: 1px solid color-mix(in oklch, var(--primary), transparent 55%);
-  border-radius: 999px;
-  opacity: 0;
-  pointer-events: none;
-}
-.logo-lockup:hover .logo-mark::after,
-.logo-lockup:focus-visible .logo-mark::after {
-  animation: logo-ping 0.9s cubic-bezier(0.22, 1, 0.36, 1);
-}
-@keyframes logo-ping {
-  0% {
-    opacity: 0.9;
-    transform: scale(0.55);
-  }
-  70%,
-  100% {
-    opacity: 0;
-    transform: scale(1.6);
-  }
-}
-
-/* Positioned, so the wordmark paints over `.logo-mark::after` — a later
-   sibling wins at the same level — and the ring slips behind the letters at
-   full stretch instead of cutting across them. */
-.logo-word {
-  position: relative;
-}
-
-/* Wordmark sweep. The gradient is the text's own colour everywhere but a
-   narrow band, so parked off to one side the wordmark renders exactly as it
-   would untreated — the effect costs the resting logo nothing.
-
-   Every stop is a token on purpose. Turbopack's CSS parser panics on a
-   gradient that mixes `currentColor` with an `oklch()` literal: the build dies
-   with `parse_css failed` and names no token. Either alone is fine, and so is
-   `currentColor` beside a hex colour; `var()` sidesteps it entirely. */
-@supports (background-clip: text) or (-webkit-background-clip: text) {
-  .logo-word {
-    background-image: linear-gradient(
-      100deg,
-      var(--foreground) 42%,
-      var(--logo-sweep) 50%,
-      var(--foreground) 58%
-    );
-    background-repeat: no-repeat;
-    background-size: 250% 100%;
-    background-position: 100% 0;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    transition: background-position 0.75s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .logo-lockup:hover .logo-word,
-  .logo-lockup:focus-visible .logo-word {
-    background-position: 0 0;
-  }
-}
-
 /* ==========================================================================
-   STUDIO PALETTE — LearnPath (Monochromatic)
-   A deep slate-cyan room. Single hue family (~200°), chroma kept ≤0.02
-   everywhere — accent is a high-lightness near-white, not a color. Status
-   tones differ by LIGHTNESS, never by hue. The slight cool cast keeps
-   surfaces from looking dead-neutral (pure greyscale reads as flat OLED).
+   NEUTRAL PALETTE (see design/redesign-plan.html, section 02)
+   Pure grays, no hue. Text, fills and status all differ by lightness. The
+   only color anywhere is --destructive, a muted red.
    ========================================================================== */
-:root,
-.dark {
-  /* Surfaces — cool, deep, three tiers (floor → card → elevated) */
-  --background: oklch(0.18 0.012 200);
-  --foreground: oklch(0.97 0.005 200);
-  --surface-1: oklch(0.22 0.012 200);
-  --surface-2: oklch(0.26 0.014 200);
+:root {
+  color-scheme: light;
+
+  --background: #fcfcfd;
+  --foreground: #111113;
+  --fg-2: #3a3b40;
+  --sidebar: #f4f4f5;
+  --surface-1: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e9e9eb;
 
   --card: var(--surface-1);
   --card-foreground: var(--foreground);
-  --popover: var(--surface-2);
+  --popover: var(--surface-1);
   --popover-foreground: var(--foreground);
 
-  /* Accent — high-lightness near-white, slight cool cast. The single
-     "brand" knob; reads as bright neutral rather than a color. */
-  --brand: oklch(0.93 0.008 200);
-  --brand-foreground: oklch(0.16 0.012 200);
+  --brand: #17181b;
+  --brand-foreground: #ffffff;
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
-  /* The nav wordmark's sweep band. A DIP on the lightness ladder, not a
-     highlight: the wordmark already sits at 0.97, so a brighter band would be
-     invisible — the light has to read as passing behind the letters. */
-  --logo-sweep: oklch(0.75 0.01 200);
+  --primary-gradient: linear-gradient(180deg, #3d3e44 0%, #17181b 100%);
+  --primary-highlight:
+    inset 0 1px 0 rgb(255 255 255 / 16%), 0 1px 2px rgb(0 0 0 / 25%),
+    0 0 0 1px rgb(0 0 0 / 60%);
+  --sheen: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgb(255 255 255 / 18%) 50%,
+    transparent 65%
+  );
 
-  /* Quiet surfaces */
-  --secondary: oklch(0.28 0.014 200);
-  --secondary-foreground: oklch(0.92 0.005 200);
-  --muted: oklch(0.24 0.012 200);
-  --muted-foreground: oklch(0.66 0.01 200);
-  --accent: oklch(0.95 0.005 200 / 10%);
-  --accent-foreground: oklch(0.94 0.005 200);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--fg-2);
+  --muted: var(--surface-2);
+  --muted-foreground: #6b6f76;
+  --faint: #a1a4aa;
+  --accent: rgb(0 0 0 / 6.5%);
+  --accent-foreground: var(--foreground);
+  --hover: rgb(0 0 0 / 4%);
+  --active: rgb(0 0 0 / 6.5%);
 
-  /* Destructive — still neutral, but a hair of warmth so "danger" reads.
-     Chroma 0.04 is below the eye's "color" threshold against this background. */
-  --destructive: oklch(0.78 0.04 25);
+  --destructive: #d4524a;
 
-  /* Hairlines + rings */
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.93 0.008 200 / 45%);
+  --border: rgb(0 0 0 / 8%);
+  --border-strong: rgb(0 0 0 / 15%);
+  --input: rgb(0 0 0 / 12%);
+  --ring: rgb(17 17 19 / 45%);
 
-  /* Status tones — pure lightness ladder, all in the same hue family. */
-  --tone-mastered: oklch(0.95 0.005 200);
-  --tone-progress: oklch(0.82 0.008 200);
-  --tone-review: oklch(0.78 0.04 25);
-  --tone-locked: oklch(0.5 0.008 200);
-  --tone-generating: oklch(0.7 0.008 200);
+  --shadow-pop:
+    0 12px 32px -8px rgb(0 0 0 / 18%), 0 0 0 1px var(--border-strong);
 
-  /* Charts — lightness ladder, monochromatic. */
-  --chart-1: oklch(0.93 0.008 200);
-  --chart-2: oklch(0.78 0.008 200);
-  --chart-3: oklch(0.64 0.008 200);
-  --chart-4: oklch(0.5 0.008 200);
-  --chart-5: oklch(0.78 0.04 25);
+  --tone-mastered: #111113;
+  --tone-progress: #3a3b40;
+  --tone-review: #6b6f76;
+  --tone-locked: #a1a4aa;
+  --tone-generating: #6b6f76;
+
+  --chart-1: #111113;
+  --chart-2: #3a3b40;
+  --chart-3: #6b6f76;
+  --chart-4: #a1a4aa;
+  --chart-5: #d0d1d4;
 
   --radius: 0.625rem;
 
-  --sidebar: var(--surface-1);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-foreground);
-  --sidebar-accent: var(--accent);
+  --sidebar-accent: var(--active);
   --sidebar-accent-foreground: var(--accent-foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
+
+  --dur-fast: 120ms;
+  --dur-base: 170ms;
+  --dur-slow: 260ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: #08090a;
+  --foreground: #f4f5f6;
+  --fg-2: #c9cbcf;
+  --sidebar: #0e0f10;
+  --surface-1: #131415;
+  --surface-2: #1a1b1d;
+  --surface-3: #232427;
+
+  --brand: #f4f5f6;
+  --brand-foreground: #0a0a0b;
+  --primary-gradient: linear-gradient(180deg, #fbfbfc 0%, #d6d7da 100%);
+  --primary-highlight:
+    inset 0 1px 0 rgb(255 255 255 / 70%), 0 1px 2px rgb(0 0 0 / 50%),
+    0 0 0 1px rgb(255 255 255 / 8%);
+  --sheen: linear-gradient(
+    105deg,
+    transparent 35%,
+    rgb(255 255 255 / 55%) 50%,
+    transparent 65%
+  );
+
+  --popover: var(--surface-2);
+  --muted-foreground: #8a8f98;
+  --faint: #5c6068;
+  --accent: rgb(255 255 255 / 7.5%);
+  --hover: rgb(255 255 255 / 4.5%);
+  --active: rgb(255 255 255 / 7.5%);
+
+  --destructive: #e5736b;
+
+  --border: rgb(255 255 255 / 7.5%);
+  --border-strong: rgb(255 255 255 / 14%);
+  --input: rgb(255 255 255 / 10%);
+  --ring: rgb(244 245 246 / 45%);
+
+  --shadow-pop:
+    0 12px 32px -8px rgb(0 0 0 / 60%), 0 0 0 1px var(--border-strong);
+
+  --tone-mastered: #f4f5f6;
+  --tone-progress: #c9cbcf;
+  --tone-review: #8a8f98;
+  --tone-locked: #5c6068;
+  --tone-generating: #8a8f98;
+
+  --chart-1: #f4f5f6;
+  --chart-2: #c9cbcf;
+  --chart-3: #8a8f98;
+  --chart-4: #5c6068;
+  --chart-5: #3a3c40;
 }
 
 @layer base {
@@ -343,74 +226,253 @@
   html {
     @apply font-sans;
   }
-  /* Hero heading utility — Space Grotesk for every page-level h1. Single
-     source of truth: re-tune all hero h1s from one place. */
+  /* Page-level heading utility. Inter, 600, tight tracking. */
   .h-display {
-    font-family: var(--font-space), var(--font-sans);
+    font-family: var(--font-sans);
     font-style: normal;
     font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.05;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
     text-wrap: balance;
   }
-  /* Subtle ambient texture: a near-invisible noise to keep the deep
-     background from looking flat under OLED. Pure CSS, no asset. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-    opacity: 0.025;
-    background-image:
-      radial-gradient(
-        circle at 1px 1px,
-        oklch(1 0 0) 0.5px,
-        transparent 0.5px
-      );
-    background-size: 3px 3px;
+  h1,
+  h2,
+  h3,
+  .font-heading {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .tabular,
+  [data-tabular] {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--foreground);
+    outline-offset: 2px;
+  }
+}
+
+/* Spinner, bar and status-icon keyframes shared by the new primitives. */
+@keyframes lp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes lp-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes lp-flicker {
+  0%,
+  100% {
+    transform: scale(1) rotate(0);
+  }
+  25% {
+    transform: scale(1.06, 0.95) rotate(-3deg);
+  }
+  50% {
+    transform: scale(0.96, 1.07) rotate(2deg);
+  }
+  75% {
+    transform: scale(1.04, 0.98) rotate(-1deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* All three are decorative: the sweep has text beside it saying what's
-     happening, and the landing page reads identically without its motion. */
-  .animate-sweep,
-  .underline-draw {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  /* Decorative: text beside the sweep says what's happening. */
+  .animate-sweep {
     animation: none;
   }
-  .underline-draw {
+}
+
+/* --------------------------------------------------------------------------
+   Popover motion (dropdown, context menu, submenus). Opacity, scale .96 to 1
+   and a 4px slide from the trigger side. The exit is shorter than the enter.
+   -------------------------------------------------------------------------- */
+.menu-pop[data-side="bottom"] {
+  --menu-dy: -4px;
+}
+.menu-pop[data-side="top"] {
+  --menu-dy: 4px;
+}
+.menu-pop[data-side="left"] {
+  --menu-dx: 4px;
+}
+.menu-pop[data-side="right"] {
+  --menu-dx: -4px;
+}
+.menu-pop[data-state="open"] {
+  animation: menu-in 160ms var(--ease-out);
+}
+.menu-pop[data-state="closed"] {
+  animation: menu-out 110ms var(--ease-out) forwards;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--menu-dx, 0), var(--menu-dy, 0)) scale(0.96);
+  }
+}
+@keyframes menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-pop[data-state="open"] {
+    animation: menu-fade-in 100ms linear;
+  }
+  .menu-pop[data-state="closed"] {
+    animation: menu-fade-out 80ms linear forwards;
+  }
+}
+@keyframes menu-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes menu-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Tooltip enter: fade and a small scale, from the trigger side. */
+.tip-pop[data-state="delayed-open"],
+.tip-pop[data-state="instant-open"] {
+  animation: menu-in 140ms var(--ease-out);
+}
+.tip-pop[data-state="closed"] {
+  animation: menu-out 90ms var(--ease-out) forwards;
+}
+.tip-pop[data-side="bottom"] {
+  --menu-dy: -3px;
+}
+.tip-pop[data-side="top"] {
+  --menu-dy: 3px;
+}
+.tip-pop[data-side="left"] {
+  --menu-dx: 3px;
+}
+.tip-pop[data-side="right"] {
+  --menu-dx: -3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-pop[data-state="delayed-open"],
+  .tip-pop[data-state="instant-open"] {
+    animation: menu-fade-in 100ms linear;
+  }
+}
+
+/* Button sheen sweep. Desktop pointers only. */
+.btn-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--sheen);
+  transform: translateX(-110%);
+  transition: transform 700ms var(--ease-out);
+  pointer-events: none;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .btn-sheen:hover::after {
+    transform: translateX(110%);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Status icons, mastery rings, navigation bar. Pure CSS motion: the pie and
+   ring fills animate in from zero on mount and transition on value change.
+   -------------------------------------------------------------------------- */
+@property --lp-n {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+.lp-fill {
+  transition: stroke-dasharray 900ms var(--ease-out);
+  animation: lp-fill-in 900ms var(--ease-out) backwards;
+}
+@keyframes lp-fill-in {
+  from {
+    stroke-dasharray: 0 100;
+  }
+}
+.lp-check {
+  stroke-dasharray: 10;
+  stroke-dashoffset: 10;
+  animation: lp-draw 500ms 250ms var(--ease-out) forwards;
+}
+.lp-check-static {
+  stroke-dasharray: 10;
+  stroke-dashoffset: 0;
+}
+.lp-arc {
+  transform-origin: 7px 7px;
+  animation: lp-spin 1.4s linear infinite;
+}
+.lp-count {
+  transition: --lp-n 900ms var(--ease-out);
+  animation: lp-count-in 900ms var(--ease-out) backwards;
+  counter-reset: lp-n var(--lp-n);
+}
+.lp-count::after {
+  content: counter(lp-n);
+}
+@keyframes lp-count-in {
+  from {
+    --lp-n: 0;
+  }
+}
+.nav-progress-bar {
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--faint), var(--foreground));
+}
+.nav-progress-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--foreground));
+  filter: blur(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-fill,
+  .lp-count {
+    transition: none;
+    animation: none;
+  }
+  .lp-check {
+    animation: none;
     stroke-dashoffset: 0;
   }
-  .reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
+  .lp-arc {
+    animation-duration: 3s;
   }
-  /* The CTA still answers hover — it just stops travelling to do it. */
-  .cta-path,
-  .cta-trail::before,
-  .cta-trail::after {
-    transition: none;
+  .nav-progress-bar {
+    transition: none !important;
   }
-  .cta-path:hover {
-    transform: none;
+}
+
+@keyframes lp-shimmer {
+  from {
+    transform: translateX(-100%);
   }
-  /* Same for the logo: the ring never fires, the sweep never travels. */
-  .logo-mark,
-  .logo-word {
-    transition: none;
-  }
-  .logo-lockup:hover .logo-mark,
-  .logo-lockup:focus-visible .logo-mark {
-    transform: none;
-  }
-  .logo-lockup:hover .logo-mark::after,
-  .logo-lockup:focus-visible .logo-mark::after {
-    animation: none;
-  }
-  .logo-lockup:hover .logo-word,
-  .logo-lockup:focus-visible .logo-word {
-    background-position: 100% 0;
+  to {
+    transform: translateX(100%);
   }
 }

@@ -46,10 +46,13 @@ for model output). The structured `code` lesson block stays a `<pre>` (not markd
 HTML exists ONLY in `interactive` artifacts, which never touch the app's DOM:
 they run in a CSP-sandboxed iframe (see §3, step 5).
 
-**Accent color (one knob):** `app/globals.css` defines `--brand` /
-`--brand-foreground` at the top of `:root` (and `.dark`); `--primary` is wired to
-them, so changing those two values recolors actions/links/highlights app-wide.
-Default = the shadcn neutral theme. shadcn config is in `components.json`.
+**Theme:** neutral monochrome tokens for light and dark live in `app/globals.css`
+(`:root` is light, `.dark` is dark, switched by next-themes with `system` as the
+default). `--primary` points at `--brand`, and primary buttons use
+`--primary-gradient`. `--destructive` is the only hue. Interactive lesson artifacts get
+the matching token set through `?theme=` on the artifact route plus an `lp-theme`
+postMessage when the theme flips. The approved design is `design/redesign-plan.html`.
+shadcn config is in `components.json`.
 
 **Build scope was phased**: backend first → functional frontend → shadcn redesign.
 Add components with `npx shadcn@latest add <name>` (never hand-write into
@@ -204,7 +207,7 @@ timeSpentMs}` finalizes the lesson's mastery and runs `adaptCurriculum`
 {message, curriculumId?, conversationId?}` starts a new thread (no id) or
    appends to one. The page server-renders the thread list and the newest
    transcript (`lib/data/tutor.ts`); switching threads calls
-   `loadConversationAction` (a Server Action in `app/(app)/tutor/actions.ts`),
+   `loadConversationAction` (a Server Action in `app/(shell)/tutor/actions.ts`),
    and the rail re-sorts locally after a send. A conversation's
    identity is its `_id`; `lessonRef` is only a context tag. (The old per-scope
    UNIQUE chats index was replaced; if upgrading an existing DB, drop that index
@@ -267,23 +270,27 @@ lib/
   client/api.ts          Browser fetch helper for the remaining POSTs + the lesson poller.
 instrumentation.ts       Next boot hook → starts the lesson worker (nodejs runtime only).
 app/api/                 Route handlers: mutations + the lesson poller GET (see README table).
-app/(app)/               Signed-in pages: login, onboarding, assessment, curriculum,
-                         learn/[lessonId], dashboard, topics, tutor, account. Each page.tsx is a
-                         Server Component (auth + lib/data reads); interactivity lives in
-                         sibling client islands (LoginForm, PracticeBlock, LessonPoller,
-                         TutorChat, OnboardingChat, AssessmentClient…). Its layout holds the
-                         max-w-4xl reading container.
-app/(marketing)/         The landing page (URL stays `/` — route groups aren't in the path).
-                         Its layout imposes no width, so the page runs full-bleed.
-  _components/           Landing-only UI; `_` keeps the folder non-routable.
-    Reveal.tsx           Scroll reveal — flips `data-shown` via IntersectionObserver
-                            (no setState, so no re-render and no React 19 effect-rule fight).
-    AdaptivePathDemo.tsx The animated path: rows are absolutely positioned and moved by
-                            translateY, so a reorder animates. Stages mirror real
-                            adapt.ts/mastery.ts transitions — keep them honest.
-components/              Nav.tsx (server: reads session + topics) → NavBar.tsx (markup) with the
-                         TopicSwitcher / AccountMenu client islands; Markdown.tsx (no directive —
-                         renders on server or client); shadcn ui/*.
+app/(shell)/             Signed-in product pages inside the sidebar shell: dashboard, learn/[lessonId],
+                         tutor, flashcards, topics, account. Its layout reads the user, sidebar
+                         cookies and prefs, then streams the sidebar and the palette data behind
+                         Suspense. Each page renders its own PageHeader + PageContainer.
+app/(focus)/             Distraction free flows with no sidebar: onboarding, assessment,
+                         curriculum (redirect). The layout is a slim bar with steps and Exit.
+app/(auth)/              Login, centered with no shell.
+app/(marketing)/         The landing page (URL stays `/`). Its layout owns the landing nav and
+                         imports landing.css; sections live in `_components/`.
+components/shell/        The app shell: AppSidebar (+ Sidebar* sections), SidebarFrame (rail,
+                         hover peek, resize, focus slide away), PageHeader, PageContainer,
+                         rowMenus.tsx (single source for every 3 dot / context menu entry list),
+                         EntryMenu / EntryMenuItems / RowMenu renderers, action hooks
+                         (useLessonActions, useTopicActions, usePinActions), dialogs,
+                         CommandPalette, ShortcutsProvider, ShortcutsSheet, shortcuts.ts,
+                         FocusMode, ShellDataContext (palette data published by
+                         ShellDataLoader, outside the sidebar so it works on phones).
+components/              StatusIcon / MasteryRing (statuses are shapes, never colored dots),
+                         icons/animated, ThemeProvider / ThemeToggle / useThemeCycle,
+                         NavigationProgress (top loading bar, driven by lib/client/progress.ts),
+                         brand/Logo.tsx, Markdown.tsx, shadcn ui/*.
 test/                    Vitest: unit/ (pure domain/server/auth/http logic) + integration/
                          (live-LLM agent tests, self-skip without GEMINI_API_KEY).
 ```
@@ -320,7 +327,7 @@ connect (`autoIndex` on in dev).
 - A **topic = one curriculum** (+ its assessment/onboarding lineage). A user can
   own many; nothing is one-at-a-time.
 - `listTopics` (`lib/data/topics.ts`) lists them (uses `topicListItem` +
-  `summarizeCurriculum` in `curriculumView.ts`). The UI hub is `app/(app)/topics/page.tsx`.
+  `summarizeCurriculum` in `curriculumView.ts`). The UI hub is `app/(shell)/topics/page.tsx`.
 - Topic-scoped reads (`getDashboard`, `listConversations`, tutor POST) take an
   optional `curriculumId`; `resolveCurriculum(userId, curriculumId)` in
   `curriculumLocate.ts` selects it (default = most recent). Lessons are already
@@ -337,7 +344,7 @@ connect (`autoIndex` on in dev).
   so it starts fresh instead of resuming an abandoned funnel. Curriculum
   generation happens at the assessment-done step (targets the just-finished
   assessment, not "latest").
-- **Dashboard = the topic hub** (`app/(app)/dashboard/`): stats + recommended-
+- **Dashboard = the topic hub** (`app/(shell)/dashboard/`): stats + recommended-
   next + the navigable learning path (clickable lessons, gating respected). The
   old separate "Path" page (`curriculum/page.tsx`) is a server `redirect()` to
   `/dashboard?id=`. `getDashboard` returns per-module lessons for this.
@@ -379,7 +386,7 @@ connect (`autoIndex` on in dev).
   - Anything crossing to a `"use client"` component must be JSON-plain — use the
     `lib/data/types.ts` DTOs, never a `.lean()` doc (ObjectId/Date) or `UserDoc`
     (has `passwordHash`). Functions can't cross either: client islands import
-    Server Actions directly (e.g. `AccountMenu` → `logoutAction`).
+    Server Actions directly (e.g. the sidebar account menu → `logoutAction`).
   - `redirect()`/`notFound()` throw — never inside try/catch. On routes with a
     `loading.tsx` the page is already inside a Suspense boundary, so a
     page-level redirect/notFound streams (HTTP 200 + client redirect / not-found

@@ -11,7 +11,7 @@
  * can ask for a fixed version instead of shipping a dead demo.
  */
 
-/** Stored fragment size cap — generous for a single demo, small for Mongo. */
+/** Stored fragment size cap, generous for a single demo, small for Mongo. */
 export const MAX_ARTIFACT_CHARS = 60_000;
 
 /**
@@ -38,7 +38,7 @@ const META_CSP = ARTIFACT_CSP.split("; ")
   .filter((d) => !d.startsWith("frame-ancestors") && !d.startsWith("sandbox"))
   .join("; ");
 
-/** Declarations (not uses) of the tokens BASE_CSS defines, e.g. `--bg: #fff`. */
+/** Declarations (not uses) of the tokens THEME_CSS defines, e.g. `--bg: #fff`. */
 const THEME_TOKEN_DECLARATION =
   /--(bg|surface|fg|muted|border|accent|accent-fg|highlight|danger|success|series-\d|radius|font|mono)\s*:/;
 
@@ -103,30 +103,61 @@ export function extractArtifactHtml(reply: string): ExtractResult {
   return { ok: true, html };
 }
 
+export const ARTIFACT_THEMES = ["dark", "light"] as const;
+export type ArtifactTheme = (typeof ARTIFACT_THEMES)[number];
+export const DEFAULT_ARTIFACT_THEME: ArtifactTheme = "dark";
+
+/** Only allowlisted values ever reach the document; anything else is the default. */
+export function parseArtifactTheme(value: unknown): ArtifactTheme {
+  return ARTIFACT_THEMES.find((theme) => theme === value) ?? DEFAULT_ARTIFACT_THEME;
+}
+
 /**
  * Theme tokens mirroring the app's monochrome palette (app/globals.css), so a
- * demo reads as part of the lesson. The artifact agent is told to use these.
+ * demo reads as part of the lesson in either theme. The artifact agent is told
+ * to use these names; the values swap with `data-theme` on the root element.
  */
-const BASE_CSS = `
-:root {
+const THEME_CSS = `
+:root, :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: oklch(0.22 0.012 200);
-  --surface: oklch(0.26 0.014 200);
-  --fg: oklch(0.97 0.005 200);
-  --muted: oklch(0.66 0.01 200);
-  --border: oklch(1 0 0 / 12%);
-  --accent: oklch(0.93 0.008 200);
-  --accent-fg: oklch(0.16 0.012 200);
+  --bg: #131415;
+  --surface: #1a1b1d;
+  --fg: #f4f5f6;
+  --muted: #8a8f98;
+  --border: rgb(255 255 255 / 14%);
+  --accent: #f4f5f6;
+  --accent-fg: #0a0a0b;
   --highlight: oklch(0.8 0.09 75);
   --danger: oklch(0.72 0.1 25);
   --success: oklch(0.78 0.08 160);
-  --series-1: oklch(0.93 0.008 200);
-  --series-2: oklch(0.78 0.008 200);
-  --series-3: oklch(0.64 0.008 200);
+  --series-1: #f4f5f6;
+  --series-2: #c9cbcf;
+  --series-3: #8a8f98;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f4f4f5;
+  --fg: #111113;
+  --muted: #6b6f76;
+  --border: rgb(0 0 0 / 15%);
+  --accent: #17181b;
+  --accent-fg: #ffffff;
+  --highlight: oklch(0.58 0.1 75);
+  --danger: oklch(0.55 0.15 25);
+  --success: oklch(0.5 0.1 160);
+  --series-1: #111113;
+  --series-2: #3a3b40;
+  --series-3: #6b6f76;
+}
+:root {
   --radius: 10px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
+`;
+
+const BASE_CSS = `
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 var(--font); }
 body { padding: 16px; overflow-x: hidden; }
@@ -141,7 +172,11 @@ input[type="range"] { accent-color: var(--accent); padding: 0; }
 svg, canvas { max-width: 100%; }
 `;
 
-/** Reports height and uncaught errors to the lesson page (InteractiveBlock). */
+/**
+ * Reports height and uncaught errors to the lesson page (InteractiveBlock), and
+ * swaps the theme when the parent posts `{ type: "lp-theme", theme }`. The theme
+ * is checked against the allowlist and only ever set as an attribute value.
+ */
 const BRIDGE_JS = `
 (function () {
   var post = function (msg) { try { parent.postMessage(msg, "*"); } catch (e) {} };
@@ -150,6 +185,12 @@ const BRIDGE_JS = `
   };
   window.addEventListener("error", function (e) {
     post({ type: "lp-artifact-error", message: String((e && e.message) || "error") });
+  });
+  var themes = ${JSON.stringify(ARTIFACT_THEMES)};
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (e.source !== parent || !d || d.type !== "lp-theme") return;
+    if (themes.indexOf(d.theme) !== -1) document.documentElement.setAttribute("data-theme", d.theme);
   });
   window.addEventListener("load", report);
   document.addEventListener("DOMContentLoaded", function () {
@@ -160,16 +201,20 @@ const BRIDGE_JS = `
 `;
 
 /** Wrap a validated fragment in the document the artifact route serves. */
-export function buildArtifactDocument(fragment: string, title = "Interactive demo"): string {
+export function buildArtifactDocument(
+  fragment: string,
+  title = "Interactive demo",
+  theme: ArtifactTheme = DEFAULT_ARTIFACT_THEME,
+): string {
   const safeTitle = title.replace(/[<>&"]/g, "");
   return `<!doctype html>
-<html lang="en">
+<html lang="en" data-theme="${parseArtifactTheme(theme)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="${META_CSP}">
 <title>${safeTitle}</title>
-<style>${BASE_CSS}</style>
+<style>${THEME_CSS}${BASE_CSS}</style>
 <script>${BRIDGE_JS}</script>
 </head>
 <body>

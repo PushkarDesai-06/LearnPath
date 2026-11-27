@@ -3,25 +3,27 @@
  * the lesson page's `<iframe sandbox="allow-scripts">`.
  *
  * The response carries its own CSP with `sandbox allow-scripts`, so the
- * model-written JS runs in an opaque origin — no cookies, no API access, no
- * network — even if this URL is opened directly rather than framed.
+ * model-written JS runs in an opaque origin: no cookies, no API access, no
+ * network, even if this URL is opened directly rather than framed. `?theme=`
+ * picks the token set and is validated against an allowlist.
  */
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/guards";
 import { readLessonArtifact } from "@/lib/data/lesson";
-import { ARTIFACT_CSP, buildArtifactDocument } from "@/lib/ai/artifactHtml";
+import { ARTIFACT_CSP, buildArtifactDocument, parseArtifactTheme } from "@/lib/ai/artifactHtml";
 import { handler, notFound } from "@/lib/http";
 
 export const GET = handler(
   async (
-    _request,
+    request,
     ctx: { params: Promise<{ lessonId: string; blockId: string }> },
   ) => {
     const { lessonId, blockId } = await ctx.params;
     const user = await requireUser();
     const artifact = await readLessonArtifact(user._id, lessonId, blockId);
     if (!artifact) throw notFound("Interactive demo not found");
-    return new NextResponse(buildArtifactDocument(artifact.html, artifact.title), {
+    const theme = parseArtifactTheme(new URL(request.url).searchParams.get("theme"));
+    return new NextResponse(buildArtifactDocument(artifact.html, artifact.title, theme), {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
         "Content-Security-Policy": ARTIFACT_CSP,
