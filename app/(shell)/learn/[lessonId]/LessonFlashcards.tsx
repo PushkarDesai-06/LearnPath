@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Layers } from "lucide-react";
+import { StatusIcon } from "@/components/StatusIcon";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { LoadingRing } from "@/components/ui/loading-ring";
 import type { FlashcardDeckResult } from "@/lib/data/types";
 
 const POLL_MS = 2500;
@@ -79,20 +79,32 @@ export function LessonFlashcards({
   }
 
   return (
-    <section className="bg-surface-1/60 border-border/60 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="bg-surface-1 border-border flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
-        <Layers className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+        <span className="bg-surface-2 border-border mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg border">
+          {pending ? (
+            <StatusIcon status="generating" size={16} />
+          ) : (
+            <Layers aria-hidden className="text-muted-foreground size-4" />
+          )}
+        </span>
         <div className="flex flex-col gap-0.5">
           <p className="text-sm font-medium">
-            {made.made ? `${cards(made.cardCount)} from this lesson` : "Flashcards"}
+            {pending
+              ? "Writing your cards"
+              : made.made
+                ? `${cards(made.cardCount)} from this lesson`
+                : "Flashcards"}
           </p>
           <p className="text-muted-foreground text-xs leading-relaxed">
-            {made.made
-              ? "They come back for review just before you'd forget them."
-              : "Turn this lesson into cards you review later, spaced out so it sticks."}
+            {pending
+              ? "This takes a few seconds. You can keep reading."
+              : made.made
+                ? "They come back for review just before you'd forget them."
+                : "Turn this lesson into cards you review later, spaced out so it sticks."}
           </p>
           {error && (
-            <p role="status" className="text-destructive text-xs">
+            <p role="status" className="text-muted-foreground text-xs">
               {error}
             </p>
           )}
@@ -110,11 +122,10 @@ export function LessonFlashcards({
           variant="secondary"
           size="sm"
           onClick={() => void make()}
-          disabled={pending}
+          loading={pending}
           className="self-start sm:self-auto"
         >
-          {pending && <LoadingRing data-icon="inline-start" />}
-          {pending ? "Writing cards…" : "Make flashcards"}
+          Make flashcards
         </Button>
       )}
     </section>

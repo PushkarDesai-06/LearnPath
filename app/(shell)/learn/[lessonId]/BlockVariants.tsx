@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, EllipsisVertical } from "lucide-react";
+import { Check, FlaskConical, Footprints, Lightbulb, Sparkles, Sprout, type LucideIcon } from "lucide-react";
 import { api, ApiClientError } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,19 +23,42 @@ import type { BlockVariantDTO, BlockVariantResult } from "@/lib/data/types";
 const POLL_MS = 2500;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
-/** Menu wording, then the shorter tab label. */
-const STYLE_LABELS: Record<VariantStyle, { menu: string; tab: string }> = {
-  simpler: { menu: "Simpler", tab: "Simpler" },
-  analogy: { menu: "Another analogy", tab: "Analogy" },
-  example: { menu: "Worked example", tab: "Example" },
-  walkthrough: { menu: "Walk me through it", tab: "Walkthrough" },
+/** Menu wording, the shorter tab label, and a one line promise of what you get. */
+const STYLE_LABELS: Record<
+  VariantStyle,
+  { menu: string; tab: string; description: string; Icon: LucideIcon }
+> = {
+  simpler: {
+    menu: "Simpler",
+    tab: "Simpler",
+    description: "Plain words and fewer terms",
+    Icon: Sprout,
+  },
+  analogy: {
+    menu: "Another analogy",
+    tab: "Analogy",
+    description: "Compare it to something familiar",
+    Icon: Lightbulb,
+  },
+  example: {
+    menu: "Worked example",
+    tab: "Example",
+    description: "See it applied to a concrete case",
+    Icon: FlaskConical,
+  },
+  walkthrough: {
+    menu: "Walk me through it",
+    tab: "Walkthrough",
+    description: "Go through the code step by step",
+    Icon: Footprints,
+  },
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * "Explain it differently" for one lesson block, behind a ⋯ menu that appears
- * when the block is hovered or tapped. `children` is the block as the server
+ * "Explain it differently" for one lesson block, behind a compact ghost button
+ * under the block that appears when it is hovered or focused (always on touch). `children` is the block as the server
  * rendered it, kept as the Original tab. Picking a style POSTs to the
  * variants route, which answers once the rewrite is written; if another
  * request is already writing it the route says `generating` and this POSTs
@@ -117,39 +140,47 @@ export function BlockVariants({
     }
   }
 
-  // The ⋯ button stays out of the way until the block is hovered or tapped
-  // (tapping focuses the block, so :focus-within reveals it on touch screens).
-  // While hidden it ignores pointers, so the first tap reveals rather than opens.
-  const menu = (
+  const control = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          size="icon-sm"
-          aria-label="Explain this block differently"
+          size="xs"
           disabled={!!pending}
           className={cn(
-            "bg-background/80 text-muted-foreground absolute top-0 right-0 z-10 backdrop-blur-sm lg:-right-10",
-            "transition-opacity duration-150",
-            "pointer-events-none opacity-0",
-            "group-hover/block:pointer-events-auto group-hover/block:opacity-100",
-            "group-focus-within/block:pointer-events-auto group-focus-within/block:opacity-100",
-            "data-[state=open]:pointer-events-auto data-[state=open]:opacity-100",
+            "text-muted-foreground self-start transition-opacity duration-(--dur-fast)",
+            "opacity-0 group-hover/block:opacity-100 group-focus-within/block:opacity-100",
+            "data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+            (variants.length > 0 || pending) && "opacity-100",
           )}
         >
-          <EllipsisVertical />
+          <Sparkles data-icon="inline-start" />
+          Explain differently
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel>Explain differently</DropdownMenuLabel>
-        {styles.map((style) => (
-          <DropdownMenuItem key={style} onSelect={() => void request(style)}>
-            {STYLE_LABELS[style].menu}
-            {hasVariant(style) && (
-              <Check className="text-muted-foreground ml-auto size-3.5" />
-            )}
-          </DropdownMenuItem>
-        ))}
+        {styles.map((style) => {
+          const { Icon, menu, description } = STYLE_LABELS[style];
+          return (
+            <DropdownMenuItem
+              key={style}
+              onSelect={() => void request(style)}
+              className="items-start gap-2.5 py-1.5"
+            >
+              <Icon className="mt-0.5" />
+              <span className="flex min-w-0 flex-col">
+                <span>{menu}</span>
+                <span className="text-muted-foreground text-xs font-normal">
+                  {description}
+                </span>
+              </span>
+              {hasVariant(style) && (
+                <Check className="text-muted-foreground mt-0.5 ml-auto size-3.5" />
+              )}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -168,11 +199,10 @@ export function BlockVariants({
   );
 
   return (
-    <div tabIndex={-1} className="group/block relative flex flex-col gap-2 outline-none">
-      {menu}
+    <div tabIndex={-1} className="group/block flex flex-col gap-2 outline-none">
       {variants.length ? (
         <Tabs value={tab} onValueChange={setTab} className="gap-3">
-          <TabsList variant="line" className="-ml-1.5 max-w-[calc(100%-2.5rem)] lg:max-w-full">
+          <TabsList className="self-start">
             <TabsTrigger value="original" className="text-xs">
               Original
             </TabsTrigger>
@@ -185,7 +215,7 @@ export function BlockVariants({
           <TabsContent value="original">{children}</TabsContent>
           {variants.map((v) => (
             <TabsContent key={v.style} value={v.style}>
-              <div className="prose prose-invert prose-sm max-w-none prose-p:my-2 animate-in fade-in-0 duration-300">
+              <div className="animate-in fade-in-0 duration-300">
                 <Markdown>{v.markdown}</Markdown>
               </div>
             </TabsContent>
@@ -194,6 +224,7 @@ export function BlockVariants({
       ) : (
         children
       )}
+      {control}
       {status}
     </div>
   );

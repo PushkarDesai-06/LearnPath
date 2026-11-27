@@ -14,7 +14,7 @@ import { GET } from "@/app/api/lesson/[lessonId]/artifact/[blockId]/route";
 
 const curriculum = curriculumFixture();
 const params = (lessonId = "lesson-1", blockId = "b1") => ({ params: Promise.resolve({ lessonId, blockId }) });
-const request = () => new Request("http://localhost/api/lesson/lesson-1/artifact/b1");
+const request = (query = "") => new Request(`http://localhost/api/lesson/lesson-1/artifact/b1${query}`);
 const lessonDoc = (artifactStatus: string) => ({
   _id: new ObjectId(), title: "Lesson",
   blocks: [{ kind: "interactive", blockId: "b1", caption: "Demo", artifactStatus, artifactHtml: "<script>go()</script>" }],
@@ -37,6 +37,16 @@ it("serves a ready artifact as a sandboxed HTML document", async () => {
   const body = await res.text();
   expect(body).toContain("<script>go()</script>");
   expect(body).toContain("<title>Demo</title>");
+});
+
+it("serves the requested theme and falls back to dark for anything else", async () => {
+  expect(await (await GET(request("?theme=light"), params())).text()).toContain('data-theme="light"');
+  expect(await (await GET(request("?theme=dark"), params())).text()).toContain('data-theme="dark"');
+  const bad = await (await GET(request("?theme=%22%3E%3Cscript%3E"), params())).text();
+  expect(bad).toContain('<html lang="en" data-theme="dark">');
+  expect(bad).not.toContain('data-theme=""');
+  const res = await GET(request("?theme=light"), params());
+  expect(res.headers.get("content-security-policy")).toContain("sandbox allow-scripts");
 });
 
 it("404s for another user's lesson, an unknown block, or an unbuilt artifact", async () => {

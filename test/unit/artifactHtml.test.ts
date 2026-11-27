@@ -10,6 +10,7 @@ import {
   MAX_ARTIFACT_CHARS,
   buildArtifactDocument,
   extractArtifactHtml,
+  parseArtifactTheme,
 } from "@/lib/ai/artifactHtml";
 
 const DEMO = `<div id="out"></div>
@@ -85,6 +86,7 @@ describe("buildArtifactDocument", () => {
     expect(doc).toContain("--accent:");
     expect(doc).toContain("lp-artifact-height");
     expect(doc).toContain("lp-artifact-error");
+    expect(doc).toContain("lp-theme");
     expect(doc).toContain("<title>Binary search</title>");
     // The bridge must be registered before the model's script runs.
     expect(doc.indexOf("lp-artifact-error")).toBeLessThan(doc.indexOf(DEMO));
@@ -94,5 +96,43 @@ describe("buildArtifactDocument", () => {
     expect(ARTIFACT_CSP).toContain("sandbox allow-scripts");
     expect(ARTIFACT_CSP).not.toContain("allow-same-origin");
     expect(ARTIFACT_CSP).toContain("frame-ancestors 'self'");
+  });
+
+  it("defaults to the dark theme and carries both token sets", () => {
+    const doc = buildArtifactDocument(DEMO);
+    expect(doc).toContain('<html lang="en" data-theme="dark">');
+    expect(doc).toContain(':root[data-theme="light"]');
+    expect(doc).toContain(':root[data-theme="dark"]');
+  });
+
+  it("serves the requested theme", () => {
+    expect(buildArtifactDocument(DEMO, "Demo", "light")).toContain('data-theme="light"');
+  });
+
+  it("never injects an unlisted theme value", () => {
+    const doc = buildArtifactDocument(DEMO, "Demo", '"><script>x</script>' as never);
+    expect(doc).toContain('<html lang="en" data-theme="dark">');
+    expect(doc).not.toContain("<script>x</script>");
+  });
+
+  it("only accepts allowlisted themes from the bridge", () => {
+    const doc = buildArtifactDocument(DEMO);
+    expect(doc).toContain('var themes = ["dark","light"]');
+    expect(doc).toContain("e.source !== parent");
+  });
+});
+
+describe("parseArtifactTheme", () => {
+  it.each([
+    ["light", "light"],
+    ["dark", "dark"],
+    ["LIGHT", "dark"],
+    ["system", "dark"],
+    ["", "dark"],
+    [null, "dark"],
+    [undefined, "dark"],
+    ['"><img src=x>', "dark"],
+  ])("%j -> %s", (value, expected) => {
+    expect(parseArtifactTheme(value)).toBe(expected);
   });
 });

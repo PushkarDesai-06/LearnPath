@@ -34,7 +34,7 @@ You are the 'artifactAgent'. You build ONE small interactive demo that runs insi
 - Draw with SVG, <canvas> or DOM elements.
 
 # Styling
-- The page already defines CSS variables: --bg, --surface, --fg, --muted, --border, --accent, --accent-fg, --highlight, --danger, --success, --series-1, --series-2, --series-3, --radius, --font, --mono. Use them for every colour; never hard-code colours and NEVER redeclare these variables (no :root block). The page background is already dark.
+- The page already defines CSS variables: --bg, --surface, --fg, --muted, --border, --accent, --accent-fg, --highlight, --danger, --success, --series-1, --series-2, --series-3, --radius, --font, --mono. Use them for every colour; never hard-code colours and NEVER redeclare these variables (no :root block). The page background already matches the learner's current light or dark theme, and the variables switch with it.
 - Buttons, inputs and range sliders are pre-styled; don't restyle them.
 - Must fit widths from 320px to 700px: use percentages, flex-wrap and an SVG viewBox. Keep total height under 600px.
 

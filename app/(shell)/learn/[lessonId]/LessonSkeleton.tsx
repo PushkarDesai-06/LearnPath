@@ -1,5 +1,5 @@
 /**
- * Layout-matched loading state — mirrors the article layout (header,
+ * Layout-matched loading state that mirrors the article layout (header,
  * body sections, footer actions) so content doesn't jump when it arrives. It
  * deliberately doesn't claim the lesson is being written: at this point we
  * don't know yet whether it's already stored.
@@ -16,12 +16,12 @@ export function LessonSkeleton() {
     <>
       <PageHeader breadcrumbs={[{ label: "Lesson" }]} />
       <PageContainer width="reading">
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-7">
           <header className="flex flex-col gap-2">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="h-9 w-3/4" />
           </header>
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 2 }).map((_, i) => (
             <section key={i} className="flex flex-col gap-2">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-4 w-full" />
@@ -29,6 +29,11 @@ export function LessonSkeleton() {
               <Skeleton className="h-4 w-2/3" />
             </section>
           ))}
+          <section className="flex flex-col gap-2">
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-36 w-full rounded-xl" />
+          </section>
+          <Skeleton className="h-28 w-full rounded-xl" />
           <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-6">
             <Skeleton className="h-4 w-56" />
             <Skeleton className="h-9 w-32" />

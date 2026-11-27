@@ -3,20 +3,22 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { LoadingRing } from "@/components/ui/loading-ring";
+import { ArrowRightIcon } from "@/components/icons/animated";
+import { StatusIcon } from "@/components/StatusIcon";
+import type { LessonNeighbor } from "./LessonControls";
 
-/** "Mark complete" — finalizes mastery and re-adapts the path server-side. */
+/** "Mark complete" finalizes mastery and re-adapts the path server-side. */
 export function LessonFooter({
   curriculumId,
   lessonRef,
+  next,
 }: {
   curriculumId: string;
   lessonRef: string;
+  next: LessonNeighbor | null;
 }) {
   const router = useRouter();
   // Client clock on purpose: a server-supplied start time would count render
@@ -37,7 +39,7 @@ export function LessonFooter({
       });
       setCompleted(true);
       toast.success("Lesson complete. Path updated.");
-      // Re-render the server tree so the Nav's mastery (and any cached
+      // Re-render the server tree so the sidebar's mastery (and any cached
       // dashboard payload) reflect the new standing.
       router.refresh();
     } catch (err) {
@@ -48,24 +50,32 @@ export function LessonFooter({
   }
 
   return (
-    <div className="border-border mt-4 flex items-center justify-between gap-3 border-t pt-6">
+    <div className="border-border mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-6">
       {completed ? (
         <>
-          <Badge variant="status" tone="mastered">
-            <CheckCircle2 data-icon="inline-start" />
-            Complete
-          </Badge>
-          <Button asChild>
-            <Link href={`/dashboard?id=${curriculumId}`}>Back to path</Link>
-          </Button>
+          <p className="animate-in fade-in-0 flex items-center gap-2 text-sm font-medium duration-300">
+            <StatusIcon status="mastered" size={20} />
+            Lesson complete
+          </p>
+          {next && !next.locked ? (
+            <Button asChild size="lg" className="group">
+              <Link href={`/learn/${next.id}`}>
+                Next lesson
+                <ArrowRightIcon data-icon="inline-end" />
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild size="lg">
+              <Link href={`/dashboard?id=${curriculumId}`}>Back to path</Link>
+            </Button>
+          )}
         </>
       ) : (
         <>
           <span className="text-muted-foreground text-sm">
             Done reading and practicing?
           </span>
-          <Button onClick={markComplete} disabled={completing}>
-            {completing && <LoadingRing data-icon="inline-start" />}
+          <Button size="lg" onClick={markComplete} loading={completing}>
             Mark complete
           </Button>
         </>

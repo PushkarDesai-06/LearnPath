@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, RotateCw, RotateCcw } from "lucide-react";
+import { Check, CircleCheck, CircleX, PencilLine, RotateCw, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +12,7 @@ import { Markdown } from "@/components/Markdown";
 import { gradeMcq } from "@/lib/domain/grade";
 import { cn } from "@/lib/utils";
 import type { LessonBlockDTO } from "@/lib/data/types";
+import { BlockLabel } from "./BlockLabel";
 
 interface PracticeResult {
   counted: boolean;
@@ -36,7 +35,7 @@ function GradingIndicator() {
       <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" />
       <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full [animation-delay:-0.15s]" />
       <span className="bg-muted-foreground/70 size-1.5 animate-bounce rounded-full" />
-      <span className="ml-1.5">Grading your answer…</span>
+      <span className="ml-1.5">Grading your answer...</span>
     </div>
   );
 }
@@ -44,7 +43,7 @@ function GradingIndicator() {
 /**
  * One inline practice question.
  *
- * MCQs are graded here in the browser — the key shipped with the lesson — so
+ * MCQs are graded here in the browser (the key shipped with the lesson), so
  * the verdict and explanation appear the instant a choice is submitted. The
  * POST still goes out, in the background, because the server's re-grade is what
  * actually moves mastery; only its failure is surfaced (with a retry).
@@ -53,7 +52,7 @@ function GradingIndicator() {
  * takes seconds on this provider, so the card animates while it thinks.
  *
  * Reset clears the answer and lets the learner take the question again. Replays
- * are still graded — an MCQ locally, a short answer by the agent — but they do
+ * are still graded (an MCQ locally, a short answer by the agent) but they do
  * NOT move mastery: the answer has been on screen since the first attempt, so
  * only that first one is honest signal.
  */
@@ -108,7 +107,7 @@ export function PracticeBlock({
         counted,
       });
       announce(correct);
-      // A replay needs no round trip at all — nothing to record, and the key is
+      // A replay needs no round trip at all: nothing to record, and the key is
       // already here.
       if (counted) {
         setSpent(true);
@@ -147,40 +146,32 @@ export function PracticeBlock({
     setSaveFailed(false);
   }
 
-  const edge = !result
-    ? "border-primary/30"
-    : result.correct
-      ? "border-tone-mastered/50"
-      : "border-tone-review/50";
+  const verdict = result?.correct ? "Correct" : "Not quite";
+  const VerdictIcon = result?.correct ? CircleCheck : CircleX;
 
   return (
-    <Card
-      className={cn(
-        "relative overflow-hidden border-l-4 transition-colors",
-        edge,
-      )}
-    >
+    <section className="bg-surface-1 border-border relative overflow-hidden rounded-xl border">
       {/* Light travelling across the card while the agent grades. */}
       {grading && (
         <div
           aria-hidden
-          className="animate-sweep via-primary/10 pointer-events-none absolute inset-0 bg-linear-to-r from-transparent to-transparent"
+          className="animate-sweep via-foreground/5 pointer-events-none absolute inset-0 bg-linear-to-r from-transparent to-transparent"
         />
       )}
-      <CardContent className="flex flex-col gap-3">
-        <p className="text-primary font-mono text-[10px] uppercase tracking-[0.18em]">
-          Practice
-        </p>
+      <div className="flex flex-col gap-3 p-4">
+        <BlockLabel label="Practice" Icon={PencilLine} />
         <p className="font-medium">{block.prompt}</p>
         {isMcq ? (
           <RadioGroup
             value={answer}
-            onValueChange={setAnswer}
-            disabled={!!result}
+            onValueChange={(next) => {
+              if (!result) setAnswer(next);
+            }}
+            className="gap-1"
           >
             {block.choices!.map((c, i) => {
               const key = String(i);
-              // Only meaningful once graded — before that every choice is neutral.
+              // Only meaningful once graded; before that every choice is neutral.
               const isKey = key === (block.correctKey ?? "").trim();
               const isCorrect = !!result && isKey;
               const isYoursWrong = !!result && key === answer && !isKey;
@@ -189,19 +180,20 @@ export function PracticeBlock({
                   key={i}
                   htmlFor={`${block.questionId}-${i}`}
                   className={cn(
-                    "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 font-normal transition-colors",
-                    !result && "hover:bg-surface-2/50",
-                    isCorrect && "bg-primary/10 text-foreground font-medium",
-                    isYoursWrong && "text-destructive",
+                    "flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] font-normal transition-colors duration-(--dur-fast)",
+                    result ? "cursor-default" : "hover:bg-hover cursor-pointer",
+                    !result && key === answer && "bg-active",
+                    isCorrect && "bg-surface-2 text-foreground font-semibold",
+                    isYoursWrong && "text-muted-foreground bg-hover",
                   )}
                 >
                   <RadioGroupItem
                     value={key}
                     id={`${block.questionId}-${i}`}
                   />
-                  {c}
+                  <span className={cn(isYoursWrong && "line-through decoration-1")}>{c}</span>
                   {isCorrect && (
-                    <Check className="text-primary animate-in zoom-in-50 ml-auto size-4 shrink-0 duration-300 ease-out" />
+                    <Check className="animate-in zoom-in-50 ml-auto size-4 shrink-0 duration-300 ease-out" />
                   )}
                   {isYoursWrong && (
                     <X className="animate-in zoom-in-50 ml-auto size-4 shrink-0 duration-300 ease-out" />
@@ -216,7 +208,7 @@ export function PracticeBlock({
             value={answer}
             disabled={!!result || grading}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Your answer…"
+            placeholder="Your answer..."
           />
         )}
         {!result ? (
@@ -242,23 +234,22 @@ export function PracticeBlock({
             </div>
           )
         ) : (
-          <div className="animate-in fade-in-0 slide-in-from-bottom-2 flex flex-col gap-2 text-sm duration-300 ease-out">
-            <Badge
-              variant="status"
-              tone={result.correct ? "mastered" : "review"}
-              className="self-start"
-            >
-              {result.correct ? "Correct" : "Not quite"}
-            </Badge>
-            {result.feedback && <p>{result.feedback}</p>}
-            {result.explanation && (
-              <div className="text-muted-foreground border-border/60 mt-1 border-l-2 pl-3">
-                <p className="text-foreground/80 mb-1 text-xs font-medium uppercase tracking-wider">
-                  Explanation
-                </p>
-                <Markdown>{result.explanation}</Markdown>
-              </div>
-            )}
+          <div className="animate-in fade-in-0 slide-in-from-bottom-2 flex flex-col gap-3 text-sm duration-300 ease-out">
+            <div className="bg-surface-2 border-border flex flex-col gap-2 rounded-lg border p-3">
+              <p className="flex items-center gap-2 font-semibold">
+                <VerdictIcon aria-hidden className="size-4 shrink-0" />
+                {verdict}
+              </p>
+              {result.feedback && <p className="text-fg-2">{result.feedback}</p>}
+              {result.explanation && (
+                <div className="border-border border-t pt-2">
+                  <p className="text-muted-foreground mb-1 text-[10.5px] font-medium tracking-[0.14em] uppercase">
+                    Explanation
+                  </p>
+                  <Markdown>{result.explanation}</Markdown>
+                </div>
+              )}
+            </div>
             {saveFailed && (
               <p className="text-muted-foreground flex items-center gap-2 text-xs">
                 Couldn&apos;t save this to your progress.
@@ -272,20 +263,20 @@ export function PracticeBlock({
                 </button>
               </p>
             )}
-            <div className="mt-1 flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Button size="sm" variant="secondary" onClick={reset}>
                 <RotateCcw data-icon="inline-start" />
                 Try again
               </Button>
               {!result.counted && (
                 <span className="text-muted-foreground text-xs">
-                  Practice only — your first attempt is the one that counted.
+                  Practice only. Your first attempt is the one that counted.
                 </span>
               )}
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }
