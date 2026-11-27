@@ -1,8 +1,15 @@
 import type { ReactNode } from "react";
 import {
   ArrowUpRight,
+  ChevronsUpDown,
+  Eye,
+  Focus,
   Layers,
   MessageSquare,
+  Pin,
+  PinOff,
+  RefreshCw,
+  RotateCcw,
   SquareArrowOutUpRight,
   LayoutDashboard,
 } from "lucide-react";
@@ -98,6 +105,134 @@ export function topicRowMenu(topic: Pick<ShellTopic, "id">): RowMenuEntry[] {
       id: "copy-link",
       label: "Copy link",
       href: topicHref(topic.id),
+    },
+  ];
+}
+
+export interface LessonMenuTarget {
+  curriculumId: string;
+  lessonId: string;
+  pinned: boolean;
+}
+
+export interface LessonMenuHandlers {
+  /** Omit where the peek panel is already the surface (it hides the entry). */
+  peek?: () => void;
+  togglePin: () => void;
+  makeFlashcards: () => void;
+  markForReview: () => void;
+  requestReset: () => void;
+}
+
+/**
+ * The lesson row menu, shared by the dashboard row (dropdown and context menu),
+ * the peek panel and, later, the lesson page header. Focus mode opens the lesson,
+ * where the F key toggles it.
+ */
+export function lessonRowMenu(
+  { curriculumId, lessonId, pinned }: LessonMenuTarget,
+  handlers: LessonMenuHandlers,
+): RowMenuEntry[] {
+  const href = lessonHref({ lessonId });
+  const entries: RowMenuEntry[] = [
+    {
+      type: "link",
+      id: "open",
+      label: "Open",
+      icon: <ArrowUpRight />,
+      href,
+      shortcut: "Enter",
+    },
+  ];
+  if (handlers.peek) {
+    entries.push({
+      type: "action",
+      id: "peek",
+      label: "Peek",
+      icon: <Eye />,
+      onSelect: handlers.peek,
+      shortcut: "Space",
+    });
+  }
+  entries.push(
+    {
+      type: "action",
+      id: "pin",
+      label: pinned ? "Unpin" : "Pin",
+      icon: pinned ? <PinOff /> : <Pin />,
+      onSelect: handlers.togglePin,
+      shortcut: "P",
+    },
+    {
+      type: "link",
+      id: "ask-tutor",
+      label: "Ask tutor",
+      icon: <MessageSquare />,
+      href: `/tutor?id=${curriculumId}&lesson=${encodeURIComponent(lessonId)}`,
+    },
+    {
+      type: "action",
+      id: "flashcards",
+      label: "Make flashcards",
+      icon: <Layers />,
+      onSelect: handlers.makeFlashcards,
+    },
+    {
+      type: "action",
+      id: "review",
+      label: "Mark for review",
+      icon: <RefreshCw />,
+      onSelect: handlers.markForReview,
+    },
+    {
+      type: "link",
+      id: "focus",
+      label: "Focus mode",
+      icon: <Focus />,
+      href,
+    },
+    { type: "copy", id: "copy-link", label: "Copy link", href },
+    { type: "separator" },
+    {
+      type: "action",
+      id: "reset",
+      label: "Reset progress",
+      icon: <RotateCcw />,
+      onSelect: handlers.requestReset,
+      destructive: true,
+    },
+  );
+  return entries;
+}
+
+export function moduleHash(moduleId: string) {
+  return `mod-${moduleId}`;
+}
+
+export function moduleRowMenu(
+  module: { curriculumId: string; moduleId: string; expanded: boolean },
+  toggle: () => void,
+): RowMenuEntry[] {
+  return [
+    {
+      type: "action",
+      id: "toggle",
+      label: module.expanded ? "Collapse" : "Expand",
+      icon: <ChevronsUpDown />,
+      onSelect: toggle,
+    },
+    {
+      type: "link",
+      id: "ask-tutor",
+      label: "Ask tutor about this module",
+      icon: <MessageSquare />,
+      href: `/tutor?id=${module.curriculumId}`,
+    },
+    {
+      type: "copy",
+      id: "copy-link",
+      label: "Copy link",
+      href: `${topicHref(module.curriculumId)}#${moduleHash(module.moduleId)}`,
     },
   ];
 }
