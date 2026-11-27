@@ -45,7 +45,7 @@ export async function loginAction(
   if (!user) return { error: "Invalid email or password" };
 
   await createSession(user._id, await userAgent());
-  redirect("/topics");
+  redirect("/dashboard");
 }
 
 export async function signupAction(
