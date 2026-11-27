@@ -28,7 +28,15 @@ const LOGO_PATHS = [
 
 export function LogoGlyph({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 680 430" fill="currentColor" aria-hidden className={className}>
+    <svg
+      viewBox="-2 -2 684 434"
+      fill="currentColor"
+      stroke="currentColor"
+      strokeWidth={3}
+      strokeLinejoin="round"
+      aria-hidden
+      className={className}
+    >
       {LOGO_PATHS.map((d) => (
         <path key={d} d={d} />
       ))}
