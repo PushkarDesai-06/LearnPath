@@ -373,9 +373,9 @@ UI is shadcn/ui on Tailwind v4. Add components with `npx shadcn@latest add <name
 hand-write into `components/ui/`. Model-authored markdown renders through
 `components/Markdown.tsx` with raw HTML escaped.
 
-**Accent color is one knob.** `app/globals.css` defines `--brand` / `--brand-foreground` at
-the top of `:root` (and `.dark`), and `--primary` is wired to them — change those two values
-to recolor actions, links, and highlights app-wide.
+**Theme.** `app/globals.css` holds neutral light and dark tokens (`:root` and `.dark`, toggled by
+next-themes, default `system`). Primary actions use `--primary-gradient`; `--destructive` is the
+only hue. The design reference is `design/redesign-plan.html`.
 
 ---
 
