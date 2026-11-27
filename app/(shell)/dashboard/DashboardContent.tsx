@@ -1,0 +1,283 @@
+import Link from "next/link";
+import { Lock, ArrowUpRight, Layers, MessageSquare } from "lucide-react";
+import { getDashboard } from "@/lib/data/progress";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { TrailRail } from "@/components/TrailRail";
+import { formatStatus, statusTone } from "@/lib/format";
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
+
+function lessonHref(lessonId: string) {
+  return `/learn/${lessonId}`;
+}
+
+function fmtTime(ms: number) {
+  const min = Math.round(ms / 60000);
+  return min < 1 ? "<1 min" : `${min} min`;
+}
+
+/**
+ * The topic hub, rendered on the server: stats, recommended next, and the
+ * navigable path. Streams in behind the page's keyed <Suspense>.
+ */
+export async function DashboardContent({
+  userId,
+  curriculumId,
+}: {
+  userId: string;
+  curriculumId: string | null;
+}) {
+  const data = await getDashboard(userId, curriculumId);
+
+  if (!data.hasCurriculum)
+    return (
+      <>
+        <PageHeader breadcrumbs={[{ label: "Dashboard" }]} />
+        <PageContainer>
+          <Card className="mx-auto max-w-md">
+            <CardHeader>
+              <CardTitle className="h-display text-3xl">
+                Nothing here yet
+              </CardTitle>
+              <CardDescription>
+                This topic doesn&apos;t have a learning path yet.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild>
+                <Link href="/topics">Go to topics</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </PageContainer>
+      </>
+    );
+
+  const s = data.summary;
+  const railItems = data.modules.map((m) => ({
+    id: m.id,
+    title: m.title,
+    status: m.status,
+  }));
+  const currentModule =
+    data.modules.find((m) => m.status === "in_progress")?.id ??
+    data.modules.find((m) => m.status === "available")?.id ??
+    null;
+
+  return (
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: data.title }, { label: "Dashboard" }]}
+        actions={
+          <>
+            <Button variant="secondary" size="sm" asChild>
+              <Link href={`/tutor?id=${data.curriculumId}`}>
+                <MessageSquare data-icon="inline-start" />
+                Tutor
+              </Link>
+            </Button>
+            <Button variant="secondary" size="sm" asChild>
+              <Link href={`/flashcards?id=${data.curriculumId}`}>
+                <Layers data-icon="inline-start" />
+                Flashcards
+              </Link>
+            </Button>
+          </>
+        }
+      />
+      <PageContainer>
+        {/* The path column is centred in the page; the rail hangs in the gutter to
+        its left (`right-full`), so it never pulls the content off-centre. It
+        only appears once that gutter is actually wide enough to hold it. */}
+        <div className="relative mx-auto w-full max-w-2xl">
+          <div className="absolute inset-y-0 right-full hidden w-44 pr-6 min-[1180px]:block">
+            <TrailRail items={railItems} activeId={currentModule} />
+          </div>
+
+          <div className="flex flex-col gap-8">
+            {/* Hero */}
+            <header className="flex flex-col gap-3">
+              <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+                Your path
+              </p>
+              <h1 className="h-display text-3xl sm:text-4xl">{data.title}</h1>
+            </header>
+
+            {/* Instrument-panel stats */}
+            <section className="grid grid-cols-2 gap-x-6 gap-y-5 border-y border-border py-5 sm:grid-cols-4">
+              <Stat
+                label="Mastery"
+                value={`${Math.round(s.overallMastery * 100)}%`}
+              />
+              <Stat
+                label="Lessons mastered"
+                value={`${s.lessonsMastered}/${s.lessonsTotal}`}
+              />
+              <Stat
+                label="Modules done"
+                value={`${s.modulesCompleted}/${s.modulesTotal}`}
+              />
+              <Stat label="Time spent" value={fmtTime(s.totalTimeMs)} />
+            </section>
+
+            {/* Recommended next */}
+            {data.recommendedNext && (
+              <Link
+                href={lessonHref(data.recommendedNext.lessonId)}
+                className="group bg-surface-2/40 ring-primary/15 hover:ring-primary/35 relative block overflow-hidden rounded-2xl border border-primary/20 p-5 ring-1 transition-all"
+              >
+                <div className="bg-primary/8 absolute -right-12 -top-12 size-40 rounded-full blur-3xl" />
+                <p className="text-primary/90 font-mono text-[10px] uppercase tracking-[0.18em]">
+                  {data.recommendedNext.reason === "needs_review"
+                    ? "Pick up a review"
+                    : "Pick up where you left off"}
+                </p>
+                <div className="mt-2 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-medium leading-tight">
+                      {data.recommendedNext.lessonTitle}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      in {data.recommendedNext.moduleTitle}
+                    </p>
+                  </div>
+                  <ArrowUpRight className="text-primary size-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </div>
+              </Link>
+            )}
+
+            {/* Flashcards: shown once the learner has made some */}
+            {data.flashcards.total > 0 && (
+              <Link
+                href={`/flashcards?id=${data.curriculumId}`}
+                className="group hover:bg-surface-2/40 border-border/60 flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-colors"
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <Layers className="text-muted-foreground size-4 shrink-0" />
+                  <span className="text-sm font-medium">
+                    {data.flashcards.due > 0
+                      ? `${data.flashcards.due} flashcard${data.flashcards.due === 1 ? "" : "s"} due`
+                      : "Flashcards"}
+                  </span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {data.flashcards.due > 0 ? "Review now" : "All caught up"}
+                  </span>
+                </span>
+                <ArrowUpRight className="text-muted-foreground group-hover:text-primary size-4 shrink-0 transition-colors" />
+              </Link>
+            )}
+
+            {/* Modules */}
+            <section className="flex flex-col gap-3">
+              <h2 className="text-muted-foreground font-mono text-[10px] uppercase tracking-[0.18em]">
+                Modules
+              </h2>
+              {data.modules.map((m, idx) => {
+                const locked = m.status === "locked";
+                return (
+                  <Card
+                    key={m.id}
+                    id={`mod-${m.id}`}
+                    className="scroll-mt-24 transition-colors hover:border-border/60"
+                  >
+                    <CardHeader>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-muted-foreground/60 font-mono text-xs tabular-nums">
+                            {String(idx + 1).padStart(2, "0")}
+                          </span>
+                          <CardTitle className="text-lg font-medium">
+                            {m.title}
+                          </CardTitle>
+                        </div>
+                        <Badge variant="status" tone={statusTone(m.status)}>
+                          {formatStatus(m.status)}
+                        </Badge>
+                      </div>
+                      <CardDescription className="sm:ml-9">
+                        {m.summary}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-col gap-2.5 sm:ml-9">
+                      {m.lessons.map((l) => {
+                        const lt = statusTone(l.status);
+                        return (
+                          <div
+                            key={l.id}
+                            className="hover:bg-surface-2/40 flex flex-col gap-1.5 rounded-md border border-transparent px-3 py-2.5 transition-colors hover:border-border/40"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                {locked ? (
+                                  <span className="text-muted-foreground flex min-w-0 items-center gap-2 text-sm">
+                                    <Lock className="size-3.5 shrink-0" />
+                                    {/* Its own element, so a long unbroken word can wrap beside the icon. */}
+                                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                                      {l.title}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <Link
+                                    href={lessonHref(l.id)}
+                                    className="hover:text-primary min-w-0 text-sm font-medium [overflow-wrap:anywhere] transition-colors"
+                                  >
+                                    {l.title}
+                                  </Link>
+                                )}
+                                <Badge
+                                  variant="status"
+                                  tone={lt}
+                                  className="shrink-0"
+                                >
+                                  {formatStatus(l.status)}
+                                </Badge>
+                              </div>
+                              <span className="text-muted-foreground/80 shrink-0 font-mono text-[10px] tabular-nums">
+                                ~{l.estMinutes}m
+                              </span>
+                            </div>
+                            <Progress
+                              value={l.masteryScore * 100}
+                              className="max-w-40"
+                            />
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </section>
+
+            {s.lessonsNeedingReview > 0 && (
+              <p className="text-tone-review text-sm">
+                {s.lessonsNeedingReview} lesson
+                {s.lessonsNeedingReview === 1 ? "" : "s"} flagged for review.
+              </p>
+            )}
+          </div>
+        </div>
+      </PageContainer>
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-mono text-2xl font-normal tabular-nums">{value}</p>
+      <p className="text-muted-foreground/80 font-mono text-[10px] uppercase tracking-[0.16em]">
+        {label}
+      </p>
+    </div>
+  );
+}

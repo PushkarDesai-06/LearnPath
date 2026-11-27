@@ -10,7 +10,13 @@ import { SunMoonIcon } from "@/components/icons/animated"
 import { THEME_LABEL, useThemeCycle } from "@/components/useThemeCycle"
 
 /** Cycles system, light, dark. The icon follows the resolved theme. */
-export function ThemeToggle({ shortcut }: { shortcut?: string }) {
+export function ThemeToggle({
+  shortcut,
+  side,
+}: {
+  shortcut?: string
+  side?: "top" | "right" | "bottom" | "left"
+}) {
   const { theme, isDark, cycle } = useThemeCycle()
   const label = `Theme: ${THEME_LABEL[theme]}`
 
@@ -27,7 +33,7 @@ export function ThemeToggle({ shortcut }: { shortcut?: string }) {
           <SunMoonIcon dark={isDark} />
         </Button>
       </TooltipTrigger>
-      <TooltipContent shortcut={shortcut}>{label}</TooltipContent>
+      <TooltipContent shortcut={shortcut} side={side}>{label}</TooltipContent>
     </Tooltip>
   )
 }

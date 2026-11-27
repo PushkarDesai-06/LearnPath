@@ -78,37 +78,6 @@
 }
 
 /* --------------------------------------------------------------------------
-   Landing-page motion. Both are decorative and both are disabled under
-   `prefers-reduced-motion` at the bottom of this file.
-   -------------------------------------------------------------------------- */
-
-/* Scroll reveal. `Reveal` (app/(marketing)/_components) flips `data-shown` via
-   IntersectionObserver; the transition lives here so it costs no re-render. */
-.reveal {
-  opacity: 0;
-  transform: translateY(0.75rem);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.reveal[data-shown="true"] {
-  opacity: 1;
-  transform: none;
-}
-
-/* Hero underline that draws itself once, just after the headline lands. */
-.underline-draw {
-  stroke-dasharray: 320;
-  stroke-dashoffset: 320;
-  animation: draw-underline 1.1s cubic-bezier(0.65, 0, 0.35, 1) 0.5s forwards;
-}
-@keyframes draw-underline {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* --------------------------------------------------------------------------
    "New topic" CTA (/topics). Hover traces a path across the button: a hairline
    drawn left-to-right with a dot riding its head — the trail-rail signature,
    scaled down — while the button lifts off the page. The mark's quarter-turn
@@ -479,19 +448,9 @@
   ::view-transition-new(*) {
     animation: none !important;
   }
-  /* All three are decorative: the sweep has text beside it saying what's
-     happening, and the landing page reads identically without its motion. */
-  .animate-sweep,
-  .underline-draw {
+  /* Decorative: text beside the sweep says what's happening. */
+  .animate-sweep {
     animation: none;
-  }
-  .underline-draw {
-    stroke-dashoffset: 0;
-  }
-  .reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
   }
   /* The CTA still answers hover — it just stops travelling to do it. */
   .cta-path,
@@ -690,5 +649,14 @@
   }
   .nav-progress-bar {
     transition: none !important;
+  }
+}
+
+@keyframes lp-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
   }
 }
