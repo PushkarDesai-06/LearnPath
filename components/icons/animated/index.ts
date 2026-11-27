@@ -7,7 +7,7 @@ export {
   ArrowRightIcon,
   TrashIcon,
   FlameIcon,
-  SunMoonIcon,
+  ThemeIcon,
   SidebarToggleIcon,
   SearchIcon,
 } from "./icons"

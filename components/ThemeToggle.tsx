@@ -6,10 +6,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { SunMoonIcon } from "@/components/icons/animated"
+import { ThemeIcon } from "@/components/icons/animated"
 import { THEME_LABEL, useThemeCycle } from "@/components/useThemeCycle"
 
-/** Cycles system, light, dark. The icon follows the resolved theme. */
+/** Cycles system, light, dark. The icon shows the chosen mode. */
 export function ThemeToggle({
   shortcut,
   side,
@@ -17,7 +17,7 @@ export function ThemeToggle({
   shortcut?: string
   side?: "top" | "right" | "bottom" | "left"
 }) {
-  const { theme, isDark, cycle } = useThemeCycle()
+  const { theme, cycle } = useThemeCycle()
   const label = `Theme: ${THEME_LABEL[theme]}`
 
   return (
@@ -30,7 +30,7 @@ export function ThemeToggle({
           onClick={cycle}
           className="group"
         >
-          <SunMoonIcon dark={isDark} />
+          <ThemeIcon theme={theme} />
         </Button>
       </TooltipTrigger>
       <TooltipContent shortcut={shortcut} side={side}>{label}</TooltipContent>
