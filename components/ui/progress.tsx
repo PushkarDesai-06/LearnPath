@@ -14,15 +14,15 @@ function Progress({
     <ProgressPrimitive.Root
       data-slot="progress"
       className={cn(
-        // Hairline track: barely-there border, no fill, mint indicator.
-        "relative flex h-[3px] w-full items-center overflow-x-hidden rounded-full bg-white/[0.04]",
+        // Neutral track with a foreground indicator.
+        "relative flex h-[3px] w-full items-center overflow-x-hidden rounded-full bg-surface-3",
         className
       )}
       {...props}
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className="size-full flex-1 bg-primary/90 transition-all"
+        className="size-full flex-1 bg-foreground transition-transform duration-(--dur-slow) ease-(--ease-out)"
         style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
       />
     </ProgressPrimitive.Root>
