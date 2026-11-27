@@ -12,6 +12,7 @@ import { ContinueCard } from "./ContinueCard";
 import { DashboardProvider } from "./DashboardProvider";
 import { LessonList } from "./LessonList";
 import { StatsRow } from "./StatsRow";
+import { TopicHeaderMenu } from "./TopicHeaderMenu";
 import { ViewOptions } from "./ViewOptions";
 
 /**
@@ -68,6 +69,14 @@ export async function DashboardContent({
     >
       <PageHeader
         breadcrumbs={[{ label: data.title }, { label: "Dashboard" }]}
+        menu={
+          <TopicHeaderMenu
+            id={data.curriculumId}
+            title={data.title}
+            mastery={data.summary.overallMastery}
+            lessonsMastered={data.summary.lessonsMastered}
+          />
+        }
         actions={
           <>
             <ViewOptions />

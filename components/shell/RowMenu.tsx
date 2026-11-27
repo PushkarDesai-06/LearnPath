@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -17,7 +12,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CopyCheckIcon } from "@/components/icons/animated";
+import {
+  copyLink,
+  EntryMenuItems,
+  useFocusHandoff,
+} from "@/components/shell/EntryMenuItems";
 import {
   SidebarDropdownMenu,
   useSidebarUi,
@@ -27,17 +26,24 @@ import { cn } from "@/lib/utils";
 
 const COPIED_HOLD_MS = 700;
 
-/** The 3 dot button of a sidebar row. Revealed on hover and focus, always shown on touch. */
+/**
+ * The 3 dot button of a sidebar row. Revealed on row hover, focus within and
+ * while open (it keeps its pressed look then), always shown on touch. The menu
+ * opens below, or to the right in the icon rail, and flips when out of room.
+ */
 export function RowMenu({
   entries,
   label,
   className,
+  onFocusMoved,
 }: {
   entries: RowMenuEntry[];
   label: string;
   className?: string;
+  onFocusMoved?: () => void;
 }) {
   const { menuSide } = useSidebarUi();
+  const handoff = useFocusHandoff();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
@@ -47,15 +53,7 @@ export function RowMenu({
   useEffect(() => () => clearTimeout(closeTimer.current), []);
 
   async function copy(href: string) {
-    try {
-      await navigator.clipboard.writeText(
-        new URL(href, window.location.origin).toString(),
-      );
-      setCopied(true);
-      toast.success("Link copied");
-    } catch {
-      toast.error("Could not copy the link");
-    }
+    setCopied(await copyLink(href));
     clearTimeout(closeTimer.current);
     closeTimer.current = setTimeout(() => {
       setOpen(false);
@@ -90,64 +88,17 @@ export function RowMenu({
         side={menuSide("bottom")}
         align="start"
         className="w-52"
+        {...handoff.contentProps}
       >
-        {entries.map((entry, index) => {
-          if (entry.type === "separator")
-            return <DropdownMenuSeparator key={`sep-${index}`} />;
-          if (entry.type === "link") {
-            return (
-              <DropdownMenuItem key={entry.id} asChild>
-                {entry.newTab ? (
-                  <a
-                    href={entry.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {entry.icon}
-                    {entry.label}
-                  </a>
-                ) : (
-                  <Link href={entry.href}>
-                    {entry.icon}
-                    {entry.label}
-                    {entry.shortcut ? (
-                      <DropdownMenuShortcut>
-                        {entry.shortcut}
-                      </DropdownMenuShortcut>
-                    ) : null}
-                  </Link>
-                )}
-              </DropdownMenuItem>
-            );
-          }
-          if (entry.type === "copy") {
-            return (
-              <DropdownMenuItem
-                key={entry.id}
-                onSelect={(event) => {
-                  event.preventDefault();
-                  void copy(entry.href);
-                }}
-              >
-                <CopyCheckIcon copied={copied} />
-                {entry.label}
-              </DropdownMenuItem>
-            );
-          }
-          return (
-            <DropdownMenuItem
-              key={entry.id}
-              variant={entry.destructive ? "destructive" : "default"}
-              onSelect={() => void entry.onSelect()}
-            >
-              {entry.icon}
-              {entry.label}
-              {entry.shortcut ? (
-                <DropdownMenuShortcut>{entry.shortcut}</DropdownMenuShortcut>
-              ) : null}
-            </DropdownMenuItem>
-          );
-        })}
+        <EntryMenuItems
+          entries={entries}
+          kind="dropdown"
+          copy={{ copied, onCopy: copy }}
+          onFocusMoved={() => {
+            handoff.markFocusMoved();
+            onFocusMoved?.();
+          }}
+        />
       </DropdownMenuContent>
     </SidebarDropdownMenu>
   );

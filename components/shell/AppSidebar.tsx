@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarHeader } from "@/components/shell/SidebarHeader";
@@ -8,8 +8,13 @@ import { PrimaryNav, SidebarSearch } from "@/components/shell/SidebarNav";
 import { LessonGroup } from "@/components/shell/SidebarLessons";
 import { ArchivedGroup, TopicsGroup } from "@/components/shell/SidebarTopics";
 import { SidebarFooter } from "@/components/shell/SidebarFooter";
+import { shellOverrides, useShellOverrides } from "@/components/shell/shellOverrides";
+import { useSidebarUi } from "@/components/shell/SidebarUi";
+import { usePinActions } from "@/components/shell/usePinActions";
+import { useTopicMenus } from "@/components/shell/useTopicMenus";
 import { useSidebarGroups } from "@/components/shell/useSidebarGroups";
 import { useSidebarTopic } from "@/components/shell/useSidebarTopic";
+import { applyTopicOverrides } from "@/lib/client/topicState";
 import type { ShellData } from "@/lib/data/types";
 
 export interface SidebarUser {
@@ -26,9 +31,47 @@ export function AppSidebar({
   data: ShellData;
 }) {
   const { setOpenMobile } = useSidebar();
+  const { rail } = useSidebarUi();
   const search = useSearchParams().toString();
+  const overrides = useShellOverrides();
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    shellOverrides.clear();
+  }, [data]);
+
+  const { active: topics, archived: archivedTopics } = useMemo(
+    () =>
+      applyTopicOverrides(
+        data.topics,
+        data.archivedTopics,
+        overrides.topics,
+        (topic) => ({
+          id: topic.id,
+          title: topic.title,
+          archivedAt: new Date().toISOString(),
+        }),
+      ),
+    [data.topics, data.archivedTopics, overrides.topics],
+  );
+  const pins = overrides.pins ?? data.pins;
+  const recents = overrides.recents ?? data.recents;
+  const pinnedIds = useMemo(
+    () => new Set(pins.map((pin) => pin.lessonId)),
+    [pins],
+  );
+
+  const pinActions = usePinActions(pins, recents);
+  const topicUi = useTopicMenus({
+    inlineRename: (topic) => {
+      if (rail) return false;
+      setEditingId(topic.id);
+      return true;
+    },
+  });
+
   const { pathname, activeId, fallbackId } = useSidebarTopic(
-    data.topics.map((t) => t.id),
+    topics.map((t) => t.id),
   );
   const groups = useSidebarGroups(data.prefs.collapsedGroups, activeId);
 
@@ -36,7 +79,7 @@ export function AppSidebar({
     setOpenMobile(false);
   }, [pathname, search, setOpenMobile]);
 
-  const navTopic = data.topics.find((t) => t.id === fallbackId);
+  const navTopic = topics.find((t) => t.id === fallbackId);
 
   return (
     <>
@@ -52,35 +95,44 @@ export function AppSidebar({
           id="group:pinned"
           label="Pinned"
           kind="pinned"
-          links={data.pins}
+          links={pins}
           pathname={pathname}
           open={groups.isGroupOpen("group:pinned")}
           onToggle={() => groups.toggleGroup("group:pinned")}
+          pinnedIds={pinnedIds}
+          actions={pinActions}
         />
         <LessonGroup
           id="group:recent"
           label="Recent"
           kind="recent"
-          links={data.recents}
+          links={recents}
           pathname={pathname}
           open={groups.isGroupOpen("group:recent")}
           onToggle={() => groups.toggleGroup("group:recent")}
+          pinnedIds={pinnedIds}
+          actions={pinActions}
         />
         <TopicsGroup
-          topics={data.topics}
+          topics={topics}
           activeTopicId={activeId}
           open={groups.isGroupOpen("group:topics")}
           onToggleGroup={() => groups.toggleGroup("group:topics")}
           isTopicOpen={groups.isTopicOpen}
           onToggleTopic={groups.toggleTopic}
+          topicUi={topicUi}
+          editingId={editingId}
+          onEditDone={() => setEditingId(null)}
         />
         <ArchivedGroup
-          topics={data.archivedTopics}
+          topics={archivedTopics}
           open={groups.isGroupOpen("group:archived")}
           onToggle={() => groups.toggleGroup("group:archived")}
+          topicUi={topicUi}
         />
       </div>
       <SidebarFooter />
+      {topicUi.dialogs}
     </>
   );
 }

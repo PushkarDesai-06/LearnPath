@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Archive, BookOpen, Layers, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,12 @@ import {
 import { MasteryRing } from "@/components/MasteryRing";
 import { StatusIcon } from "@/components/StatusIcon";
 import { ArrowRightIcon } from "@/components/icons/animated";
-import { topicRowMenu } from "@/components/shell/rowMenus";
+import { EntryContextMenu, EntryMenu } from "@/components/shell/EntryMenu";
+import type { TopicMenuTarget } from "@/components/shell/rowMenus";
+import { shellOverrides, useShellOverrides } from "@/components/shell/shellOverrides";
+import { useTopicMenus } from "@/components/shell/useTopicMenus";
+import { applyTopicOverrides, topicHasProgress } from "@/lib/client/topicState";
 import { cn } from "@/lib/utils";
-import { TopicMenu } from "./TopicMenu";
 
 export interface TopicRow {
   id: string;
@@ -110,8 +113,16 @@ function DueCount({ count }: { count: number }) {
   );
 }
 
-function TopicListRow({ topic }: { topic: TopicRow }) {
+type TopicUi = ReturnType<typeof useTopicMenus>;
+
+function targetOf(topic: TopicRow): TopicMenuTarget {
+  return { id: topic.id, title: topic.title, hasProgress: topicHasProgress(topic) };
+}
+
+function TopicListRow({ topic, topicUi }: { topic: TopicRow; topicUi: TopicUi }) {
+  const entries = topicUi.menu(targetOf(topic));
   return (
+    <EntryContextMenu entries={entries}>
     <li className={cn(rowBase, "min-h-11 px-2.5 py-1.5")}>
       <MasteryRing value={topic.mastery} size={20} />
       <div className="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -134,16 +145,20 @@ function TopicListRow({ topic }: { topic: TopicRow }) {
       <span className="hidden w-20 shrink-0 text-right text-[12px] text-faint lg:block">
         {topic.createdLabel}
       </span>
-      <TopicMenu
-        entries={topicRowMenu({ id: topic.id })}
+      <EntryMenu
+        entries={entries}
         label={`Options for ${topic.title}`}
+        revealOnRowHover
       />
     </li>
+    </EntryContextMenu>
   );
 }
 
-function TopicCard({ topic }: { topic: TopicRow }) {
+function TopicCard({ topic, topicUi }: { topic: TopicRow; topicUi: TopicUi }) {
+  const entries = topicUi.menu(targetOf(topic));
   return (
+    <EntryContextMenu entries={entries}>
     <li
       className={cn(
         "group/row relative flex flex-col gap-3 rounded-xl border border-border bg-surface-1 p-4 transition-colors duration-(--dur-fast) hover:border-border-strong hover:bg-surface-2 focus-within:border-border-strong",
@@ -162,9 +177,10 @@ function TopicCard({ topic }: { topic: TopicRow }) {
             {topic.domain}
           </span>
         </div>
-        <TopicMenu
-          entries={topicRowMenu({ id: topic.id })}
+        <EntryMenu
+          entries={entries}
           label={`Options for ${topic.title}`}
+          revealOnRowHover
           className="-mt-1 -mr-1"
         />
       </div>
@@ -179,6 +195,42 @@ function TopicCard({ topic }: { topic: TopicRow }) {
         <DueCount count={topic.dueCards} />
       </div>
     </li>
+    </EntryContextMenu>
+  );
+}
+
+function ArchivedListRow({
+  topic,
+  topicUi,
+}: {
+  topic: ArchivedRow;
+  topicUi: TopicUi;
+}) {
+  const entries = topicUi.archivedMenu({
+    id: topic.id,
+    title: topic.title,
+    hasProgress: true,
+  });
+  return (
+    <EntryContextMenu entries={entries}>
+      <li className={cn(rowBase, "min-h-11 px-2.5 py-1.5")}>
+        <Archive className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Link
+          href={`/dashboard?id=${topic.id}`}
+          className={cn("min-w-0 flex-1 truncate text-[13.5px] text-fg-2", stretchedLink)}
+        >
+          {topic.title}
+        </Link>
+        <span className="shrink-0 text-[12px] text-faint">
+          Archived {topic.archivedLabel}
+        </span>
+        <EntryMenu
+          entries={entries}
+          label={`Options for ${topic.title}`}
+          revealOnRowHover
+        />
+      </li>
+    </EntryContextMenu>
   );
 }
 
@@ -221,8 +273,8 @@ function LayoutToggle({
 }
 
 export function TopicsView({
-  topics,
-  archived,
+  topics: serverTopics,
+  archived: serverArchived,
   funnels,
 }: {
   topics: TopicRow[];
@@ -231,6 +283,27 @@ export function TopicsView({
 }) {
   const [tab, setTab] = useState<"active" | "archived">("active");
   const [layout, setLayout] = useLayout();
+  const topicUi = useTopicMenus();
+  const overrides = useShellOverrides();
+
+  useEffect(() => {
+    shellOverrides.clear();
+  }, [serverTopics, serverArchived]);
+
+  const { active: topics, archived } = useMemo(
+    () =>
+      applyTopicOverrides(
+        serverTopics,
+        serverArchived,
+        overrides.topics,
+        (topic): ArchivedRow => ({
+          id: topic.id,
+          title: topic.title,
+          archivedLabel: "just now",
+        }),
+      ),
+    [serverTopics, serverArchived, overrides.topics],
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -308,13 +381,13 @@ export function TopicsView({
         ) : layout === "list" ? (
           <ul className="flex flex-col">
             {topics.map((t) => (
-              <TopicListRow key={t.id} topic={t} />
+              <TopicListRow key={t.id} topic={t} topicUi={topicUi} />
             ))}
           </ul>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {topics.map((t) => (
-              <TopicCard key={t.id} topic={t} />
+              <TopicCard key={t.id} topic={t} topicUi={topicUi} />
             ))}
           </ul>
         ))}
@@ -335,21 +408,11 @@ export function TopicsView({
         ) : (
           <ul className="flex flex-col">
             {archived.map((t) => (
-              <li key={t.id} className={cn(rowBase, "min-h-11 px-2.5 py-1.5")}>
-                <Archive className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                <Link
-                  href={`/dashboard?id=${t.id}`}
-                  className={cn("min-w-0 flex-1 truncate text-[13.5px] text-fg-2", stretchedLink)}
-                >
-                  {t.title}
-                </Link>
-                <span className="shrink-0 text-[12px] text-faint">
-                  Archived {t.archivedLabel}
-                </span>
-              </li>
+              <ArchivedListRow key={t.id} topic={t} topicUi={topicUi} />
             ))}
           </ul>
         ))}
+      {topicUi.dialogs}
     </div>
   );
 }

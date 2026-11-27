@@ -8,6 +8,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ChevronIcon } from "@/components/icons/animated";
+import { EntryContextMenu } from "@/components/shell/EntryMenu";
+import type { RowMenuEntry } from "@/components/shell/rowMenus";
 import { useSidebarUi } from "@/components/shell/SidebarUi";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +85,8 @@ export function SidebarLinkRow({
   tooltip,
   className,
   linkProps,
+  contextEntries,
+  liProps,
 }: {
   href: string;
   icon: ReactNode;
@@ -95,6 +99,9 @@ export function SidebarLinkRow({
   tooltip?: { detail?: string; always?: boolean };
   className?: string;
   linkProps?: Omit<ComponentProps<typeof Link>, "href" | "className">;
+  /** Right click on the row opens these entries, normally the same list as `menu`. */
+  contextEntries?: RowMenuEntry[];
+  liProps?: ComponentProps<"li"> & { [attribute: `data-${string}`]: string | undefined };
 }) {
   const link = (
     <Link
@@ -111,8 +118,11 @@ export function SidebarLinkRow({
     </Link>
   );
 
-  return (
-    <li className="group/row relative">
+  const row = (
+    <li
+      {...liProps}
+      className={cn("group/row relative", liProps?.className)}
+    >
       <RowTooltip
         label={label}
         detail={tooltip?.detail}
@@ -122,6 +132,12 @@ export function SidebarLinkRow({
       </RowTooltip>
       {menu}
     </li>
+  );
+
+  return contextEntries ? (
+    <EntryContextMenu entries={contextEntries}>{row}</EntryContextMenu>
+  ) : (
+    row
   );
 }
 

@@ -1,19 +1,25 @@
 import type { ReactNode } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowUpRight,
   ChevronsUpDown,
+  Download,
   Eye,
   Focus,
   Layers,
   MessageSquare,
   Pin,
   PinOff,
+  PencilLine,
   RefreshCw,
   RotateCcw,
+  Trash2,
+  X,
   SquareArrowOutUpRight,
   LayoutDashboard,
 } from "lucide-react";
-import type { ShellLessonLink, ShellTopic } from "@/lib/data/types";
+import type { ShellLessonLink } from "@/lib/data/types";
 
 /**
  * Menu entries for sidebar rows, defined once per row type so dropdowns (and a
@@ -30,6 +36,8 @@ export type RowMenuEntry =
       icon: ReactNode;
       href: string;
       newTab?: boolean;
+      /** Saves the response as a file instead of navigating. */
+      download?: boolean;
       shortcut?: string;
     }
   | { type: "copy"; id: string; label: string; href: string }
@@ -41,6 +49,8 @@ export type RowMenuEntry =
       onSelect: () => void | Promise<void>;
       shortcut?: string;
       destructive?: boolean;
+      /** The handler opens a dialog or editor, so focus must not return to the trigger. */
+      movesFocus?: boolean;
     };
 
 export function lessonHref(link: Pick<ShellLessonLink, "lessonId">) {
@@ -67,15 +77,73 @@ function lessonLinkEntries(link: ShellLessonLink): RowMenuEntry[] {
   ];
 }
 
-export function pinnedRowMenu(link: ShellLessonLink): RowMenuEntry[] {
-  return lessonLinkEntries(link);
+export function pinnedRowMenu(
+  link: ShellLessonLink,
+  handlers: { unpin: (link: ShellLessonLink) => void },
+): RowMenuEntry[] {
+  return [
+    ...lessonLinkEntries(link),
+    { type: "separator" },
+    {
+      type: "action",
+      id: "unpin",
+      label: "Unpin",
+      icon: <PinOff />,
+      onSelect: () => handlers.unpin(link),
+      shortcut: "P",
+    },
+  ];
 }
 
-export function recentRowMenu(link: ShellLessonLink): RowMenuEntry[] {
-  return lessonLinkEntries(link);
+export function recentRowMenu(
+  link: ShellLessonLink,
+  pinned: boolean,
+  handlers: {
+    pin: (link: ShellLessonLink) => void;
+    unpin: (link: ShellLessonLink) => void;
+    remove: (link: ShellLessonLink) => void;
+  },
+): RowMenuEntry[] {
+  const href = lessonHref(link);
+  return [
+    { type: "link", id: "open", label: "Open", icon: <ArrowUpRight />, href },
+    {
+      type: "action",
+      id: "pin",
+      label: pinned ? "Unpin" : "Pin",
+      icon: pinned ? <PinOff /> : <Pin />,
+      onSelect: () => (pinned ? handlers.unpin(link) : handlers.pin(link)),
+      shortcut: "P",
+    },
+    { type: "separator" },
+    {
+      type: "action",
+      id: "remove-recent",
+      label: "Remove from recent",
+      icon: <X />,
+      onSelect: () => handlers.remove(link),
+    },
+  ];
 }
 
-export function topicRowMenu(topic: Pick<ShellTopic, "id">): RowMenuEntry[] {
+/** The topic a menu acts on. `hasProgress` decides how hard Delete asks. */
+export interface TopicMenuTarget {
+  id: string;
+  title: string;
+  hasProgress: boolean;
+}
+
+export interface TopicMenuHandlers {
+  rename: (topic: TopicMenuTarget) => void;
+  archive: (topic: TopicMenuTarget) => void;
+  requestDelete: (topic: TopicMenuTarget) => void;
+}
+
+/** The one topic menu: sidebar row, topics page rows and cards, dashboard header. */
+export function topicRowMenu(
+  topic: TopicMenuTarget,
+  handlers: TopicMenuHandlers,
+): RowMenuEntry[] {
   return [
     {
       type: "link",
@@ -101,10 +169,79 @@ export function topicRowMenu(topic: Pick<ShellTopic, "id">): RowMenuEntry[] {
       href: `/flashcards?id=${topic.id}`,
     },
     {
+      type: "link",
+      id: "export-flashcards",
+      label: "Export flashcards",
+      icon: <Download />,
+      href: `/api/flashcards/export?id=${topic.id}`,
+      download: true,
+    },
+    {
       type: "copy",
       id: "copy-link",
       label: "Copy link",
       href: topicHref(topic.id),
+    },
+    { type: "separator" },
+    {
+      type: "action",
+      id: "rename",
+      label: "Rename",
+      icon: <PencilLine />,
+      onSelect: () => handlers.rename(topic),
+      shortcut: "R",
+      movesFocus: true,
+    },
+    {
+      type: "action",
+      id: "archive",
+      label: "Archive",
+      icon: <Archive />,
+      onSelect: () => handlers.archive(topic),
+    },
+    {
+      type: "action",
+      id: "delete",
+      label: "Delete",
+      icon: <Trash2 />,
+      onSelect: () => handlers.requestDelete(topic),
+      destructive: true,
+      movesFocus: true,
+    },
+  ];
+}
+
+export function archivedTopicRowMenu(
+  topic: TopicMenuTarget,
+  handlers: {
+    restore: (topic: TopicMenuTarget) => void;
+    requestDelete: (topic: TopicMenuTarget) => void;
+  },
+): RowMenuEntry[] {
+  return [
+    {
+      type: "link",
+      id: "open",
+      label: "Open",
+      icon: <ArrowUpRight />,
+      href: topicHref(topic.id),
+    },
+    {
+      type: "action",
+      id: "restore",
+      label: "Restore",
+      icon: <ArchiveRestore />,
+      onSelect: () => handlers.restore(topic),
+    },
+    { type: "separator" },
+    {
+      type: "action",
+      id: "delete",
+      label: "Delete",
+      icon: <Trash2 />,
+      onSelect: () => handlers.requestDelete(topic),
+      destructive: true,
+      movesFocus: true,
     },
   ];
 }
