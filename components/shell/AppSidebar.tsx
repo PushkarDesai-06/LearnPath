@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SidebarHeader } from "@/components/shell/SidebarHeader";
@@ -53,9 +53,14 @@ export function AppSidebar({
   );
   const groups = useSidebarGroups(data.prefs.collapsedGroups, activeId);
 
+  const navKey = `${pathname}?${search}`;
+  const lastNavKey = useRef(navKey);
+
   useEffect(() => {
+    if (lastNavKey.current === navKey) return;
+    lastNavKey.current = navKey;
     setOpenMobile(false);
-  }, [pathname, search, setOpenMobile]);
+  }, [navKey, setOpenMobile]);
 
   const navTopic = topics.find((t) => t.id === fallbackId);
 
